@@ -33,7 +33,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
       if (!secretMatches(req.headers['x-controller-key'])) return reply(403, { error: { kind: 'permission_error', message: 'pairing required' } });
       const allowedOrigin = !req.headers.origin || req.headers.origin === origin || (path.startsWith('/api/recorder/') || path === '/api/captures') && ['https://suno.com', 'https://www.suno.com'].includes(req.headers.origin);
       if (!allowedOrigin) return reply(403, { error: { kind: 'permission_error', message: 'Origin rejected' } });
-      if (req.method === 'GET' && path === '/api/status') return reply(200, state());
+      if (req.method === 'GET' && path === '/api/status') { const { auth, ...rest } = state(); return reply(200, { ...rest, authStatus: auth }); }
       if (req.method !== 'POST') return reply(404, { error: { kind: 'validation_error', message: 'route not found' } });
       if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) return reply(415, { error: { kind: 'validation_error', message: 'JSON required' } });
       let size = 0, chunks = [];

@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { CaptureStore } from '../suno/recorder/store.mjs';
 class CE extends Event { constructor(name, options) { super(name); this.detail = options?.detail; } }
 test('adapted real userscript keeps auth out of workbench, returns status and cancels GM transport', async () => {
   let source = await readFile(new URL('../userscripts/local-transport.user.js', import.meta.url), 'utf8');
@@ -53,6 +57,19 @@ test('official recorder observes fetch and XHR without consuming responses and s
   await delivery.promise;
   const captured = records.filter((x) => x.url.endsWith('/api/captures'));
   assert.equal(captured.length, 2); assert.ok(!JSON.stringify(captured).includes(marker));
+  assert.ok(captured.every((x) => x.value.sessionId === 'session-one'));
+  // Exercise the actual producer -> ingestion/store contract, including metadata redaction.
+  const dir = await mkdtemp(join(tmpdir(), 'suno-recorder-contract-'));
+  try {
+    const store = new CaptureStore(dir); const session = await store.start('contract');
+    for (const item of captured) {
+      const value = { ...item.value, sessionId: session.id };
+      assert.equal((await store.add(value)).count, store.active.count);
+    }
+    await store.stop(); const names = await readdir(join(dir, session.id)); assert.equal(names.length, 5);
+    const disk = (await Promise.all(names.map((n) => readFile(join(dir, session.id, n), 'utf8')))).join('');
+    assert.ok(!disk.includes(marker)); assert.ok(disk.includes('fixture'));
+  } finally { await rm(dir, { recursive: true, force: true }); }
   assert.deepEqual(new Set(captured.map((x) => x.value.source)), new Set(['fetch', 'xhr']));
   listeners[0]('', null, { sessionId: null, at: Date.now() });
   await w.fetch('https://studio-api-prod.suno.com/transport-fixture'); await new Promise((r) => setImmediate(r));

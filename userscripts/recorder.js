@@ -41,7 +41,9 @@
     try {
       pending = Math.max(0, pending - 1);
       if (queued.length >= 100) { dropped++; lastError = 'capture queue full'; return; }
-      queued.push({ config: c, value: p.redact(value), attempts: 0 }); void pump();
+      // The capture envelope is our local correlation ID, not an auth session ID.
+      // Restore only this trusted controller-issued field after body redaction.
+      queued.push({ config: c, value: { ...p.redact(value), sessionId: c.sessionId }, attempts: 0 }); void pump();
     } catch { dropped++; lastError = 'capture serialization failed'; }
   }
   setInterval(() => {
