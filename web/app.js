@@ -17,9 +17,9 @@ function connect() {
     let m; try { m = JSON.parse(data); } catch { return; }
     if (m.type === 'status') {
       $('connection').textContent = `Browser bridge：${m.bridgeOnline ? '在线' : '离线'}`;
-      $('auth').textContent = `Suno auth：${m.auth.ready ? 'ready（油猴有效会话缓存）' : m.auth.state}`;
+      $('auth').textContent = `Suno auth：${m.auth.ready ? 'ready（油猴有效会话缓存）' : m.auth.state}${m.auth.version ? ' · v' + m.auth.version : ''}`;
       const r = m.recorder;
-      $('recorder').textContent = `官方 recorder：${r.online ? r.activeSession ? 'active' : 'idle' : '未连接'} · 队列 ${r.queued || 0} · 丢失 ${r.dropped || 0}${r.lastError ? ' · ' + r.lastError : ''}`;
+      $('recorder').textContent = `官方 recorder：${r.online ? r.activeSession ? 'active' : 'idle' : '未连接'} · 请求未完成 ${r.pending || 0} · 队列 ${r.queued || 0} · 丢失 ${r.dropped || 0}${r.lastError ? ' · ' + r.lastError : ''}`;
       $('capture').textContent = `Capture：${m.capture?.id || '未开启'} · 已记录 ${m.capture?.count || 0}`;
       dispatch('suno-local-recorder-config', { base: location.origin, key, sessionId: m.capture?.active ? m.capture.id : null });
       dispatch('suno-local-auth-state-request', {});
@@ -46,7 +46,7 @@ window.addEventListener('suno-console-upload-response', (e) => {
   send({ ...SunoPrivacy.redact(data), type: 'suno_api_response' });
 });
 window.addEventListener('suno-local-auth-state', (e) => {
-  send({ type: 'auth_status', ready: e.detail?.ready === true, state: String(e.detail?.state || 'unknown') });
+  send({ type: 'auth_status', ready: e.detail?.ready === true, state: String(e.detail?.state || 'unknown'), version: e.detail?.version, buildId: e.detail?.buildId });
 });
 async function action(path, body = {}) {
   try {
