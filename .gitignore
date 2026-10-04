@@ -1,0 +1,8 @@
+node_modules/
+captures/
+deliverables/
+.evidence-staging/
+userscripts/local-transport.user.js
+*.log
+.env
+
