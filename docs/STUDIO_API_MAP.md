@@ -167,3 +167,9 @@ Client 范围：`create_project()` 当前只放行 Untitled Project、major_vers
 优先操作现状：参考源码未揭示内部 Studio 创建/读取（此前官方证据仍有效）、track/clip、timeline positioning、clip 参数、保存/commit、render/export 的底层 Suno请求。全部新增 schema 仍 UNKNOWN。网站后端可能负责这些动作，但收到的代码和这次未付费运行时证据不足以确认实现；不调用受费控保护的端点、不修改权限字段来补足。
 
 WASM 仅发现本地 MP3 编码静态引用，浏览器未加载二进制；不声称完成 WASM 逆向。此次导航的 bridge 事件数=0，因此没有新的实际 Suno 请求可供单独重播。
+
+### 未付费运行时复验与 transport 恢复
+
+2026-10-05 再次正常打开参考网站“项目”：网站 GET `/api/projects` HTTP 200，`projects=[]`、`auth` 仅保留类型；耗时 736.542 ms（CDP responseReceived）。request/response/cancel 事件均为 0，仍为网站 backend 的 **OBSERVED**，未新增 Suno Studio endpoint 或提升 VERIFIED。
+
+脱敏网络记录通过现有 controller ingress 入库到 `captures/reference/2026-10-04T19-42-34-384Z-6a1c8d55/`，两条真实确认，已停止。证据链注明 `devtools-network-relay`，不冒充生产 GM recorder 验证。另一次显式真实只读集成测试证明 v1.3.15 的通用 transport 可用；不代表编辑/保存/导出可用。旧 v1.3.11 面板仍出现，后续写操作必须先消除共用事件 listener 冲突。详情见 [REFERENCE_RUNTIME_REPORT.md](REFERENCE_RUNTIME_REPORT.md)。
