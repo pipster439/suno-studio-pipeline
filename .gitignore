@@ -3,6 +3,6 @@ captures/
 deliverables/
 .evidence-staging/
 userscripts/local-transport.user.js
+userscripts/reference-recorder.user.js
 *.log
 .env
-

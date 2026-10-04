@@ -3,13 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build:userscript": "node scripts/build-userscript.mjs",
+    "build:reference-recorder": "node scripts/build-reference-recorder.mjs",
     "start": "node suno/server.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:live": "node --test tests/live.integration.mjs"
   },
-  "bin": { "sunoctl": "./suno/cli.mjs" },
-  "dependencies": { "ws": "^8.18.3" }
+  "bin": {
+    "sunoctl": "./suno/cli.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "acorn": "^8.18.0"
+  }
 }

@@ -23,6 +23,13 @@ function connect() {
       $('capture').textContent = `Capture：${m.capture?.id || '未开启'} · 已记录 ${m.capture?.count || 0}`;
       dispatch('suno-local-recorder-config', { base: location.origin, key, sessionId: m.capture?.active ? m.capture.id : null });
       dispatch('suno-local-auth-state-request', {});
+      const ref = m.reference;
+      if (ref) {
+        const r = ref.recorder;
+        $('reference-status').textContent = `参考 recorder：${r.online ? '在线' : '未连接'}${r.version ? ' · v' + r.version : ''} · 待响应 ${r.pending || 0} · 队列 ${r.queued || 0} · 丢失 ${r.dropped || 0} · 省略 ${r.omissions || 0}${r.lastError ? ' · ' + r.lastError : ''}`;
+        $('reference-capture').textContent = `Reference capture：${ref.capture?.id || '未开启'} · 事件 ${ref.capture?.count || 0}`;
+        dispatch('suno-reference-recorder-config', { base: location.origin, key, sessionId: ref.capture?.active ? ref.capture.id : null });
+      }
     } else if (m.type === 'suno_api_request') {
       if (inflight.has(m.id)) return;
       inflight.set(m.id, setTimeout(() => {
@@ -34,6 +41,7 @@ function connect() {
   socket.onclose = (e) => {
     for (const id of [...inflight.keys()]) cancel(id);
     dispatch('suno-local-recorder-config', { base: location.origin, key, sessionId: null });
+    dispatch('suno-reference-recorder-config', { base: location.origin, key, sessionId: null });
     $('connection').textContent = 'Browser bridge：离线'; $('auth').textContent = 'Suno auth：未知';
     if (e.code === 1008) { reconnect = false; show({ error: '配对被拒绝或已有 bridge 连接，检查配对码并关闭重复页面' }); }
     if (reconnect) { retry = setTimeout(connect, delay); delay = Math.min(delay * 2, 10000); }
@@ -59,5 +67,7 @@ $('refresh').onclick = () => dispatch('suno-auth-sync-request', {});
 $('probe').onclick = () => action('/api/probe');
 $('start').onclick = () => action('/api/capture/start', { label: $('label').value });
 $('stop').onclick = () => action('/api/capture/stop');
+$('reference-start').onclick = () => action('/api/reference/start', { label: $('reference-label').value });
+$('reference-stop').onclick = () => action('/api/reference/stop');
 setInterval(() => dispatch('suno-local-auth-state-request', {}), 3000);
 if (key) connect();

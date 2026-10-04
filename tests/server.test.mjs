@@ -41,6 +41,18 @@ test('localhost server uses real WebSocket, pairing, raw-call, capture dedup/red
     const names = await readdir(join(dir, session.id)); assert.deepEqual(names.sort(), ['001-request.json', '001-response.json', 'summary.md']);
     const disk = (await Promise.all(names.map((n) => readFile(join(dir, session.id, n), 'utf8')))).join('');
     assert.ok(!disk.includes('PRIVACY_TEST_SECRET_ONLY')); assert.ok(disk.includes('example-id'));
+    // Reference origins get recorder ingress only, never controller calls or capture control.
+    for (const path of ['/api/call','/api/reference/start']) assert.equal((await post(path,{path:'/transport-fixture'},{Origin:'https://sunouploader.site'})).status,403);
+    const reference=(await post('/api/reference/start',{label:'reference-test'})).body;
+    const event={sessionId:reference.id,recordId:'ref-event',pageId:'ref-page',kind:'backend_response',sequence:1,timestamp:new Date().toISOString(),pageUrl:'https://sunouploader.site/',data:{url:'https://sunouploader.site/api/me',status:200,body:{opaque:'PRIVACY_TEST_SECRET_ONLY'}}};
+    assert.equal((await post('/api/reference/events',event,{Origin:'https://sunouploader.site'})).body.count,1);
+    assert.equal((await post('/api/reference/events',event,{Origin:'https://sunouploader.site'})).body.duplicate,true);
+    assert.equal((await post('/api/reference/events',{...event,recordId:'wrong-origin',pageUrl:'https://evil.example/'})).status,502);
+    assert.equal((await post('/api/reference/status',{pageId:'ref-page',version:'1.0.0',buildId:'a'.repeat(64)},{Origin:'https://sunouploader.site'})).status,200);
+    assert.equal(app.state().reference.recorder.online,true);
+    assert.equal((await post('/api/reference/stop',{})).body.count,1);
+    const refDisk=await readFile(join(dir,'reference',reference.id,'events','000001.json'),'utf8');
+    assert.ok(!refDisk.includes('PRIVACY_TEST_SECRET_ONLY'));assert.ok(refDisk.includes('authentication-account-payment-body'));
     const disconnected = post('/api/call', { path: '/transport-fixture', requestId: 'disconnect' });
     await new Promise((r) => ws.once('message', (raw) => { if (JSON.parse(raw).type === 'suno_api_request') r(); else r(); }));
     const closed = once(ws, 'close'); ws.close(); await closed;

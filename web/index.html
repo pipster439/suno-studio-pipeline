@@ -10,5 +10,11 @@
 <a href="/local-transport.user.js" target="_blank" rel="noopener">安装本地 transport + recorder</a></section>
 <section><h2>一次只记录一个动作</h2><label>操作标记 <input id="label" value="create-empty-project" maxlength="80"></label><button id="start">开始新 capture</button><button id="stop">停止 capture</button>
 <p>开始后才捕获官方 /studio 页面发往 studio-api-prod.suno.com 的 fetch/XHR。请等待官方 recorder 显示 active，并且队列为 0 后操作。DevTools 无需打开。</p></section>
+<section><h2>参考客户端工作流 Recorder</h2><p>独立观察 sunouploader.site 的请求/响应事件及网站后端调用，不接管其认证或业务操作。</p>
+<p id="reference-status">参考 recorder：未连接</p><p id="reference-capture">Reference capture：未开启</p>
+<a href="/reference-recorder.user.js" target="_blank" rel="noopener">安装独立参考 recorder</a>
+<label>动作标记 <input id="reference-label" value="unpaid-navigation" maxlength="100"></label>
+<button id="reference-start">开始参考 capture</button><button id="reference-stop">停止参考 capture</button>
+<p>可在未付费状态观察正常导航。采集开始后，在参考页面的 recorder 面板中点击“动作开始”和“动作完成”。一次只执行一个动作，不提交付费任务。</p></section>
 <section><h2>结果</h2><pre id="result">等待配对。不会自动调用任何 Suno API。</pre></section>
 </main><script src="/privacy.js"></script><script type="module" src="/app.js"></script></html>
