@@ -18,7 +18,7 @@ test('adapted real userscript keeps auth out of workbench, returns status and ca
   const values = new Map([['sunoConsoleAuthSync:payload', { headers: { authorization: credential, 'device-id': 'fixture-device' } }]]);
   const gmCalls = [], backendCalls = []; let status = 200, hold = false, aborted = false;
   const sandbox = { window: w, unsafeWindow: w, location: { hostname: '127.0.0.1', origin: 'http://127.0.0.1:3000' }, document: {},
-    CustomEvent: CE, atob, btoa, URL, Headers, performance, setInterval: () => 1, setTimeout, clearTimeout, crypto: webcrypto,
+    CustomEvent: CE, atob, btoa, URL, URLSearchParams, Headers, performance, setInterval: () => 1, setTimeout, clearTimeout, crypto: webcrypto,
     fetch: (...args) => { backendCalls.push(args); return Promise.reject(new Error('unexpected backend auth call')); },
     GM_getValue: (k, d) => values.get(k) ?? d, GM_setValue: (k, v) => values.set(k, v), GM_deleteValue: (k) => values.delete(k), GM_addValueChangeListener: () => {}, GM_openInTab: () => {},
     GM_xmlhttpRequest: (opts) => { gmCalls.push(opts); if (!hold) queueMicrotask(() => opts.onload({ status, responseText: JSON.stringify({ id: 'fixture', token: 'fixture-secret' }), statusText: 'fixture' })); return { abort() { aborted = true; opts.onabort(); } }; } };
@@ -47,17 +47,20 @@ test('official recorder observes fetch and XHR without consuming responses and s
   const native = async () => new Response(JSON.stringify({ id: 'fixture', cookie: marker }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   const w = { fetch: native, Headers, Request, XMLHttpRequest: XHR };
   const sandbox = { window: w, unsafeWindow: w, location: { hostname: 'suno.com', pathname: '/studio', href: 'https://suno.com/studio' },
-    Headers, Request, Response, URL, TextDecoder, Uint8Array, crypto: webcrypto, performance, setTimeout, clearTimeout,
+    Headers, Request, Response, URL, URLSearchParams, TextDecoder, Uint8Array, crypto: webcrypto, performance, setTimeout, clearTimeout,
     setInterval: (f) => intervals.push(f), GM_getValue: () => ({ base: 'http://127.0.0.1:3000', key: 'fixture', sessionId: 'session-one', at: Date.now() }),
     GM_addValueChangeListener: (_k, f) => listeners.push(f), GM_xmlhttpRequest: (opts) => { records.push({ url: opts.url, value: JSON.parse(opts.data) }); queueMicrotask(() => { opts.onload({ status: 200 }); if (records.filter((x) => x.url.endsWith('/api/captures')).length === 2) delivery.resolve(); }); } };
   vm.runInNewContext(privacy + '\n' + recorder, sandbox);
   const r = await w.fetch('https://studio-api-prod.suno.com/transport-fixture?signature=' + marker, { method: 'POST', headers: { authorization: marker }, body: JSON.stringify({ id: 'fixture', captcha_token: marker }) });
   assert.equal((await r.json()).id, 'fixture');
-  const xhr = new XHR(); xhr.open('PATCH', 'https://studio-api-prod.suno.com/transport-fixture'); xhr.setRequestHeader('device-id', marker); xhr.send(JSON.stringify({ token: marker, position: 2 }));
+  const xhr = new XHR(); xhr.open('PATCH', 'https://studio-api-prod.suno.com/transport-fixture?title=Untitled%20Project&major_version=2&project_id=fixture&clip_id=fixture-clip&offset=0.5&duration=2&position=3&unknown=' + marker); xhr.setRequestHeader('device-id', marker); xhr.send(JSON.stringify({ token: marker, position: 2 }));
   await delivery.promise;
   const captured = records.filter((x) => x.url.endsWith('/api/captures'));
   assert.equal(captured.length, 2); assert.ok(!JSON.stringify(captured).includes(marker));
   assert.ok(captured.every((x) => x.value.sessionId === 'session-one'));
+  const xhrCapture = captured.find((x) => x.value.source === 'xhr').value;
+  const query = new URL(xhrCapture.request.url).searchParams;
+  for (const [key, v] of Object.entries({ title: 'Untitled Project', major_version: '2', project_id: 'fixture', clip_id: 'fixture-clip', offset: '0.5', duration: '2', position: '3' })) assert.equal(query.get(key), v);
   // Exercise the actual producer -> ingestion/store contract, including metadata redaction.
   const dir = await mkdtemp(join(tmpdir(), 'suno-recorder-contract-'));
   try {
@@ -69,6 +72,10 @@ test('official recorder observes fetch and XHR without consuming responses and s
     await store.stop(); const names = await readdir(join(dir, session.id)); assert.equal(names.length, 5);
     const disk = (await Promise.all(names.map((n) => readFile(join(dir, session.id, n), 'utf8')))).join('');
     assert.ok(!disk.includes(marker)); assert.ok(disk.includes('fixture'));
+    const storedRequests = await Promise.all(names.filter((n) => n.endsWith('-request.json')).map(async (n) => JSON.parse(await readFile(join(dir, session.id, n), 'utf8'))));
+    const stored = storedRequests.find((r) => r.source === 'xhr');
+    assert.equal(new URL(stored.url).searchParams.get('title'), 'Untitled Project');
+    assert.equal(new URL(stored.url).searchParams.get('position'), '3');
   } finally { await rm(dir, { recursive: true, force: true }); }
   assert.deepEqual(new Set(captured.map((x) => x.value.source)), new Set(['fetch', 'xhr']));
   listeners[0]('', null, { sessionId: null, at: Date.now() });

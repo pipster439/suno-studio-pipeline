@@ -2,12 +2,20 @@
   'use strict';
   const MASK = '<redacted>';
   const sensitive = /authorization|cookie|jwt|token|captcha|secret|password|credential|device|signature|api[-_]?key|session[-_]?id|^(?:auth|session|sid)$/i;
+  const businessQueryKeys = new Set(['title', 'major_version', 'project_id', 'clip_id', 'offset', 'duration', 'position']);
+  const signedQueryKey = /signature|^sig$|^x-amz-|^x-goog-|^policy$|^key-pair-id$|token|credential/i;
   function url(value) {
     try {
       const relative = value.startsWith('/');
       const u = new URL(value, 'https://studio-api-prod.suno.com');
       u.username = ''; u.password = ''; u.hash = '';
-      for (const key of [...u.searchParams.keys()]) u.searchParams.set(key, MASK);
+      const allowBusiness = u.origin === 'https://studio-api-prod.suno.com' &&
+        ![...u.searchParams.keys()].some((key) => signedQueryKey.test(key));
+      const query = new URLSearchParams();
+      for (const [key, v] of u.searchParams) {
+        query.append(key, allowBusiness && businessQueryKeys.has(key) ? string(v) : MASK);
+      }
+      u.search = query.toString();
       return relative ? u.pathname + u.search : u.href;
     } catch { return '<invalid-url>'; }
   }

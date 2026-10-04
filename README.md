@@ -85,7 +85,7 @@ Remove-Item Env:SUNO_CONTROLLER_KEY
 
 - 原 `vendor/suno-original.user.js` 原样保留；生成脚本将工作台 `/api/auth` 上传和账号 fetch 分支禁用、自动更新检查禁用。`tests/userscript.test.mjs` 实际执行适配源码，断言无后端 auth 请求，并覆盖 401 和取消。
 - 原脚本认证仍存在 **用户浏览器 Tampermonkey 的 AUTH_KEY 持久存储**。本项目不声称整个浏览器从未保存 JWT；保证 controller 不默认保存它，也不把 auth 同步给 controller。
-- 所有 header 除少量安全展示字段外掩码；JSON credential/device/token/cookie 字段递归掩码，JWT/Bearer 文本替换，URL 所有 query 值掩码、userinfo/hash 移除，非 JSON/超限 body 省略。共享脱敏代码由浏览器和后端使用。脱敏有意牺牲部分未知字段的可复现性，不能直接从日志重播 credential。
+- 所有 header 除少量安全展示字段外掩码；JSON credential/device/token/cookie 字段递归掩码，JWT/Bearer 文本替换，userinfo/hash 移除，非 JSON/超限 body 省略。自 v1.3.15 起，普通 `https://studio-api-prod.suno.com` URL query 精确保留 `title`、`major_version`、`project_id`、`clip_id`、`offset`、`duration`、`position`（区分大小写），其余 query 值仍掩码。这些业务字段在 JSON body 中原本就保留，不因此放行 header。值中可识别的 JWT/Bearer/credential 文本仍替换；含签名/token/credential 参数的 URL 以及外部 URL 的所有 query 值仍掩码。重复 query 键和顺序保留，浏览器/后端使用同一策略。该白名单只改变记录策略，不证明同名字段属于任何 Studio API。
 - `npm test` 使用固定合成敏感标记，扫描落盘捕获确认没有标记且保留业务 ID。可在本机检查实际 capture：`node scripts/check-captures.mjs`；该工具只输出文件数和疑似泄露文件路径，不显示匹配值。扫描是补充检查，不能证明任意未知命名的 opaque secret 都可被识别；共享前仍需复核。
 - captures、generated userscript、node_modules、交付包均被 Git 忽略。生成日志只包含测试输出/脱敏状态，证据包不包含认证、raw session 响应或启动配对 URL。controller 无数据库、无 session cookie 文件、无 credential cache。
 

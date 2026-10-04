@@ -64,3 +64,39 @@ test('all Studio operations remain unimplemented', () => {
   const client = new StudioClient({});
   for (const key of Object.getOwnPropertyNames(StudioClient.prototype).filter((k) => k !== 'constructor')) assert.throws(() => client[key](), NotImplementedError);
 });
+
+test('business query allowlist survives both redaction passes while signed and foreign URLs stay masked', () => {
+  const fields = { title: 'Untitled Project', major_version: '2', project_id: 'project-example', clip_id: 'clip-example', offset: '0.25', duration: '3.5', position: '-1' };
+  const params = new URLSearchParams(fields);
+  params.append('unknown', 'PRIVATE_UNKNOWN'); params.append('cookie', 'PRIVATE_COOKIE');
+  params.append('position', '2');
+  const raw = 'https://studio-api-prod.suno.com/transport-fixture?' + params;
+  const once = privacy.url(raw), twice = privacy.url(once);
+  assert.equal(twice, once);
+  const query = new URL(once).searchParams;
+  for (const [key, v] of Object.entries(fields)) assert.equal(query.get(key), v);
+  assert.deepEqual(query.getAll('position'), ['-1', '2']);
+  for (const key of ['unknown', 'cookie']) assert.equal(query.get(key), privacy.MASK);
+  assert.equal(new URL(privacy.url(raw.replace('studio-api-prod.suno.com', 'cdn.example'))).searchParams.get('title'), privacy.MASK);
+  for (const key of ['X-Amz-Signature', 'X-Goog-Credential', 'Signature', 'sig', 'token', 'Policy', 'Key-Pair-Id']) {
+    const signed = new URL(privacy.url(raw + '&' + key + '=PRIVATE_SIGNATURE'));
+    for (const v of signed.searchParams.values()) assert.equal(v, privacy.MASK);
+  }
+  const relative = privacy.url('/transport-fixture?title=hello%20world&major_version=2&TITLE=private');
+  const rq = new URL(relative, 'https://studio-api-prod.suno.com').searchParams;
+  assert.equal(rq.get('title'), 'hello world'); assert.equal(rq.get('TITLE'), privacy.MASK);
+  const nested = privacy.body(JSON.stringify({ ...fields, authorization: 'PRIVATE_AUTH', url: raw }));
+  for (const [key, v] of Object.entries(fields)) assert.equal(nested[key], v);
+  assert.equal(nested.authorization, privacy.MASK);
+  assert.equal(new URL(nested.url).searchParams.get('project_id'), fields.project_id);
+  assert.equal(privacy.headers({ title: fields.title }).title, privacy.MASK);
+});
+
+test('allowlisted query values still scrub recognizable credentials and nested signed URLs', () => {
+  const jwt = 'abcdefghijk.abcdefghijk.abcdefghijk';
+  const nested = 'https://cdn.example/audio?Signature=PRIVATE_SIGNED';
+  const params = new URLSearchParams({ title: 'Bearer PRIVATE_TOKEN', project_id: jwt, clip_id: nested, duration: 'authorization=PRIVATE_AUTH' });
+  const redacted = privacy.url('/transport-fixture?' + params);
+  assert.ok(!redacted.includes('PRIVATE_')); assert.ok(!redacted.includes('abcdefghijk'));
+  assert.ok(!JSON.stringify(privacy.redact({ title: jwt, position: 'Bearer PRIVATE_TOKEN' })).includes('PRIVATE_'));
+});
