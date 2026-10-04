@@ -12,6 +12,9 @@
     } catch { return '<invalid-url>'; }
   }
   function string(value) {
+    if (/^\s*[\[{]/.test(value)) {
+      try { return JSON.stringify(redact(JSON.parse(value))); } catch { /* not nested JSON */ }
+    }
     if (value.startsWith('/') && value.includes('?')) return url(value);
     return value.replace(/https?:\/\/[^\s"<>]+/gi, (v) => url(v))
       .replace(/\bBearer\s+[^\s,;"<>]+/gi, 'Bearer <redacted>')

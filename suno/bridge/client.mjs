@@ -14,12 +14,19 @@ export class SunoBridge {
     return data;
   }
   async call(options, { signal } = {}) {
-    validateCall(options);
+    const valid = validateCall(options);
     const requestId = options.requestId || randomUUID();
     const abort = () => { void this.cancel(requestId).catch(() => {}); };
     if (signal?.aborted) throw new BridgeError('cancelled', 'cancelled before dispatch');
     signal?.addEventListener('abort', abort, { once: true });
-    try { return await this.request('/api/call', { ...options, requestId }); }
+    const deadline = AbortSignal.timeout(valid.timeoutMs + 2000);
+    const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    try { return await this.request('/api/call', { ...options, requestId }, combined); }
+    catch (e) {
+      if (combined.aborted) throw new BridgeError(signal?.aborted ? 'cancelled' : 'timeout', 'local wait ended; remote outcome may be unknown');
+      if (e instanceof BridgeError) throw e;
+      throw new BridgeError('network_error', 'controller connection failed');
+    }
     finally { signal?.removeEventListener('abort', abort); }
   }
   cancel(requestId) { return this.request('/api/cancel', { requestId }); }
