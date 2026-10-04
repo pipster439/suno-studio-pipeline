@@ -142,3 +142,28 @@ status: 200; browser durationMs: 1217
 Client 范围：`create_project()` 当前只放行 Untitled Project、major_version=2；其他标题/版本直接 NotImplementedError。`get_project_metadata(id)` 只读取上述六字段 metadata，保留未来额外字段。`get_project()` 的完整工程状态、素材、clip、位置、保存、重载与导出继续 NotImplementedError。
 
 官方 UI 仍有 Preview / Upgrade to edit。创建及元数据读取验证不证明编辑、保存或导出权限。下一轮只观察添加一个已有音频；先确认用户是否有可编辑 Studio 工程。工程列表路由 `GET /api/studio/list-projects` 及 limit/name/archived/sort_order query 键为本次实际 **OBSERVED**，query 值仍脱敏，未重播、不实现列表 API。
+
+## 参考客户端公开代码与未付费观察（2026-10-05）
+
+证据来源扩展为 sunouploader.site 已下发前端与正常未付费导航，不要求执行付费工作流。详细函数/offset/body模板见 [REFERENCE_CLIENT_ANALYSIS.md](REFERENCE_CLIENT_ANALYSIS.md)。原有 VERIFIED 创建/metadata 范围未变化。
+
+| 实际代码中的调用 | 分类 | Evidence kind | 状态 | Verified |
+|---|---|---|---|---|
+| POST `/api/uploads/audio/` | Suno 通用上传签名 | STATIC_CLIENT | UNKNOWN（代码模板已提取，尚无本轮运行/重播） | no |
+| POST `/api/uploads/audio/{encoded observed upload id}/upload-finish/` | Suno 上传完成 | STATIC_CLIENT | UNKNOWN | no |
+| GET `/api/uploads/audio/{encoded observed upload id}/` | Suno 上传处理状态 | STATIC_CLIENT | UNKNOWN | no |
+| POST `/api/uploads/audio/{encoded observed upload id}/initialize-clip/` | 上传作品 clip，不能视为 timeline clip | STATIC_CLIENT | UNKNOWN | no |
+| POST `/api/gen/{encoded returned clip id}/set_metadata/` | 作品 metadata | STATIC_CLIENT | UNKNOWN | no |
+| POST `/api/project/{encoded workspace id}/clips` | 工作区引用作品，不能视为 Studio track | STATIC_CLIENT | UNKNOWN | no |
+| GET `/api/project/me?...`；GET `/api/project/feed?...`；GET `/api/project/{encoded workspace id}/feed?...` | 工作区目录/作品 | STATIC_CLIENT | UNKNOWN | no |
+| POST `/api/feed/v3`；GET `/api/clips/get_songs_by_ids?ids=...`；GET `/api/clip/{encoded id}[/]` | 作品库 | STATIC_CLIENT | UNKNOWN | no |
+| GET `/api/persona/get-personas/?page=...` | persona 列表 | STATIC_CLIENT | UNKNOWN | no |
+| GET `/api/billing/info/` | 账户信息；排除重播 | STATIC_CLIENT / excluded | UNKNOWN | no |
+| 网站 GET `https://sunouploader.site/api/projects` | 参考网站自己的资源 API | RUNTIME / website backend | OBSERVED（200、首个响应 projects=[]） | no（未重播） |
+| 网站 POST `https://sunouploader.site/api/merge`；POST `/api/export` | 后端合并/导出入口，非 Suno endpoint | STATIC_CLIENT / website backend | UNKNOWN（模板已提取） | no |
+
+上面的占位段仅是源码 encodeURIComponent 动态拼接的描述，不是猜测具体 ID；方法与 body 原始表达式保存在 analysis.json。模板缺少运行时证据，不填 VERIFIED_ENDPOINTS，不新增 StudioClient 方法。
+
+优先操作现状：参考源码未揭示内部 Studio 创建/读取（此前官方证据仍有效）、track/clip、timeline positioning、clip 参数、保存/commit、render/export 的底层 Suno请求。全部新增 schema 仍 UNKNOWN。网站后端可能负责这些动作，但收到的代码和这次未付费运行时证据不足以确认实现；不调用受费控保护的端点、不修改权限字段来补足。
+
+WASM 仅发现本地 MP3 编码静态引用，浏览器未加载二进制；不声称完成 WASM 逆向。此次导航的 bridge 事件数=0，因此没有新的实际 Suno 请求可供单独重播。

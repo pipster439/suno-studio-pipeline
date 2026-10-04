@@ -14,6 +14,7 @@ Node.js 单进程 + 原生浏览器页面 + 一个依赖 ws，无数据库或前
 cd G:\Suno
 npm ci --ignore-scripts
 npm run build:userscript
+npm run build:reference-recorder
 npm start
 ```
 
@@ -104,3 +105,29 @@ Remove-Item Env:SUNO_CONTROLLER_KEY
 回滚：Ctrl+C 正常关闭 controller，在 Tampermonkey 禁用本地版本、恢复旧版并刷新页面。生成文件可从保留源重建，不修改 Downloads 的原文件。
 
 实现参考：[ws 官方文档](https://github.com/websockets/ws)；响应 clone 的限制与分支缓冲行为见 [MDN Response.clone](https://developer.mozilla.org/en-US/docs/Web/API/Response/clone)，本 recorder 限制读取并取消观察分支。
+
+## 参考网站 recorder 与静态分析
+
+当前分析不依赖付费任务执行。静态资源来源、函数/参数模板及未付费正常导航证据见 [REFERENCE_CLIENT_ANALYSIS.md](docs/REFERENCE_CLIENT_ANALYSIS.md)。Acorn 只是开发工具，解析已收到的代码，不执行它。`npm ci --ignore-scripts` 同时安装 dev dependency。
+
+参考 recorder 与本地 transport v1.3.15 独立，**不替代网站原有 bridge、不获取或同步 Suno auth、不执行业务请求**。若以后需要连续观察：本地页点击“安装独立参考 recorder”，在 Tampermonkey 安装独立脚本，然后刷新本地页与参考页。它的 GM 权限只允许 POST 到 127.0.0.1；配置使用独立 namespace。无需重新安装本地 transport。只保留一个参考标签页，刷新后旧 heartbeat 最多残留10秒。
+
+本地页 Reference recorder 显示在线后，输入 capture 名称并开始。参考页左下角观察面板填写当前单个动作、点“动作开始”；正常完成该动作，等待待响应/队列归零，再点“动作完成”。当前未付费观察可用“打开项目列表”，不提交付费合并/导出。结束本地 capture 后查看 `captures/reference/<session>/events/000001.json`、`timeline.jsonl`、`summary.md`。
+
+console_request/response/cancel、网站 backend_request/response、实际页面 Suno fetch/XHR 和 marker 分别保存。requestId 在 pageId 内关联；重复请求、重复/孤立响应不丢弃，recordId 只去掉入库重试副本。late response 使用请求开始的 marker，另存 observedMarker；按 timestamp/sequence 分析，文件入库顺序不是请求顺序。成功事件没 status 时为 null，绝不填200。
+
+认证/账户/计费相关网站 body 强制省略，headers 默认掩码，bodyJson 中嵌套 JSON 的 headers 也脱敏。保留其余 JSON 结构；1 MiB body、10秒读取、深度/节点/数组上限导致省略时明确记录原因，不能作为完整重播输入。queue200/retry10仅适用于本地日志投递，绝不重试网站/Suno业务请求。未覆盖 Worker、iframe、WebSocket/sendBeacon、第三方签名媒体上传；UI snapshot 只读非敏感表单值/文件metadata，不读隐藏状态或账号中心全文。
+
+```powershell
+# 用当前临时 localhost key；勿保存或分享配对 URL
+node suno/cli.mjs reference-start --label unpaid-navigation
+node suno/cli.mjs reference-stop
+# 下列先生成计划，不发网络请求；不需要 key
+node suno/cli.mjs reference-replay --session '<实际 session id>' --record '<实际六位 console_request 序号>'
+# 仅实际成功观察、确认业务后显式单次执行。缺少/脱敏 body、歧义、取消、权限字段均拒绝。
+node suno/cli.mjs reference-replay --session '<实际 session id>' --record '<实际六位序号>' --execute
+```
+
+replay 只接受成功匹配的 console_request，不接受网站 `/api/...`、AST模板或 marker。使用新的 requestId，经现有 SunoBridge.call 执行一次；回执另存 replays/，不会自动升为 VERIFIED。涉及新 ID 的后续请求必须重新核对实际参数和读取状态，尚无自动 ID 替换。当前静态分析没有产生可重播的新 Studio 请求，本轮未执行任何新模板。
+
+停止 capture 或禁用独立 recorder 后刷新参考页即可回滚观察；localhost backend 不改第三方网站。独立脚本未经此次真实浏览器安装验证，当前运行时证据来自临时 CDP观察，而非宣称该脚本已在线。
