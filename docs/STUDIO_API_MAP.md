@@ -173,3 +173,27 @@ WASM 仅发现本地 MP3 编码静态引用，浏览器未加载二进制；不�
 2026-10-05 再次正常打开参考网站“项目”：网站 GET `/api/projects` HTTP 200，`projects=[]`、`auth` 仅保留类型；耗时 736.542 ms（CDP responseReceived）。request/response/cancel 事件均为 0，仍为网站 backend 的 **OBSERVED**，未新增 Suno Studio endpoint 或提升 VERIFIED。
 
 脱敏网络记录通过现有 controller ingress 入库到 `captures/reference/2026-10-04T19-42-34-384Z-6a1c8d55/`，两条真实确认，已停止。证据链注明 `devtools-network-relay`，不冒充生产 GM recorder 验证。另一次显式真实只读集成测试证明 v1.3.15 的通用 transport 可用；不代表编辑/保存/导出可用。旧 v1.3.11 面板仍出现，后续写操作必须先消除共用事件 listener 冲突。详情见 [REFERENCE_RUNTIME_REPORT.md](REFERENCE_RUNTIME_REPORT.md)。
+
+## 官方已下发源码模板（2026-10-05）
+
+117 个实际出现的官方 JS chunk 中，提取 25 处调用、17 个不同 `/api/studio/` literal 模板。以下新增候选全部 **STATIC_CLIENT / UNKNOWN / Verified=no**，未实际调用，未放入已验证 endpoint registry。此前默认 create-project 与 metadata GET 的 VERIFIED 范围保持不变。原表达式、函数/字符/byte offset、来源哈希见 `captures/official-static/20261005/analysis.json`；详细调用关系与状态字段见 [OFFICIAL_STUDIO_STATIC_REPORT.md](OFFICIAL_STUDIO_STATIC_REPORT.md)。
+
+| 实际出现的源码调用 | Method | 请求结构（静态） |
+|---|---|---|
+| `/api/studio/save-project` | POST | body: project_id、state、title；helper 要求响应 version_id |
+| `/api/studio/project_revision/{revision_id}` | GET | path params: revision_id |
+| `/api/studio/{project_id}/version/{version_id}` | GET | path params: project_id、version_id |
+| `/api/studio/{project_id}/versions` | GET | path project_id；query return_days_only=false |
+| `/api/studio/render-state` | POST | body 含 state、title、lyrics、start_beats/end_beats、project_id、export_mode/render_engine；两处分支不同，保留原表达式 |
+| `/api/studio/render-state-multitrack` | POST | body 为函数参数 t；完整入参仍待合法观察 |
+| `/api/studio/clip/{clip_id}/download` | GET | path clip_id；query format=a，未确认取值 |
+| `/api/studio/create-or-load-project-for-clip/{clip_id}` | POST | path clip_id；未视为普通插入 clip |
+| `/api/studio/clips/{clip_id}/projects` | GET | path clip_id |
+| `/api/studio/project_revision/{revision_id}/clone` | POST | path revision_id；body title、可选 major_version；未执行 |
+| `/api/studio/project/{project_id}/metadata` | POST | body title/notes/image_s3_id，另有 title-only 分支；未执行 |
+| `/api/studio/project/{project_id}/archive`、`/api/studio/project/{project_id}/unarchive` | POST | path project_id；未执行 |
+| `/api/studio/project/{project_id}/bookmark` | POST | path project_id；body bookmarked；未执行 |
+
+剩余三个不同模板是此前已实际出现的 create-project、project metadata GET、list-projects；源码附加 query 参数不自动进入 VERIFIED。track/arrangement 使用客户端对象构造，保存链序列化 whole state，warp markersRegistry/markersHash 由 serializer 处理；这不证明不存在其他 clip API。
+
+空工程只读运行时取得 tracks=[]、majorVersion=2、manual timing bps=2 和 beats selection/loop。它是浏览器状态，不是已验证的服务器完整工程读取或保存，不能据此完成 MVP。官方仍显示 Preview / Upgrade to edit；本轮没有账号写入或付费调用。

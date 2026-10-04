@@ -131,3 +131,13 @@ node suno/cli.mjs reference-replay --session '<实际 session id>' --record '<�
 replay 只接受成功匹配的 console_request，不接受网站 `/api/...`、AST模板或 marker。使用新的 requestId，经现有 SunoBridge.call 执行一次；回执另存 replays/，不会自动升为 VERIFIED。涉及新 ID 的后续请求必须重新核对实际参数和读取状态，尚无自动 ID 替换。当前静态分析没有产生可重播的新 Studio 请求，本轮未执行任何新模板。
 
 停止 capture 或禁用独立 recorder 后刷新参考页即可回滚观察；localhost backend 不改第三方网站。独立脚本未经此次真实浏览器安装验证，当前运行时证据来自临时 CDP观察，而非宣称该脚本已在线。
+
+## 官方已下发 Studio 源码分析
+
+补充证据见 [OFFICIAL_STUDIO_STATIC_REPORT.md](docs/OFFICIAL_STUDIO_STATIC_REPORT.md)。只分析页面资产清单中实际出现且已经取得的公共 JS；不要枚举隐藏资源或为了补 schema 调用付费端点。
+
+```powershell
+node scripts/analyze-studio.mjs captures/official-static/20261005/manifest.json captures/official-static/20261005/analysis.json
+```
+
+manifest 的 rows 包含已观察的同源 immutable chunk 的 name/url/sha256；工具验证文件身份后进行 AST 解析，输出原 path/method/body/params 表达式、函数/export 和 offset。它不下载、不执行代码、不重播 API。结果是 STATIC_CLIENT；保存/render、track/arrangement 构造模板不自动进入 StudioClient 或 VERIFIED 状态，Preview 限制不因此改变。
