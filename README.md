@@ -1,6 +1,6 @@
 # 本地 Suno Controller / API Recorder
 
-第一轮基础设施：Node.js 单进程 + 原生浏览器页面 + 一个依赖 ws，无数据库或前端框架。Studio 业务接口全部 UNKNOWN，`StudioClient` 每个操作均抛 `NotImplementedError`。本轮验证真实认证探针和被动 recorder 入库，不创建工程、不主动运行生成/导出。
+第一轮基础设施：Node.js 单进程 + 原生浏览器页面 + 一个依赖 ws，无数据库或前端框架。Studio 业务接口尚未 VERIFIED，`StudioClient` 每个操作均抛 `NotImplementedError`。第一轮验证真实认证探针和被动 recorder 入库；随后用户操作的创建/元数据读取候选已标 OBSERVED，见 `docs/STUDIO_API_MAP.md`，尚未主动重播创建或运行生成/导出。
 
 ## 架构与安装
 
