@@ -228,3 +228,11 @@ Verification：通过 localhost SunoBridge.call 原样重播，HTTP 200，4 个�
 同一单动作窗口另观察到 list-projects、project/me、project metadata GET；002/003 的 query 值仍脱敏，不猜值重播。005 notification 与 006 session 查询是延后的背景请求，未认定为素材库主调用。会话字段实际掩码已核验。
 
 Only this body/query is VERIFIED；其他 filters、cursor、limit、workspace feed/get_songs/clip 路由继续 UNKNOWN 或 STATIC_CLIENT。LibraryClient.get_own_library_page 不负责完整素材分页、插入 timeline、保存或导出。现有 StudioClient 未扩大，MVP 未完成。
+
+## 当前读取完整版本状态的阻塞复核（2026-10-05）
+
+本轮只打开 Project menu，再在独立 marker 中点击 Share Project；未提交 rename、copy link 或 subscribe。前者 capture `2026-10-04T20-40-57-476Z-57326dfc` 为 0 对；后者 `2026-10-04T20-41-52-928Z-e860e668` 为 1 对，唯一记录是 GET `/api/billing/eligible-discounts` HTTP 200。此请求属于升级提示周边，排除 replay/API registry。对话框实际显示 Studio / Available with Premier 和 Subscribe，已关闭。
+
+公开 `0ureacebq_re1.js` 的 Share modal 内部确有 GET `/api/studio/{project_id}/versions`、query return_days_only=false，但当前页面在进入它之前显示升级提示，本轮没有观察到该版本请求。它继续 STATIC_CLIENT / UNKNOWN / Verified=no；不把静态模板代入真实 ID 后强行调用，也不因此声称取得 revision/version state。
+
+完整 get_project、timeline 写入、save/readback、export 仍未完成。当前证据支持的执行层仅默认创建、六字段 metadata、自有素材库固定第一页读取。更详细的完成性与阻塞审计见 [CONTINUATION_BLOCKER_REPORT.md](CONTINUATION_BLOCKER_REPORT.md)。
