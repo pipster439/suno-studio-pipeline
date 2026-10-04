@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Suno 本地 API Recorder</title><link rel="stylesheet" href="/style.css">
+<main><p class="eyebrow">LOCAL CONTROLLER · API RECORDER</p><h1>Suno Studio 请求记录台</h1>
+<p>先观察真实操作，再建立 API。工程、轨道和导出接口当前均为 UNKNOWN。</p>
+<section><h2>连接状态</h2><p id="connection">Browser bridge：离线</p><p id="auth">Suno auth：未知</p><p id="recorder">官方 recorder：未连接</p><p id="capture">Capture：未开启</p>
+<label>本次 controller 配对码 <input id="key" type="password" autocomplete="off" placeholder="来自启动终端，仅供本地配对"></label><button id="connect">连接 bridge</button>
+<button id="refresh">刷新 Suno 登录状态</button><button id="probe">只读 round-trip 验证</button></section>
+<section><h2>安装本地适配脚本</h2><p>在 Tampermonkey 中暂时禁用旧同步助手，安装下面这个本地专用版本，再刷新 Suno 官方页和本页。原文件不变。本版本不向工作台转交认证头。</p>
+<a href="/local-transport.user.js" target="_blank" rel="noopener">安装本地 transport + recorder</a></section>
+<section><h2>一次只记录一个动作</h2><label>操作标记 <input id="label" value="create-empty-project" maxlength="80"></label><button id="start">开始新 capture</button><button id="stop">停止 capture</button>
+<p>开始后才捕获官方 /studio 页面发往 studio-api-prod.suno.com 的 fetch/XHR。请等待官方 recorder 显示 active，并且队列为 0 后操作。DevTools 无需打开。</p></section>
+<section><h2>结果</h2><pre id="result">等待配对。不会自动调用任何 Suno API。</pre></section>
+</main><script src="/privacy.js"></script><script type="module" src="/app.js"></script></html>
