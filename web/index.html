@@ -2,7 +2,7 @@
 <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Suno 本地 API Recorder</title><link rel="stylesheet" href="/style.css">
 <main><p class="eyebrow">LOCAL CONTROLLER · API RECORDER</p><h1>Suno Studio 请求记录台</h1>
-<p>先观察真实操作，再建立 API。Studio 业务接口尚未 VERIFIED，候选证据见本地 API Map。</p>
+<p>已验证默认空工程创建和工程信息读取。音频、剪辑、保存与导出仍待验证，证据见本地 API Map。</p>
 <section><h2>连接状态</h2><p id="connection">Browser bridge：离线</p><p id="auth">Suno auth：未知</p><p id="recorder">官方 recorder：未连接</p><p id="capture">Capture：未开启</p>
 <label>本次 controller 配对码 <input id="key" type="password" autocomplete="off" placeholder="来自启动终端，仅供本地配对"></label><button id="connect">连接 bridge</button>
 <button id="refresh">刷新 Suno 登录状态</button><button id="probe">只读 round-trip 验证</button></section>

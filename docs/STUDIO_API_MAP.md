@@ -4,8 +4,8 @@
 
 | 操作 | Observed endpoint | 状态 | 证据 |
 |---|---|---|---|
-| 新建空工程 | `POST /api/studio/create-project`，query 见下文 | OBSERVED | 第二轮仅一次创建；用户确认 query 值；尚未 controller 重播 |
-| 读取工程元数据 | `GET /api/studio/project/1cded173-6e85-4db7-9aeb-7d3b7f4f1163` | OBSERVED | 038 配对记录；未通过 controller 重播 |
+| 新建默认空工程 | `POST /api/studio/create-project?title=Untitled%20Project&major_version=2` | VERIFIED | controller 重播一次、元数据读回、官方新工程列表及打开后空 timeline UI 确认 |
+| 读取工程元数据 | `GET /api/studio/project/{实际返回的 id}` | VERIFIED | controller GET、StudioClient GET、官方 GET 元数据均与创建响应一致；只含 metadata |
 | 添加已有音频 | UNKNOWN | UNKNOWN | 未捕获 |
 | 新建 clip | UNKNOWN | UNKNOWN | 未捕获 |
 | 移动 clip | UNKNOWN | UNKNOWN | 未捕获 |
@@ -101,3 +101,44 @@ request body: null
 当前官方 UI 显示 Untitled Project 和 Preview / Upgrade to edit；还出现 Audio Track 及非零播放头。响应不含 timeline，capture 也包含页面重载、旧工程元数据读取、周边 billing 请求，不能断言整段只含一个 UI 动作、Audio Track 来自创建接口、或空 timeline 已证明。中间曾观察 recorder heartbeat 过期，随后恢复；终态 0 dropped 不足以证明所有中间行为均被捕获。
 
 下一步只研究创建操作的 controller 重播与元数据读回：需单独 capture，使用上述已确认 query，避免把 null body 观察变成强制 JSON null，随后比较新 id 和官方 UI。成功重播并确认业务效果之前仍为 OBSERVED，StudioClient 不变。其他素材、clip、保存与导出接口继续 UNKNOWN。
+
+## 创建默认空工程与读取元数据（实际重播验证）
+
+状态：**VERIFIED**。Verified：**yes，范围限下述默认创建和 metadata 读取**。验证于 2026-10-05（Asia/Shanghai）。
+
+Browser bridge/auth ready v1.3.15，buildId 与本机生成脚本一致。独立 capture：`captures/2026-10-04T17-57-48-725Z-012f905d`，标记 `controller-create-replay-01`，已停止共 7 对官方被动 fetch 记录；停止前 online、pending/queued/dropped 为 0。controller 重播走 Tampermonkey GM transport，不会经过官方 fetch/XHR hook；因此重播的请求意图/响应另存于 `.evidence-staging/phase1-create-replay-20261005/evidence`，**不冒充为官方被动捕获**。
+
+```text
+POST /api/studio/create-project?title=Untitled%20Project&major_version=2
+body: 省略（SunoBridge.call options 没有 body 属性）
+requestId: 0d2d8754-8fda-450b-ab3b-6c8fc767daca
+status: 200; browser durationMs: 1217
+```
+
+只发出一次创建，无自动重试。真实响应：
+
+```json
+{
+  "id": "5595bf9c-3967-403b-bda0-5a1b9a4adaff",
+  "title": "Untitled Project",
+  "created_at": "2026-10-04T17:58:39.662Z",
+  "updated_at": "2026-10-04T17:58:39.662Z",
+  "archived": false,
+  "major_version": 2
+}
+```
+
+验证链：
+
+1. controller 通过真实 bridge 创建新 id，与此前三个观察 id 不同。
+2. 以已观察 `/api/studio/project/<id>` 路由代入实际新 id 执行 GET，HTTP 200，整个 metadata 与创建响应深比较一致。
+3. 官方 Project menu → Open Project 显示 My Projects / Newest First。001 返回 `projects` 列表，新 id 位于最新条目；仅提取该 id 的存在和位置作为证据，不在交付包保存完整工程列表。
+4. 打开最新默认标题工程后，005 官方 GET `/api/studio/project/5595bf9c-3967-403b-bda0-5a1b9a4adaff` HTTP 200、metadata 再次一致；006 conversation 路径含同一个 id，辅助确认打开对象。
+5. 官方 UI 对话框关闭，标题 Untitled Project，播放头 00:00.000，只有 Main，未显示音轨或 clip；截图记录可见空 timeline。它验证当前打开行为，不建立未观察的 tracks/clips/timeline 数据模型。
+6. 新增的 `StudioClient.get_project_metadata` 再次经真实 bridge 读回，metadata 一致。typed create 方法沿用同一个已验证协议；没有为重复测试再新增工程。
+
+重要 IDs：返回 `id` 是本次工程标识，作为 metadata GET 路径段使用。`project_id` 是本地方法参数名，不声明其为此创建响应字段。白名单里的 clip_id/offset/duration/position 仍不构成任何 clip API 证据。
+
+Client 范围：`create_project()` 当前只放行 Untitled Project、major_version=2；其他标题/版本直接 NotImplementedError。`get_project_metadata(id)` 只读取上述六字段 metadata，保留未来额外字段。`get_project()` 的完整工程状态、素材、clip、位置、保存、重载与导出继续 NotImplementedError。
+
+官方 UI 仍有 Preview / Upgrade to edit。创建及元数据读取验证不证明编辑、保存或导出权限。下一轮只观察添加一个已有音频；先确认用户是否有可编辑 Studio 工程。工程列表路由 `GET /api/studio/list-projects` 及 limit/name/archived/sort_order query 键为本次实际 **OBSERVED**，query 值仍脱敏，未重播、不实现列表 API。

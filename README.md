@@ -1,6 +1,6 @@
 # 本地 Suno Controller / API Recorder
 
-第一轮基础设施：Node.js 单进程 + 原生浏览器页面 + 一个依赖 ws，无数据库或前端框架。Studio 业务接口尚未 VERIFIED，`StudioClient` 每个操作均抛 `NotImplementedError`。第一轮验证真实认证探针和被动 recorder 入库；随后用户操作的创建/元数据读取候选已标 OBSERVED，见 `docs/STUDIO_API_MAP.md`，尚未主动重播创建或运行生成/导出。
+Node.js 单进程 + 原生浏览器页面 + 一个依赖 ws，无数据库或前端框架。已通过真实 controller 重播、读回和官方页面确认默认空工程创建及工程元数据读取，见 `docs/STUDIO_API_MAP.md`。`StudioClient.create_project()` 当前只支持 Untitled Project、major_version=2；`get_project_metadata(id)` 只返回工程信息。完整 timeline、素材、clip、保存与导出仍未识别，相关操作均抛 `NotImplementedError`，完整素材→timeline→保存 MVP 尚未完成。
 
 ## 架构与安装
 
@@ -62,6 +62,18 @@ const result = await bridge.call({ path: observedPath, method: 'PATCH', body: ob
 ```
 
 支持 GET/POST/PUT/PATCH/DELETE；body 为 JSON；不允许自带认证头。错误区分 auth_error / permission_error / validation_error / rate_limit / network_error / suno_api_error / unknown_error，以及本地 timeout/cancelled/controller_error。不保存 raw-call 请求/响应到磁盘；浏览器回传结果先脱敏，所以 token/signed query 不能作为后端可重播值使用。
+
+已验证 StudioClient 用法（以下调用会在真实账号新增一个默认空工程）：
+
+```js
+import { SunoBridge } from './suno/bridge/client.mjs';
+import { StudioClient } from './suno/studio/operations.mjs';
+const studio = new StudioClient(new SunoBridge());
+const created = await studio.create_project(); // body 省略；不自动重试
+const metadata = await studio.get_project_metadata(created.id);
+```
+
+timeoutMs/requestId/signal 可传给这两个方法；metadata 只包含已观察的工程信息，不能当成完整 timeline。自定义 title、其他 major_version 尚未复现，当前会抛 NotImplementedError。GM transport 重播不会被官方 fetch/XHR recorder 捕获；本轮审计保存了明确标注来源的脱敏重播回执，并与官方 GET 和 UI 证据比对，未把回执伪装为被动 capture。
 
 若将来真实 Studio 操作需要未支持的媒体上传、特殊 header 或签名 URL，应先审计捕获并扩展 **浏览器侧**能力，不把凭据写入 controller。已有 Cover/audio 能力保留源逻辑，本轮未调用；它们不属于 VERIFIED Studio 功能。
 
