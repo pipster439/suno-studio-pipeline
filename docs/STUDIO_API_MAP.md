@@ -156,7 +156,7 @@ Client 范围：`create_project()` 当前只放行 Untitled Project、major_vers
 | POST `/api/gen/{encoded returned clip id}/set_metadata/` | 作品 metadata | STATIC_CLIENT | UNKNOWN | no |
 | POST `/api/project/{encoded workspace id}/clips` | 工作区引用作品，不能视为 Studio track | STATIC_CLIENT | UNKNOWN | no |
 | GET `/api/project/me?...`；GET `/api/project/feed?...`；GET `/api/project/{encoded workspace id}/feed?...` | 工作区目录/作品 | STATIC_CLIENT | UNKNOWN | no |
-| POST `/api/feed/v3`；GET `/api/clips/get_songs_by_ids?ids=...`；GET `/api/clip/{encoded id}[/]` | 作品库 | STATIC_CLIENT | UNKNOWN | no |
+| POST `/api/feed/v3` 的参考源码模板；GET `/api/clips/get_songs_by_ids?ids=...`；GET `/api/clip/{encoded id}[/]` | 作品库 | STATIC_CLIENT | UNKNOWN（feed 的单个官方查询另见下文 VERIFIED） | no（其他模板） |
 | GET `/api/persona/get-personas/?page=...` | persona 列表 | STATIC_CLIENT | UNKNOWN | no |
 | GET `/api/billing/info/` | 账户信息；排除重播 | STATIC_CLIENT / excluded | UNKNOWN | no |
 | 网站 GET `https://sunouploader.site/api/projects` | 参考网站自己的资源 API | RUNTIME / website backend | OBSERVED（200、首个响应 projects=[]） | no（未重播） |
@@ -197,3 +197,34 @@ WASM 仅发现本地 MP3 编码静态引用，浏览器未加载二进制；不�
 剩余三个不同模板是此前已实际出现的 create-project、project metadata GET、list-projects；源码附加 query 参数不自动进入 VERIFIED。track/arrangement 使用客户端对象构造，保存链序列化 whole state，warp markersRegistry/markersHash 由 serializer 处理；这不证明不存在其他 clip API。
 
 空工程只读运行时取得 tracks=[]、majorVersion=2、manual timing bps=2 和 beats selection/loop。它是浏览器状态，不是已验证的服务器完整工程读取或保存，不能据此完成 MVP。官方仍显示 Preview / Upgrade to edit；本轮没有账号写入或付费调用。
+
+## 自有素材库第一页（非 Studio timeline API）
+
+状态：**VERIFIED**。Verified：**yes，严格限本节单个查询**。Observed on：2026-10-05（Asia/Shanghai）。证据与测试见 [LIBRARY_VERIFICATION_REPORT.md](LIBRARY_VERIFICATION_REPORT.md)。
+
+Observed endpoint：`POST /api/feed/v3`，官方 Library 点击产生的 fetch，非参考网站 backend。request body（account identifier 在共享文档中掩码）：
+
+```json
+{
+  "cursor": null,
+  "limit": 20,
+  "filters": {
+    "disliked": "False",
+    "trashed": "False",
+    "fromStudioProject": { "presence": "False" },
+    "stem": { "presence": "False" },
+    "stemComplement": "False",
+    "user": { "presence": "True", "userId": "<observed current account id>" }
+  }
+}
+```
+
+Capture `2026-10-04T20-19-24-948Z-96ae9342` / 001：2026-10-04T20:19:40.435Z → 20:19:40.885Z，HTTP 200，450.59 ms。response JSON 包含 clips 数组和 has_more=false；实际 4 个条目的 id/title/status/entity_type/user_id 类型为 string，entity_type="song_schema"，status="complete"，metadata.duration 为 number。只证实观察到的这些字段；媒体 URL 已省略，不据此声明下载可重播。
+
+Important IDs：`clips[].id` 是作品资源 ID；不能当作 Studio arrangement/track ID。`filters.user.userId` 与所有返回 user_id 一致，是账号资源身份，不能当作 session/auth token。薄层只接受来自当前 own-library 观察的 ID，服务端继续负责授权。
+
+Verification：通过 localhost SunoBridge.call 原样重播，HTTP 200，4 个排序后的资源 ID、归属、has_more 与官方 capture 一致；LibraryClient 修正为真实 song_schema discriminator 后实际调用成功；独立显式真实测试也通过。官方 UI 的 My Workspace 显示 4 songs。controller 每次调用只派发一次、无自动重试；旧 v1.3.11 listener 停用尚未证明，不能据此断言上游只有一条请求。
+
+同一单动作窗口另观察到 list-projects、project/me、project metadata GET；002/003 的 query 值仍脱敏，不猜值重播。005 notification 与 006 session 查询是延后的背景请求，未认定为素材库主调用。会话字段实际掩码已核验。
+
+Only this body/query is VERIFIED；其他 filters、cursor、limit、workspace feed/get_songs/clip 路由继续 UNKNOWN 或 STATIC_CLIENT。LibraryClient.get_own_library_page 不负责完整素材分页、插入 timeline、保存或导出。现有 StudioClient 未扩大，MVP 未完成。

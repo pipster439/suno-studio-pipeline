@@ -92,7 +92,7 @@ Remove-Item Env:RUN_SUNO_INTEGRATION_TESTS
 Remove-Item Env:SUNO_CONTROLLER_KEY
 ```
 
-普通测试使用通用 transport fixtures 和真实本地 WebSocket，不伪造任何 Studio 工程 endpoint，也不接触真实账号。真实测试仅 GET session；将来变更账户的测试需要单独明确加入。
+普通测试使用通用 transport fixtures 和真实本地 WebSocket，不伪造任何 Studio 工程 endpoint，也不接触真实账号。`test:live` 仅 GET session；另有下述显式素材库只读测试。将来变更账户的测试需要单独明确加入。
 
 ## 如何确认认证没有保存到后端磁盘
 
@@ -141,3 +141,35 @@ node scripts/analyze-studio.mjs captures/official-static/20261005/manifest.json 
 ```
 
 manifest 的 rows 包含已观察的同源 immutable chunk 的 name/url/sha256；工具验证文件身份后进行 AST 解析，输出原 path/method/body/params 表达式、函数/export 和 offset。它不下载、不执行代码、不重播 API。结果是 STATIC_CLIENT；保存/render、track/arrangement 构造模板不自动进入 StudioClient 或 VERIFIED 状态，Preview 限制不因此改变。
+
+## 已验证的自有素材库读取
+
+官方 Library 操作实际发出 `POST /api/feed/v3`；原请求重播、薄客户端和显式真实测试均返回与官方 capture 一致的 4 个资源。范围仅限已观察的当前用户、cursor=null、limit=20、非 stem、非 Studio 来源的第一页。详细证据及限制见 [LIBRARY_VERIFICATION_REPORT.md](docs/LIBRARY_VERIFICATION_REPORT.md)。
+
+```js
+import { SunoBridge } from './suno/bridge/client.mjs';
+import { LibraryClient } from './suno/library/client.mjs';
+const library = new LibraryClient(new SunoBridge());
+// ownerId 必须取自当前账号实际 own-library 请求的 filters.user.userId。
+// 本地 client 不发现登录身份，也不认证此 ID；Suno 服务端仍负责访问控制。
+const page = await library.get_own_library_page(observedCurrentOwnerId, {
+  timeoutMs: 30000, requestId: 'library-read-1', signal: abortController.signal
+});
+```
+
+返回原 JSON，保留未知资源字段；`clips` 中实际 `entity_type` 为 `song_schema`，不是 Studio timeline clip。校验资源归属与响应结构，错误不重试，不自动分页；`has_more=true` 时不能声称已读取全部素材。不新增 Studio track、clip、保存或 export 方法。body 的 `"True"` / `"False"` 是已观察的字符串，不能改成 Boolean。
+
+真实素材库测试默认关闭，必须同时显式启用并指定本机真实 capture；capture 文件只读取一次作为对比基线，不承担通信：
+
+```powershell
+node --test tests/library.integration.mjs # 默认 SKIP
+$env:RUN_SUNO_INTEGRATION_TESTS = '1'
+$env:SUNO_CONTROLLER_KEY = '<当前临时本地配对码>'
+$env:SUNO_LIBRARY_CAPTURE = '<当前账号真实 own-library capture 目录>'
+try { node --test tests/library.integration.mjs }
+finally {
+  Remove-Item Env:RUN_SUNO_INTEGRATION_TESTS,Env:SUNO_CONTROLLER_KEY,Env:SUNO_LIBRARY_CAPTURE -ErrorAction SilentlyContinue
+}
+```
+
+测试固定读取该目录的 001 request/response，要求原请求恰为上述已验证查询，比较资源 ID 与 has_more。历史素材库变动会导致对比失败，应重新进行单动作观察，不能将差异忽略。交付证据额外掩码 account userId/user_id 并省略歌名、lyrics、媒体 URL；本机原 capture 保留非凭据的业务 ID，因此不要直接分享整个原 capture。
