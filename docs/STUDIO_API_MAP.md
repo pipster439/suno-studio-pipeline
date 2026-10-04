@@ -4,7 +4,7 @@
 
 | 操作 | Observed endpoint | 状态 | 证据 |
 |---|---|---|---|
-| 新建空工程 | `POST /api/studio/create-project`，query 键见下文 | OBSERVED | 首轮 capture 有两次创建，待隔离重复与参数确认 |
+| 新建空工程 | `POST /api/studio/create-project`，query 见下文 | OBSERVED | 第二轮仅一次创建；用户确认 query 值；尚未 controller 重播 |
 | 读取工程元数据 | `GET /api/studio/project/1cded173-6e85-4db7-9aeb-7d3b7f4f1163` | OBSERVED | 038 配对记录；未通过 controller 重播 |
 | 添加已有音频 | UNKNOWN | UNKNOWN | 未捕获 |
 | 新建 clip | UNKNOWN | UNKNOWN | 未捕获 |
@@ -60,6 +60,44 @@ request body: null
 
 038 的实际 GET `/api/studio/project/1cded173-6e85-4db7-9aeb-7d3b7f4f1163` 返回同样的第二工程 metadata。它只支持“该工程元数据后来被官方页面读回”的观察；尚未验证完整工程状态或 timeline 持久化。不能把响应 metadata 当成完整 Studio 工程模型。
 
-当前 UI：工程标题为第二工程标题，显示 Preview / Upgrade to edit；New Project 对话框再次打开，存在 New empty project 按钮。无需绕过权限、升级或付费。
+首轮结束 UI：工程标题为第二工程标题，显示 Preview / Upgrade to edit；New Project 对话框再次打开，存在 New empty project 按钮。无需绕过权限、升级或付费。
 
-下一轮：隔离一个新的 capture，只点击对话框里的 New empty project 一次。为补足安全脱敏导致缺失的必要参数，用户可在 DevTools Network 筛选 `create-project`，仅反馈 Query String Parameters 中的 title、major_version 和创建结果；不要复制完整 headers、cookies、token、HAR 或 signed URL。确认参数、重复归因、显式重播与效果确认后才提升状态，当前 StudioClient 不变。
+## 创建工程候选（第二轮重复观察）
+
+状态：**OBSERVED**。Verified：**no**。观察于 2026-10-05（Asia/Shanghai）。
+
+Capture：`captures/2026-10-04T17-25-08-444Z-7e83fae3`，标记 `create-empty-project-repeat-01`。2026-10-04T17:33:46.587Z 已停止；45 对记录的 eventId 均匹配，只有 039 为 create-project。停止前 recorder active，pending/queue/dropped 为 0；停止后 idle，后台 count=45、active=false。
+
+```text
+POST /api/studio/create-project?title=<redacted>&major_version=<redacted>
+request body: null
+039 request timestamp: 2026-10-04T17:27:49.141Z
+039 response: HTTP 200, durationMs=301.7449999973178
+```
+
+用户先反馈 `"title": "Untitled Project", "major_version": 2`，随后明确确认来源是本次请求的 **Query String Parameters**。这是用户通过 DevTools 提供的非敏感请求参数证据，不能表述成 recorder 日志保留了原 query 值；原日志仍全部掩码。
+
+已观察的 query 值可整理为以下待重播路径，**本轮未执行**：
+
+```text
+/api/studio/create-project?title=Untitled%20Project&major_version=2
+```
+
+039 的真实返回：
+
+```json
+{
+  "id": "e6b9e167-14c3-4f44-a3b1-d28d2cb4016f",
+  "title": "Untitled Project",
+  "created_at": "2026-10-04T17:27:55.086Z",
+  "updated_at": "2026-10-04T17:27:55.086Z",
+  "archived": false,
+  "major_version": 2
+}
+```
+
+与首轮 005 比较：method/path/query 键一致，响应字段结构、默认标题、版本、archived 值一致；工程 id 和服务器时间不同。041 随后访问含新 id 的 agent conversation 路径，只作为 id 的周边关联证据，不认定为完整工程读取或保存 API。
+
+当前官方 UI 显示 Untitled Project 和 Preview / Upgrade to edit；还出现 Audio Track 及非零播放头。响应不含 timeline，capture 也包含页面重载、旧工程元数据读取、周边 billing 请求，不能断言整段只含一个 UI 动作、Audio Track 来自创建接口、或空 timeline 已证明。中间曾观察 recorder heartbeat 过期，随后恢复；终态 0 dropped 不足以证明所有中间行为均被捕获。
+
+下一步只研究创建操作的 controller 重播与元数据读回：需单独 capture，使用上述已确认 query，避免把 null body 观察变成强制 JSON null，随后比较新 id 和官方 UI。成功重播并确认业务效果之前仍为 OBSERVED，StudioClient 不变。其他素材、clip、保存与导出接口继续 UNKNOWN。
