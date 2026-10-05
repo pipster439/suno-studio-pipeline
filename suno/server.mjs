@@ -9,10 +9,14 @@ import { BridgeError } from './bridge/errors.mjs';
 import { CaptureStore } from './recorder/store.mjs';
 import privacy from '../shared/privacy.cjs';
 import { ReferenceStore, REFERENCE_ORIGINS } from './recorder/reference-store.mjs';
+import { StudioValidationHarness } from './recorder/studio-validation.mjs';
+import { StudioClient } from './studio/operations.mjs';
+import { analyzeValidationRun } from './studio/run-analysis.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export async function createController({ port = 3000, captureRoot = resolve(root, 'captures'), key = randomBytes(32).toString('hex') } = {}) {
   const hub = new BridgeHub(); const captures = new CaptureStore(captureRoot);
   const reference = new ReferenceStore(resolve(captureRoot, 'reference'));
+  const studioValidation = await new StudioValidationHarness(resolve(captureRoot,'live'),{reader:new StudioClient(hub)}).init();
   let referenceRecorder = { at: 0, pending: 0, queued: 0, dropped: 0, omissions: 0, activeSession: null, version: null, buildId: null };
   let recorder = { at: 0, queued: 0, dropped: 0, pending: 0, activeSession: null }, lastAuth = 0;
   const secretMatches = (v) => typeof v === 'string' && Buffer.byteLength(v) === Buffer.byteLength(key) && timingSafeEqual(Buffer.from(v), Buffer.from(key));
@@ -21,6 +25,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
     reference: { capture: reference.state(), recorder: { ...referenceRecorder, online: Date.now() - referenceRecorder.at < 10000 } } });
   const broadcast = () => { if (hub.peer?.readyState === WebSocket.OPEN) hub.peer.send(JSON.stringify(state())); };
   const files = { '/': ['web/index.html', 'text/html; charset=utf-8'], '/app.js': ['web/app.js', 'text/javascript'], '/style.css': ['web/style.css', 'text/css'], '/privacy.js': ['shared/privacy.cjs', 'text/javascript'], '/local-transport.user.js': ['userscripts/local-transport.user.js', 'text/javascript; charset=utf-8'], '/reference-recorder.user.js': ['userscripts/reference-recorder.user.js', 'text/javascript; charset=utf-8'] };
+  Object.assign(files,{'/studio-validation':['web/studio-validation.html','text/html; charset=utf-8'],'/studio-validation.js':['web/studio-validation.js','text/javascript'],'/studio-validation.user.js':['userscripts/studio-validation.user.js','text/javascript; charset=utf-8']});
   const server = http.createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -36,16 +41,25 @@ export async function createController({ port = 3000, captureRoot = resolve(root
       }
       if (!secretMatches(req.headers['x-controller-key'])) return reply(403, { error: { kind: 'permission_error', message: 'pairing required' } });
       const allowedOrigin = !req.headers.origin || req.headers.origin === origin ||
-        (path.startsWith('/api/recorder/') || path === '/api/captures') && ['https://suno.com', 'https://www.suno.com'].includes(req.headers.origin) ||
+        (path.startsWith('/api/recorder/') || path === '/api/captures' || ['/api/studio-validation/recorder-config','/api/studio-validation/recorder-status','/api/studio-validation/events'].includes(path)) && ['https://suno.com', 'https://www.suno.com'].includes(req.headers.origin) ||
         ['/api/reference/events', '/api/reference/status'].includes(path) && REFERENCE_ORIGINS.includes(req.headers.origin);
       if (!allowedOrigin) return reply(403, { error: { kind: 'permission_error', message: 'Origin rejected' } });
       if (req.method === 'GET' && path === '/api/status') { const { auth, ...rest } = state(); return reply(200, { ...rest, authStatus: auth }); }
+      if(req.method==='GET'&&path==='/api/studio-validation/recorder-config')return reply(200,studioValidation.config(new URL(req.url,origin).searchParams.get('page')));
+      if(req.method==='GET'&&path==='/api/studio-validation/status')return reply(200,{...studioValidation.status(),bridgeOnline:!!hub.peer,authReady:hub.auth.ready===true});
       if (req.method !== 'POST') return reply(404, { error: { kind: 'validation_error', message: 'route not found' } });
       if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) return reply(415, { error: { kind: 'validation_error', message: 'JSON required' } });
       let size = 0, chunks = [];
       for await (const chunk of req) { size += chunk.length; if (size > 4 * 1024 * 1024) return reply(413, { error: { kind: 'validation_error', message: 'payload too large' } }); chunks.push(chunk); }
       let body; try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return reply(400, { error: { kind: 'validation_error', message: 'invalid JSON' } }); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return reply(400, { error: { kind: 'validation_error', message: 'object required' } });
+      if(path==='/api/studio-validation/begin')return reply(200,await studioValidation.begin(body.scenario,body));
+      if(path==='/api/studio-validation/end')return reply(200,await studioValidation.end(body));
+      if(path==='/api/studio-validation/report')return reply(200,await studioValidation.report(body.runId,body.scenario));
+      if(path==='/api/studio-validation/export')return reply(200,await studioValidation.exportScenario(body.runId,body.scenario));
+      if(path==='/api/studio-validation/analyze-run')return reply(200,await analyzeValidationRun(studioValidation.root,body.runId));
+      if(path==='/api/studio-validation/events')return reply(200,await studioValidation.add(body));
+      if(path==='/api/studio-validation/recorder-status')return reply(200,studioValidation.heartbeat(body));
       if (path === '/api/call' || path === '/api/probe') {
         const call = path === '/api/probe' ? { method: 'GET', path: '/api/session/', timeoutMs: 30000 } : body;
         const abort = new AbortController(); res.on('close', () => { if (!res.writableEnded) abort.abort(); });
@@ -111,7 +125,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
   }, 4000);
   await new Promise((yes, no) => { server.once('error', no); server.listen(port, '127.0.0.1', yes); });
   origin = `http://127.0.0.1:${server.address().port}`;
-  return { server, hub, captures, reference, key, origin, state, async close() { clearInterval(heartbeat); for (const ws of wss.clients) ws.terminate(); await captures.stop(); await reference.stop(); await new Promise((r) => server.close(r)); } };
+  return { server, hub, captures, reference, key, origin, state, async close() { clearInterval(heartbeat); for (const ws of wss.clients) ws.terminate(); await captures.stop(); await reference.stop(); await studioValidation.chain; await new Promise((r) => server.close(r)); } };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const app = await createController({ port: Number(process.env.SUNO_PORT || 3000) });

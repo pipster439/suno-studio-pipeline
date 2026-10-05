@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Studio validation</title><link rel="stylesheet" href="/style.css"></head><body>
+<h1>Studio 单动作验证</h1><p>controller 写入仍锁定。这里只捕获你在官方 UI 的正常操作；每次只做一个动作。</p>
+<p><a href="/studio-validation.user.js">安装被动 Capture Harness</a> · <a id="auth-bridge" href="/" target="_blank">打开原 Auth Bridge 工作台</a></p>
+<label>Run ID（首轮自动生成）<input id="run"></label><label>真实 Project ID（A 可留空）<input id="project"></label>
+<label>动作<select id="scenario"><option>A_CREATE</option><option>B_ADD</option><option>C_SAVE</option><option>D_MOVE</option><option>E_SAVE</option><option>F_TRANSPOSE</option><option>G_SAVE</option><option>H_EXPORT</option></select></label>
+<label>可选 prediction JSON 文件<input id="prediction" type="file" accept="application/json"></label>
+<p><button id="begin">Begin</button> <button id="end">End</button> <button id="report">Report</button> <button id="export">Export 脱敏证据</button></p>
+<p id="instruction">先安装 harness、刷新官方 Suno 页，并保留一个官方标签页；无需 DevTools。</p><pre id="status"></pre><pre id="result"></pre>
+<script type="module" src="/studio-validation.js"></script></body></html>

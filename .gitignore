@@ -4,5 +4,6 @@ deliverables/
 .evidence-staging/
 userscripts/local-transport.user.js
 userscripts/reference-recorder.user.js
+userscripts/studio-validation.user.js
 *.log
 .env

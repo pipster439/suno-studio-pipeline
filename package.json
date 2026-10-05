@@ -12,7 +12,10 @@
     "start": "node suno/server.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:live": "node --test tests/live.integration.mjs",
-    "dry-run:studio": "node examples/studio-20-clip-dry-run.mjs"
+    "dry-run:studio": "node examples/studio-20-clip-dry-run.mjs",
+    "build:studio-harness": "node scripts/build-studio-validation-userscript.mjs",
+    "studio-validation": "node scripts/studio-validation.mjs",
+    "offline-validation-rehearsal": "node scripts/offline-validation-rehearsal.mjs"
   },
   "bin": {
     "sunoctl": "./suno/cli.mjs"
