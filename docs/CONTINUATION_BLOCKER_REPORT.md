@@ -1,3 +1,5 @@
+> Final RC update: backend core create/save/render submission is VERIFIED; official tested Free UI remains blocked. Browser Harness is LIVE VERIFIED / COMPLETE / FROZEN. This retained phase procedure is historical; see STUDIO_SDK_STATUS.md.
+
 # Studio 完整流程阻塞与完成性审计
 
 日期：2026-10-05，Asia/Shanghai。本轮基线：`11ce0f45f07b219336419449eed13a745b7fbbb1`，工作树开始干净。目标仍为真实可验证的 controller/recorder/bridge 与 Studio 素材→timeline→移动→保存→重读流程，不把只读素材库阶段作为完整 MVP。

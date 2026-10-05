@@ -1,3 +1,5 @@
+> Final RC update: backend core create/save/render submission is VERIFIED; official tested Free UI remains blocked. Browser Harness is LIVE VERIFIED / COMPLETE / FROZEN. This retained phase procedure is historical; see STUDIO_SDK_STATUS.md.
+
 # Stop ACK protocol 3 — 2026-10-06
 
 Versions: controller 0.2.1, combined userscript 1.3.18, harness 1.1.1, protocol 3. Existing fetch/XHR/probe IDs and privacy code are unchanged.

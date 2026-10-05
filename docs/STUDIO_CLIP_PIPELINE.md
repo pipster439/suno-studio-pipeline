@@ -1,3 +1,20 @@
+# Studio Clip Pipeline — final status
+
+ADD_CLIP = CLIENT_STATE_MUTATION. status=VERIFIED, verification.kind=save_readback.
+Existing source clip → separate arrangement UUID → track.clips[] → save whole state
+→ response version_id → readback. No independent add-clip HTTP endpoint is invented.
+Explicit transposition=-5 and persistence are VERIFIED independently from uploader
+pitch restoration (+8→-8), which remains CORRELATED and opt-in.
+Warp current MD5 registry serialization for identity map {0:0,1:1.95} was actually
+used and accepted in save/readback. Other marker maps and preservation strategies
+retain their original narrower evidence. Constructor defaults/fade/gain/trim helpers
+remain static unless independently verified. Unknown fields remain copy-on-write.
+Source durations, beat placement, tail handling and local 20-clip dry run remain
+implemented/tested; one-clip backend success does not prove every 20-clip render.
+Source: ../reports/STUDIO_FREE_WRITE_VALIDATION_SANITIZED.md and write-validation fixtures.
+
+## Historical technical recovery notes (status/availability superseded above)
+
 # Studio Clip Pipeline
 
 > Current account correction: FREE. Real add/save/move/transposition/export validation is BLOCKED_BY_PRODUCT_ENTITLEMENT. Pure local clip pipeline and evidence statuses remain intact; A–H below is a future/offline plan. Current browser test only uses the pinned owned-version GET.

@@ -1,3 +1,5 @@
+> Historical stage report. Its then-current write availability/evidence conclusions are superseded by docs/STUDIO_SDK_STATUS.md and docs/EVIDENCE_HISTORY.md; original evidence packages are immutable.
+
 # Browser Harness read-only delivery — 2026-10-05
 
 ## Conclusion

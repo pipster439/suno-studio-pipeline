@@ -1,3 +1,5 @@
+> Historical stage report. Its then-current write availability/evidence conclusions are superseded by docs/STUDIO_SDK_STATUS.md and docs/EVIDENCE_HISTORY.md; original evidence packages are immutable.
+
 # Studio v1.3.16 只读 live verification 收尾报告
 
 日期：2026-10-05，Asia/Shanghai。基线：dd8d280ed7e872df054a6a591ea6a2982e2975ec；开始工作区干净。实际 GET 时间：17:50:22（日志 UTC 09:50:22.558）。本轮仅执行用户授权的最后一次只读 version GET，不修改账号/工程/原 fixture，不继续静态扫描。

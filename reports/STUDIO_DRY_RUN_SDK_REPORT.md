@@ -1,3 +1,5 @@
+> Historical stage report. Its then-current write availability/evidence conclusions are superseded by docs/STUDIO_SDK_STATUS.md and docs/EVIDENCE_HISTORY.md; original evidence packages are immutable.
+
 # Studio Dry-Run SDK 实现报告
 
 日期：2026-10-05。仓库：G:/Suno。任务开始基线：`d240a306963a4954544d4ccfd218bc2859e4d317`，开始时工作区无未提交改动。此次实现不调用 Suno、不重新执行既有 read/privacy/lossless live 验证、不下载/扫描新 bundle，不改 userscript 或账号权限。

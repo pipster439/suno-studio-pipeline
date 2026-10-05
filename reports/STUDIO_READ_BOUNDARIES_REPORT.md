@@ -1,3 +1,5 @@
+> Historical stage report. Its then-current write availability/evidence conclusions are superseded by docs/STUDIO_SDK_STATUS.md and docs/EVIDENCE_HISTORY.md; original evidence packages are immutable.
+
 # Studio 最小只读验证与客户端边界报告
 
 日期：2026-10-05，Asia/Shanghai。基线：9d25ccbf985e89fa77cafce361aee50c3acae4e6；开始工作区干净。未继续 bundle 搜索，未发送 Studio 写请求，未绕过产品权限，未修改原始 JSON/既有 fixture。

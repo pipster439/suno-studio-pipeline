@@ -1,3 +1,5 @@
+> Historical stage report. Its then-current write availability/evidence conclusions are superseded by docs/STUDIO_SDK_STATUS.md and docs/EVIDENCE_HISTORY.md; original evidence packages are immutable.
+
 # Studio 音乐 timeSignatureChanges 隐私过滤修复
 
 > 后续收尾：2026-10-05 用户安装 v1.3.16 后，指定 version GET 已 HTTP 200 且全 state（包括展示标签）严格比对相等，timeSignatureChanges 无损、无掩码；见 [STUDIO_METER_LIVE_VERIFICATION_REPORT.md](STUDIO_METER_LIVE_VERIFICATION_REPORT.md)。下文 pending 是修复交接时的历史状态，旧日志/包不覆盖。

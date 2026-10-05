@@ -1,3 +1,5 @@
+> Historical stage report. Its then-current write availability/evidence conclusions are superseded by docs/STUDIO_SDK_STATUS.md and docs/EVIDENCE_HISTORY.md; original evidence packages are immutable.
+
 # Studio Clip Pipeline：静态恢复与本地 builder 报告
 
 日期：2026-10-05。任务基线：`024a3fb1d79e7085724f47d7a0a98eba1f098c32`，开始时 git status 干净，无既存未提交改动。只解析此前取得的官方/参考客户端公开代码和原有 fixture，不操作浏览器账号，不下载新资源，不发送任何 Suno 请求。

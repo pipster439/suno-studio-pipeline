@@ -1,3 +1,5 @@
+> Historical stage report. Its then-current write availability/evidence conclusions are superseded by docs/STUDIO_SDK_STATUS.md and docs/EVIDENCE_HISTORY.md; original evidence packages are immutable.
+
 # Suno Studio live-validation readiness report
 
 Date: 2026-10-05. Baseline: `22b498663c73588e9c16fe2070d555ec09105955`, working tree clean. Delivered patch contains only this task. No push, deployment, browser installation or running-process replacement.

@@ -1,3 +1,5 @@
+> Final RC update: backend core create/save/render submission is VERIFIED; official tested Free UI remains blocked. Browser Harness is LIVE VERIFIED / COMPLETE / FROZEN. This retained phase procedure is historical; see STUDIO_SDK_STATUS.md.
+
 # Browser read-only validation harness
 
 ## 2026-10-06 stop ACK update
