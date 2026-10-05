@@ -29,7 +29,7 @@ export interface StudioClip {
   reversed?: boolean;
   streaming?: boolean;
   name?: string;
-  color?: string;
+  color?: string | null;
 }
 export interface StudioTrack {
   [key: string]: unknown;

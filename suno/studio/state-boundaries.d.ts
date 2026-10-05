@@ -12,3 +12,5 @@ export function serializeProjectState(state: EditorMemoryState, serialize: State
 export function prepareRenderTransformedState(state: EditorMemoryState, transform: StateAdapter, serializeRender: StateAdapter): RenderTransformedState;
 export function inspectSaveSerializedState(state: SaveSerializedState): StudioState;
 export function inspectRenderTransformedState(state: RenderTransformedState): StudioState;
+export function updateEditorState(state: EditorMemoryState, mutate: StateAdapter): EditorMemoryState;
+export function inspectEditorState(state: EditorMemoryState): StudioState;

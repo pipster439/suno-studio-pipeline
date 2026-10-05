@@ -43,3 +43,10 @@ export function prepareRenderTransformedState(editor, transform, serializeRender
 }
 export const inspectSaveSerializedState = handle => value(handle, 'save-serialized');
 export const inspectRenderTransformedState = handle => value(handle, 'render-transformed');
+/** Apply a pure local editor mutation to an isolated snapshot, never to raw wire state. */
+export function updateEditorState(editor, mutate) {
+  const memory = value(editor, 'editor-memory');
+  if (typeof mutate !== 'function') fail('explicit editor mutation required');
+  return wrap('editor-memory', mutate(memory), true);
+}
+export const inspectEditorState = handle => value(handle, 'editor-memory');
