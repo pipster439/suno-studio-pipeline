@@ -2,6 +2,9 @@
   'use strict';
   const MASK = '<redacted>';
   const sensitive = /authorization|cookie|jwt|token|captcha|secret|password|credential|device|signature|api[-_]?key|session[-_]?id|^(?:auth|session|sid)$/i;
+  // Exact JSON field exception for musical meter. Its contents still recurse through
+  // normal filtering; this never exempts headers, query values, or similar names.
+  const musicalJsonKey = key => key === 'timeSignatureChanges';
   const businessQueryKeys = new Set(['title', 'major_version', 'project_id', 'clip_id', 'offset', 'duration', 'position']);
   const signedQueryKey = /signature|^sig$|^x-amz-|^x-goog-|^policy$|^key-pair-id$|token|credential/i;
   function url(value) {
@@ -36,7 +39,7 @@
     if (value && typeof value === 'object') {
       const output = Object.create(null);
       for (const [key, v] of Object.entries(value).slice(0, 10000)) {
-        output[string(key)] = sensitive.test(key) ? MASK : redact(v, depth + 1);
+        output[string(key)] = sensitive.test(key) && !musicalJsonKey(key) ? MASK : redact(v, depth + 1);
       }
       return output;
     }

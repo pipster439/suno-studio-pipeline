@@ -14,8 +14,8 @@ replace('// @name         Suno Console 登录同步助手', '// @name         Su
 replace('// @namespace    https://suno-console.local/', '// @namespace    https://suno-controller.local/');
 source = source.replace(/^\/\/ @(?:updateURL|downloadURL|match|connect).*\n/gm, '');
 replace('// @run-at', '// @match        https://suno.com/*\n// @match        https://www.suno.com/*\n// @match        http://127.0.0.1:3000/*\n// @match        http://127.0.0.1:3001/*\n// @match        http://127.0.0.1:3002/*\n// @connect      studio-api-prod.suno.com\n// @connect      127.0.0.1\n// @run-at');
-replace('// @version      1.3.11', '// @version      1.3.15');
-replace("const VERSION = '1.3.11';", "const VERSION = '1.3.15';");
+replace('// @version      1.3.11', '// @version      1.3.16');
+replace("const VERSION = '1.3.11';", "const VERSION = '1.3.16';");
 source = source.replaceAll('void checkForScriptUpdate(panel);', '// Local build: no auto-update request.');
 replace('async function refreshAccount() {', 'async function refreshAccount() {\n      return null; // No workbench account request in local-only build.\n      /*');
 replace('async function sync(payload) {', '*/ }\n\n    async function sync(payload) {\n      emitLocalAuthState(); return; // Never upload auth to controller.\n      /*');

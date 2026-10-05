@@ -5,7 +5,7 @@ import { StudioClient, NotVerifiedError } from '../suno/studio/operations.mjs';
 import { projectVersion, projectVersions } from '../suno/studio/models.mjs';
 import * as states from '../suno/studio/state-boundaries.mjs';
 import * as builders from '../suno/studio/request-builders.mjs';
-import { compareState, verifyVersion } from '../scripts/verify-studio-version.mjs';
+import { compareState, compareExactState, verifyVersion } from '../scripts/verify-studio-version.mjs';
 import { verifyVersions } from '../scripts/verify-studio-versions.mjs';
 import privacy from '../shared/privacy.cjs';
 import { SunoBridge } from '../suno/bridge/client.mjs';
@@ -73,7 +73,7 @@ test('render transform is isolated from save state, IDs are explicit, and multit
   assert.throws(() => builders.buildRenderProjectRequest({ ...args, project_id: undefined }), { kind: 'validation_error' });
 });
 test('redacted/omitted payloads are inspectable reads but never enter save/render preparation', () => {
-  const state = privacy.redact(project.state); assert.equal(state.timeSignatureChanges, '<redacted>');
+  const state = structuredClone(project.state); state.timeSignatureChanges = '<redacted>'; // Actual legacy payload; not current privacy output.
   assert.throws(() => states.deserializeEditorState(states.rawWireState(state), x => x), { kind: 'validation_error' });
   const editor = states.deserializeEditorState(states.rawWireState(project.state), x => x);
   assert.throws(() => states.serializeProjectState(editor, x => ({ ...x, future: { omitted: 'size-limit' } })), { kind: 'validation_error' });
@@ -91,11 +91,14 @@ test('preview dispatch refusal is enforced by client and controller hub before a
   await assert.rejects(bridge.call(preview), { kind: 'not_verified' });
   assert.throws(() => new BridgeHub().call(preview), { kind: 'not_verified' });
 });
-test('read verifier records projected comparison, masking limitation, identity mismatch and failures', async () => {
+test('read verifier compares intact state, records legacy masks, identity mismatch and failures', async () => {
   const response = version(); response.state = privacy.redact(response.state);
   const result = await verifyVersion({ bridge: { call: async () => ({ status: 200, result: response }) }, project });
-  assert.equal(result.verified, true); assert.equal(result.stateComparison.equalExceptDisplayLabels, false);
-  assert.deepEqual(result.maskedStatePaths, ['$.timeSignatureChanges']);
+  assert.equal(result.verified, true); assert.equal(result.stateComparison.equalExceptDisplayLabels, true);
+  assert.deepEqual(result.maskedStatePaths, []);
+  const legacy = version(); legacy.state.timeSignatureChanges = '<redacted>';
+  const old = await verifyVersion({ bridge: { call: async () => ({ status: 200, result: legacy }) }, project });
+  assert.equal(old.verified, false); assert.deepEqual(old.maskedStatePaths, ['$.timeSignatureChanges']);
   const changed = structuredClone(project.state); changed.tracks[0].clips[0].startBeats += 1;
   assert.equal(compareState(changed, project.state).equalExceptDisplayLabels, false);
   assert.equal((await verifyVersion({ bridge: { call: async () => ({ status: 200, result: { ...response, id: 'wrong' } }) }, project })).verified, false);
@@ -104,4 +107,21 @@ test('read verifier records projected comparison, masking limitation, identity m
 test('versions experiment never equates version IDs with revision IDs or verifies unrelated lists', async () => {
   const result = await verifyVersions({ project, bridge: { call: async () => ({ status: 200, result: { id: project.id, aggregated_versions: [{ versions: [{ version_id: 'unrelated' }] }] } }) } });
   assert.equal(result.verified, false); assert.equal(result.ids.some(x => x.path.endsWith('revision_id')), false);
+});
+test('lossless read verification compares every real baseline state value including display labels and refuses projection-only success', async () => {
+  const response = version();
+  const valid = await verifyVersion({ project, rawProject: project, requireLossless: true,
+    transportEvidence: { userscriptVersion: '1.3.16', authReady: true, token: 'DO_NOT_LOG_TOKEN', authorization: 'DO_NOT_LOG_AUTH' },
+    bridge: { call: async () => ({ status: 200, result: response }) } });
+  assert.equal(valid.verified, true); assert.equal(valid.losslessState, true);
+  assert.equal(valid.timeSignatureChangesComparison.equal, true);
+  assert.ok(!JSON.stringify(valid).includes('DO_NOT_LOG_'));
+  response.state.tracks[0].name = 'different label';
+  assert.equal(compareState(response.state, project.state).equalExceptDisplayLabels, true);
+  assert.equal(compareExactState(response.state, project.state).equal, false);
+  assert.equal((await verifyVersion({ project, rawProject: project, requireLossless: true, bridge: { call: async () => ({ status: 200, result: response }) } })).verified, false);
+  let calls = 0;
+  await assert.rejects(verifyVersion({ project, requireLossless: true, bridge: { call: () => { calls++; } } }), /explicit real raw/);
+  await assert.rejects(verifyVersion({ project, rawProject: { ...project, id: 'wrong' }, bridge: { call: () => { calls++; } } }), /relation must match/);
+  assert.equal(calls, 0);
 });

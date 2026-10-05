@@ -21,11 +21,13 @@ test('adapted real userscript keeps auth out of workbench, returns status and ca
     CustomEvent: CE, atob, btoa, URL, URLSearchParams, Headers, performance, setInterval: () => 1, setTimeout, clearTimeout, crypto: webcrypto,
     fetch: (...args) => { backendCalls.push(args); return Promise.reject(new Error('unexpected backend auth call')); },
     GM_getValue: (k, d) => values.get(k) ?? d, GM_setValue: (k, v) => values.set(k, v), GM_deleteValue: (k) => values.delete(k), GM_addValueChangeListener: () => {}, GM_openInTab: () => {},
-    GM_xmlhttpRequest: (opts) => { gmCalls.push(opts); if (!hold) queueMicrotask(() => opts.onload({ status, responseText: JSON.stringify({ id: 'fixture', token: 'fixture-secret' }), statusText: 'fixture' })); return { abort() { aborted = true; opts.onabort(); } }; } };
+    GM_xmlhttpRequest: (opts) => { gmCalls.push(opts); if (!hold) queueMicrotask(() => opts.onload({ status, responseText: JSON.stringify({ id: 'fixture', token: 'fixture-secret', state: { timeSignatureChanges: { '0': { numerator: 7, denominator: 8 } }, signature: 'fixture-secret' } }), statusText: 'fixture' })); return { abort() { aborted = true; opts.onabort(); } }; } };
   vm.runInNewContext(source, sandbox);
   async function call(detail) { const done = new Promise((r) => w.addEventListener('suno-console-upload-response', (e) => r(e.detail), { once: true })); w.dispatchEvent(new CE('suno-console-upload-request', { detail })); return done; }
   const response = await call({ requestId: 'test1', path: '/api/session/', method: 'GET' });
   assert.equal(response.ok, true); assert.equal(response.status, 200);
+  assert.match(source, /const VERSION = '1\.3\.16'/);
+  assert.deepEqual(JSON.parse(JSON.stringify(response.result.state.timeSignatureChanges)), { '0': { numerator: 7, denominator: 8 } });
   assert.equal(gmCalls[0].headers.authorization, credential); assert.equal(backendCalls.length, 0);
   assert.equal((await call({ requestId: 'bad', path: '//evil.example/' })).kind, 'validation_error');
   hold = true; const p = call({ requestId: 'abort', path: '/api/session/' });
