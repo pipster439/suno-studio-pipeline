@@ -1,5 +1,21 @@
 # Studio SDK status — 2026-10-05
 
+## Current Free availability and browser-only task
+
+Account is **FREE**, confirmed by user. All real Studio CREATE/ADD/SAVE/MOVE/TRANSPOSE/EXPORT are **BLOCKED_BY_PRODUCT_ENTITLEMENT**. This is independent of unchanged endpoint evidence levels. Current A–H live wizard/controller Begin is blocked; offline rehearsal/report/export remains available.
+
+| Current feature | Implemented / tested | Browser live status | Dispatch / limitation |
+|---|---|---|---|
+| Combined transport 1.3.17 / passive harness 1.1.0 | Yes; native adapter + panel tests | NOT VERIFIED | Studio writes locked in browser and controller |
+| Protocol 2 / controller 0.2.0 scoped read bootstrap | Yes | Pending installed script | No raw-call/full controller capability |
+| Fetch/XHR/correlation/privacy + one-click self-test | Yes; whole mocked-browser/controller flow | NOT VERIFIED | Exact pinned owned-version GET only |
+| Reload + supported fragment SPA persistence | Yes; actual new VM document and restored scenario | NOT VERIFIED | Single expected reload; arbitrary router transitions unproven |
+| One-tab lease / explicit takeover / duplicate recorder block | Yes | NOT VERIFIED | Never automatic takeover |
+| Capture completeness / evidence ZIP / handoff | Yes | Pending real self-test | INCOMPLETE always verificationPassed=false |
+| A–H write validation | Offline tools retained | BLOCKED_BY_PRODUCT_ENTITLEMENT | No endpoint unlock; no write dispatch |
+
+Development evidence is SIMULATED_OFFLINE, not a real GET. Earlier read/lossless/static/20-clip evidence below is retained history. Current report: reports/STUDIO_BROWSER_READONLY_REPORT.md; current handoff: CODEX_LIVE_VALIDATION_HANDOFF.md. New package generation runs without Suno access.
+
 **LIVE_VALIDATION_READY=true** for capture/diff/replay/offline tooling. This is not write access, server submission readiness or new dynamic verification. This task used existing local evidence; real Studio POST/PUT/PATCH/DELETE were all zero. Existing three read verifications and lossless transport evidence were not repeated.
 
 | Feature | Evidence status / confidence | Implemented | Tested | Live verified | Dispatch allowed | Remaining blocker |

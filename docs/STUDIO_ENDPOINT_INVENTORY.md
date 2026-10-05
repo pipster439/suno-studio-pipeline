@@ -1,5 +1,7 @@
 # Studio endpoint inventory
 
+Current FREE account availability is independently BLOCKED_BY_PRODUCT_ENTITLEMENT for Studio writes. Inventory evidence/methods/schema remain unchanged; `liveValidationBlockedReason=PRODUCT_ENTITLEMENT` does not replace FOUND_STATICALLY. No new bundle search or write call was performed by the browser-harness task.
+
 Only literal calls in the existing 116-asset snapshot are included. No Studio write was executed. Source offsets are UTF-16 zero-based; byte offsets and hashes are in `suno/studio/endpoint-inventory.json`. Full response schemas not consumed by client remain UNKNOWN.
 
 | Category | Method | Path | Status | Support / dispatch |

@@ -1,5 +1,7 @@
 # Studio API Map
 
+> Current availability (2026-10-05): user-confirmed **FREE**. Real CREATE/ADD/SAVE/MOVE/TRANSPOSE/EXPORT are **BLOCKED_BY_PRODUCT_ENTITLEMENT**. Evidence grades remain unchanged: three reads VERIFIED; write candidates FOUND_STATICALLY / dispatchAllowed=false. `liveValidationBlockedReason=PRODUCT_ENTITLEMENT` is a separate field. Current browser work is read-only; see STUDIO_CAPTURE_HARNESS.md.
+
 所有 Studio 接口均视为 Unofficial / Internal / Unstable。本表是证据状态表，不是 endpoint 猜测列表。
 
 | 操作 | Observed endpoint | 状态 | 证据 |

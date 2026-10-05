@@ -1,5 +1,7 @@
 # Studio 写验证计划
 
+> 当前 FREE 账号：A–H **live unavailable / BLOCKED_BY_PRODUCT_ENTITLEMENT**。以下动作仅供未来合法具备 Studio entitlement 的账号规划；不是现在的操作提示。wizard/prediction/diff/offline rehearsal 保留，当前 UI/后端 Begin 禁止执行写验证。当前只运行 Browser Read-Only Self Test。
+
 ## 当前边界
 
 本轮 SDK 只生成本地 draft 和 request preview。三个已验证 GET 保持 VERIFIED；create-project、save-project、render-state、render-state-multitrack 保持 FOUND_STATICALLY / High。账号读取成功不证明写权限。只有在账号正常获得官方 Studio 写权限后执行本计划，不修改 subscription、entitlement 或权限字段。

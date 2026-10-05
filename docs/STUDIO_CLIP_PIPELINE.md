@@ -1,5 +1,7 @@
 # Studio Clip Pipeline
 
+> Current account correction: FREE. Real add/save/move/transposition/export validation is BLOCKED_BY_PRODUCT_ENTITLEMENT. Pure local clip pipeline and evidence statuses remain intact; A–H below is a future/offline plan. Current browser test only uses the pinned owned-version GET.
+
 2026-10-05；范围：已有公开官方 JS 快照、现有真实 project fixture、本地纯函数。没有新 Suno 请求、上传流程重跑、付费操作或权限修改。GET project / specific version（LOSSLESS）/ versions list 保持此前 **VERIFIED**；本轮不重复动态读取。
 
 ## 结论与证据等级

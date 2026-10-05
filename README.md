@@ -1,5 +1,25 @@
 # 本地 Suno Controller / API Recorder
 
+## 当前操作入口：Free 账号只读 Browser Self Test
+
+**FREE / STUDIO WRITE BLOCKED**。当前 A–H 实际写验证全部为 BLOCKED_BY_PRODUCT_ENTITLEMENT。三条既有 GET VERIFIED 保留；写候选仍 FOUND_STATICALLY / dispatch=false。
+
+合并版 userscript **v1.3.17** 已内含 Harness **v1.1.0**；controller **0.2.0** / protocol **2**。更新后不要同时启用旧独立 Harness 或旧同步助手。准备命令（已有依赖）：
+
+```powershell
+npm run build:userscript
+npm run build:studio-harness
+npm start
+```
+
+用户只需四步：更新脚本 → 启动/正常重启 controller（若需要）→ 刷新普通 Suno 页 → 展开 Validation 面板并点击 **Run Read-Only Self Test**。安装链接 `http://127.0.0.1:3000/local-transport.user.js`。无需 DevTools、复制 JSON/token 或额外 Auth Bridge 页。
+
+自检只对固定 owned version 做 fetch、XHR、重载后 fetch 三次 GET。测试用第二标签页验证不能抢占 recorder；重载及 SPA fragment 往返自动完成。弹窗、CORS、版本、队列、隐私或导航失败均为 INCOMPLETE，不伪装成功。每次自动生成独立 `deliverables/browser-read/<run>/SUNO_STUDIO_BROWSER_READONLY_LIVE_EVIDENCE.zip` 及外部 SHA-256。
+
+**新 Browser Harness 尚未真实 LIVE VERIFIED**；实现和模拟一键流程已测试，原 v1.3.16 lossless read 证据不代替本轮验证。详见 [handoff](CODEX_LIVE_VALIDATION_HANDOFF.md)、[当前 harness 操作](docs/STUDIO_CAPTURE_HARNESS.md)。后面的旧阶段说明为历史实现，涉及 A–H/旧脚本版本的 live 操作现在不可执行。
+
+`npm test` 保留全部已有测试。`node scripts/browser-read-artifacts.mjs` 只生成 SIMULATED_OFFLINE 开发证据，不访问 Suno。认证只在浏览器中维护；scoped read capability 不能访问 raw-call/写验证。检查 privacy_audit.json、write_dispatch_audit.json、MANIFEST.json；不要发布私人原始 capture。原真实 baseline 缺失时自检直接阻止，不拼造响应。
+
 Node.js 单进程 + 原生浏览器页面 + 一个依赖 ws，无数据库或前端框架。完整 project GET 已由真实 fixture 确认；version GET 与 versions GET 已通过浏览器/Tampermonkey 实际返回 HTTP 200 并确认工程/版本关联。当前所有 StudioClient 写入口（包括历史默认 create）均抛 `NotVerifiedError`，纯 request builder 只生成预览。读取成功不表示账号具有写权限；完整素材→timeline→保存 MVP 尚未完成。证据见 `docs/STUDIO_API_MAP.md`、`reports/STUDIO_READ_BOUNDARIES_REPORT.md`。
 
 ## 架构与安装

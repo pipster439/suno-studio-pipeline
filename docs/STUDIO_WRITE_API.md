@@ -1,5 +1,7 @@
 # 官方 Studio 写 API 静态恢复
 
+> 当前账号已确认 FREE；所有官方 Studio 写动作均 BLOCKED_BY_PRODUCT_ENTITLEMENT。以下证据仍 FOUND_STATICALLY，不降级也不升级。Registry 独立 availability 字段为 liveValidationBlockedReason=PRODUCT_ENTITLEMENT，dispatchAllowed=false。禁止直接调用候选写接口；本轮未重扫 bundle。
+
 > 2026-10-05 后续「最小动态验证 + 客户端边界」更新：version GET 和 versions GET 已实际 VERIFIED；所有当前 StudioClient 写入口（包含历史默认 create）关闭。以下静态调查是历史证据，不重新搜索 bundle。最新结果、serializer 边界和风险见文末及 `reports/STUDIO_READ_BOUNDARIES_REPORT.md`。
 
 2026-10-05，Asia/Shanghai。任务基线 `0b5bdbd4337de819b69c9b45a8e86179dbb1055f`。本轮仅分析官方已下发公共 JS 与用户提供的真实 HTTP 200 GET body；没有向 Suno 发出任何写请求，也没有调用 candidate GET/version 路由、迁移工程或修改权限。

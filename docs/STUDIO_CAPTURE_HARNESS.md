@@ -1,55 +1,56 @@
-# Studio Validation Capture Harness
+# Browser read-only validation harness
 
-This is passive document-start instrumentation. It does not dispatch authenticated Suno API calls or change feature gates. It supplements the existing Auth/Transport v1.3.16 script, which is unchanged. The new harness is VM/local-controller tested, **not yet installed or tested in a real browser in this task**.
+Current account: **FREE**, user-confirmed. Studio write validation is **BLOCKED_BY_PRODUCT_ENTITLEMENT**. Endpoint evidence levels stay unchanged; all Studio writes remain physically locked.
 
-## Once, before legal live validation
+Combined transport **v1.3.17** includes passive harness **v1.1.0**, native read adapter and default-collapsed panel. Controller **0.2.0** / capture protocol **2** are required. Local tests include the one-click panel flow; **the new harness is NOT VERIFIED in the real browser yet**. Prior v1.3.16 lossless read evidence does not prove these new hooks.
+
+## Minimal setup
+
+Build after pulling changes:
 
 ```powershell
+npm run build:userscript
 npm run build:studio-harness
 npm start
 ```
 
-Use the freshly printed loopback pairing URL. Open its `/studio-validation` path, retaining the `#` pairing capability. Click “安装被动 Capture Harness” and install the separately named v1.0.0 userscript. Keep existing v1.3.16 transport enabled. Refresh a single official Suno tab and the local validation page. The validation page links to the paired Auth Bridge in a separate tab; keep that tab open and wait for bridgeOnline/auth ready. Local key is an ephemeral controller capability, not a Suno JWT; never publish it. Port matches are 3000–3002.
+1. Update/install the combined script at `http://127.0.0.1:3000/local-transport.user.js`; disable an old standalone harness/sync script if enabled. Keep one recorder.
+2. Start/restart controller normally if needed (`npm start` in G:/Suno). Old processes have no hot reload.
+3. Refresh the ordinary logged-in Suno page.
+4. Expand Studio Validation and click **Run Read-Only Self Test**.
 
-Existing running controllers have no hot reload; restart normally to load the new routes/guard. This task did not replace existing processes or ask the user to install anything.
+No DevTools, console JS, copied tokens, manual JSON or extra Auth Bridge tab is required. Panel labels include **STUDIO WRITES LOCKED**, **WRITE VALIDATION BLOCKED BY PRODUCT ENTITLEMENT**, FREE, controller/harness/auth/script/protocol versions, scenario/captured/pending/queued/dropped/privacy status.
 
-## A–H operation
+## One-click behavior
 
-Select a scenario and **Begin**. Wait until the page says the recorder is armed, then perform exactly the indicated official UI action. **End** stops new capture, drains outstanding records, reads the known project/latest version using verified GETs, creates the scenario report and automatically analyzes the run. No DevTools, request copying or JSON export is needed. A derives project ID from the successful captured create response. If A yields no valid ID, later reads cannot be fabricated; supply a real ID from actual evidence or leave the report blocked.
+The click reserves a test-owned secondary tab for lease rejection, performs the pinned owned-version GET with native fetch then XHR, drains capture, marks an expected reload, reloads the same page, restores the scenario, changes/restores a same-path history fragment, then performs a third fetch. The second tab sends no Suno API probe and closes after reporting rejection. Popup blocking makes the result INCOMPLETE; no unrelated beacon/WS probes are sent.
 
-Each action has a separate folder under `captures/live/<run>/<scenario>/`. Begin uses exclusive file creation and rejects an existing scenario or overlapping lifecycle transition. A failed/incomplete capture is retained; use a new run ID to repeat.
+Only the exact `/api/studio/3ebbb451-08a7-4599-9885-788f0b8f5def/version/e491cbde-9266-4884-997c-3a9789877a56` GET is accepted by the native adapter. It runs in the existing Tampermonkey auth closure; events never expose credentials. GM transport alone cannot prove page instrumentation, so native CORS/network/XHR failure is INCOMPLETE, with **no GM fallback**.
 
-```powershell
-# Use controller's local capability in SUNO_CONTROLLER_KEY (see original bridge setup).
-npm run studio-validation -- status
-npm run studio-validation -- begin B_ADD --run-id RUN --project-id REAL_PROJECT_ID
-npm run studio-validation -- end
-npm run studio-validation -- report B_ADD --run-id RUN
-npm run studio-validation -- analyze-run --run-id RUN
-npm run studio-validation -- export B_ADD --run-id RUN
-```
+Raw browser-state digest, sanitized transport-state digest and original response baseline must match, including display labels, unknown fields and timeSignatureChanges. Server baseline: `captures/studio_project_3ebbb451-08a7-4599-9885-788f0b8f5def.json`. Missing/wrong original blocks the test; the tracked sanitized fixture is not substituted. Neither original is rewritten.
 
-CLI outputs JSON. The page Export downloads pseudonymized evidence. An optional prediction JSON file can supply a independently prepared predicted state/request (including explicit arrangement-ID dynamic paths). Without source metadata/profile, automatic ADD analysis reports structural invariants rather than claiming exact constructor equality.
+## Protocol and authorization
 
-## Captured data and persistence
+GM POSTs JSON `/api/browser-read/handshake` with `X-Studio-Harness: 2`. Exact loopback Host plus official Suno/loopback Origin checks apply; normal cross-origin pages receive no CORS grant. Ports 3000–3002 are discovered automatically. Returned random in-memory **read capability** only authorizes read-smoke/passive-ingress routes, not `/api/call`, `/api/probe`, A-H Begin or the full WebSocket bridge. It is not Suno auth/full controller capability. GM stores it for reconnect; controller restart invalidates it and triggers bootstrap. Local privileged processes/userscripts remain trusted.
 
-| Transport | Observation | Preserved page behavior |
-|---|---|---|
-| fetch | Method/path, sanitized request headers/body, status/headers/response clone, duration, available stack | Original native Promise returned; original Request/response untouched |
-| XMLHttpRequest | open/send method/path/header/body, loadend status/body | Native returns and data unchanged |
-| sendBeacon | Sanitized payload and native accepted boolean | No fabricated HTTP status or response; native boolean returned |
-| WebSocket | Matching URL metadata and incoming/outgoing JSON frames | Constructor prototype/static constants and native send return retained |
+All four versions are checked before reads/after reload. Mismatch blocks self-test with Controller restart/update required. Browser generic API transport independently normalizes/rejects Studio writes (including encoded/dot/slash aliases); SDK/controller guards remain locked. No entitlement query/change or endpoint unlock occurs.
 
-Only HTTPS/WSS `studio-api-prod.suno.com` paths beginning `/api/studio/` are included; unrelated telemetry is ignored. Response bodies cannot manufacture unrelated endpoints. All events, including beacon/WS/navigation, remain in exported evidence; request/response pairs additionally carry requestId, sequence, source and initiator.
+## Capture, persistence and ownership
 
-Privacy is applied before the GM persistent queue and again before backend append. Authorization/Cookie headers are removed, tokens/JWT/session/account/email fields and signed-query values are redacted; musical timeSignatureChanges and non-sensitive state fields remain intact. Private local captures retain business UUIDs; exported evidence aliases UUIDs and suppresses display labels/lyrics. Do not distribute private capture folders as evidence packages.
+Document-start hooks preserve native fetch Promise/Request/Response, XHR returns, beacon accepted boolean and WebSocket prototype/static/send behavior. Only HTTPS/WSS `studio-api-prod.suno.com` `/api/studio/` traffic is captured. Rows include timestamp, sequence, scenario, correlation/probe ID, source/document, method/path/sanitized request, status/body/duration and available initiator. Privacy runs before GM queue and backend append; auth/cookies/tokens/JWT/device/account/email/signed query values are removed or masked, musical state retained.
 
-Server-owned scenario control persists across refresh, GM stores a bounded redacted queue, and server NDJSON append is the authoritative event log. SPA route is recorded per event; reload retains page identity; pagehide writes a marker. A single official tab lease prevents multiple tabs from sharing a scenario. Records retain their original capture identity and cannot migrate to the next scenario after timeout/reconnect.
+GM_getTab/GM_saveTab identity survives reload and differs between tabs; cloned sessionStorage is not accepted as reliable self-test identity. Server control and a bounded redacted GM queue persist. Lease **never expires into automatic takeover**. Second tabs display Recorder is owned by another Studio tab. Explicit Take Over first cancels/archives an active test, then transfers ownership. Duplicate standalone/combined hooks block instead of silently competing.
 
-## Completeness and editor-memory boundary
+## Completeness
 
-End requires stop acknowledgment, no pending/queued records, no dropped/omitted bodies and complete request/response correlation. Body observation is capped at 1 MiB / 10 s; binary or inaccessible bodies are explicitly omitted. The GM queue has 200-event capacity. Large uploads/long streams/storage failures can produce incomplete capture and must be repeated or investigated; no successful verification recommendation follows a gap. Beacon response is inaccessible, so beacon observations cannot establish HTTP success. WS metadata has null HTTP status by design.
+Expected reload is single-use. Unexpected extra reload, request/response document mismatch, pending pagehide, dropped item, storage failure, body timeout/omission, unavailable response, protocol mismatch or actual multiple recorder owners means **INCOMPLETE / verificationPassed=false**. Stop requires acknowledgment and empty pending/queue. Storage/drop failures remain sticky across counter resets. Resume timeout is shown after 45 seconds while the page runs; closing it leaves unfinished evidence to resume/cancel, never success.
 
-GET may expose only saved state. The tool does **not** fabricate access to closed-over native CRDT/editor memory. B/D/F are automatically paired with subsequent C/E/G persisted snapshots. MOVE/TRANSPOSE comparisons that derive the intended action value from after-state are marked conditional, not independent predictions. If autosave occurs inside an edit scenario it is captured; a subsequent manual Save can have zero new requests. Read failures remain report errors while captured events stay intact.
+SPA proof is limited to **same-path history.replaceState fragment replacement/restoration**; arbitrary application-router redirects are not claimed. Body observation is limited to 1 MiB/10 seconds; queue capacity 200 events. Inaccessible/binary bodies are explicitly omitted. Beacon cannot prove HTTP response/status.
 
-Report comparisons classify MATCH / EXTRA_REAL_FIELD / MISSING_PREDICTED_FIELD / DIFFERENT_VALUE / UNKNOWN_TRANSFORM. Recommendations always require human review and separate controlled reproduction/readback; neither registry nor docs are automatically upgraded. Default production Studio write guard remains physically closed even if an offline test supplies a synthetic VERIFIED registry entry.
+## Evidence and Free write state
+
+Each finished/blocked/cancelled run independently stages in `captures/browser-read/<run>/export-staging` and generates `deliverables/browser-read/<run>/SUNO_STUDIO_BROWSER_READONLY_LIVE_EVIDENCE.zip` plus external SHA-256. Required summaries/handoff/report/tests/manifest are included; raw bodies/private IDs/display values/credentials are excluded. Old packages are not overwritten or nested. Panel displays archive path/hash; scoped `/api/browser-read/archive` serves the latest ZIP.
+
+Live pass requires runtime metadata and every native-source/correlation/digest/HTTP/reload/SPA/lease/completeness check. **SIMULATED_OFFLINE never becomes LIVE VERIFIED**, even for a complete modeled scenario. These checks are not cryptographic browser attestation; inspect actual browser evidence before adopting a live claim.
+
+A-H wizard/prediction/diff/archive tooling remains available offline. Current live Begin/End prompts and controller Begin are blocked by PRODUCT_ENTITLEMENT. A reviewed future entitlement-aware activation is required before legal UI prompts. GET does not fabricate closed-over editor memory; deferred B/D/F versus C/E/G pairing remains. Evidence is never automatically upgraded.
