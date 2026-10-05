@@ -131,3 +131,31 @@ render-transformed 仍需要独立 transform 和 render serializer，**不能**�
 | H-export | 单轨导出一次 | render transformed state、关联版本、returned clip 和实际音频结果 |
 
 若官方 autosave 在编辑 marker 内自行发生，记录该事实及完整时间线，再单独标记手动 save 是否有新增请求；不为了凑出两个请求重复操作。只有真实捕获、单独重播及 state/readback 成功后才升级写 **VERIFIED**，read 成功不推导 write 权限。本轮停止在纯本地验证。
+
+## Studio Dry-Run SDK（2026-10-05）
+
+`suno/studio/dry-run-sdk.mjs` 提供真正可执行的离线链路；`validation.mjs`、`warp-registry.mjs` 分别管理严格验证和 marker storage。没有 bridge、fetch、WebSocket 依赖。模块边界沿用现有 handle/domain adapters，没有重排整个仓库。
+
+| 边界/行为 | 证据 | 当前实现 |
+|---|---|---|
+| SourceClip → draft | FOUND_STATICALLY | source clip_id、duration_seconds、title 与未知 source 字段保留；第三方字段只进入 uploader_metadata，绝不 spread 到 wire |
+| arrangement.id 与 asset.id | FOUND_STATICALLY；历史 alias OBSERVED | 独立 UUID；asset.id 引用 source；只有显式 compatibility policy 和已观察 alias 一致时添加 clipId |
+| sequential placement | FOUND_STATICALLY | SOURCE_DURATION 使用真实输入 duration；RESOLVED_WARP 使用明确 markers 的映射跨度。仅 manual 无 bpsAutomation，尾段按实际长度，二者单位/来源独立报告 |
+| explicit pitch/gain/read/fade | FOUND_STATICALLY；值 USER_SUPPLIED | transposition clamp [-24,24]、有限非负 amplitude、显式 readStartBeats/fade；不覆盖已有 fade 默认值，不实现完整 trim |
+| 上传音高逆规则 | CORRELATED | derivePitchRestoration 默认 NotVerifiedError；严格 true 的 allow_observed_uploader_pitch_rule 才开启，输出 provenance 仍 CORRELATED、serverVerified=false |
+| 自动 loudness repair | OBSERVED 上游字段，转换 UNKNOWN | applyLoudnessRepair 始终 NotVerifiedError；gainReference 等 opaque metadata 保留、默认不影响 wire |
+| warp registry | OBSERVED / FOUND_STATICALLY | PRESERVE_EXISTING 保留历史 hash/registry/未引用条目；新建用 CURRENT_STATIC_ALGORITHM，MD5 与 dedup 仅静态高置信、非服务器 VERIFIED；尾段不同 map 独立 entry |
+| project structural template | OBSERVED | 克隆完整 fixture，生成新 track/draft UUID，清理 selection/focus/UI 中旧身份，重置新工程 convenience state；未知 history-keyed UI 或剩余旧身份拒绝 |
+| existing project modification | FOUND_STATICALLY / 本地验证 | modifyExistingProject copy-on-write；默认保留已有 hash、未知 clip/track/state/registry 字段；变更 whitelist 检测意外丢失 |
+| save request | FOUND_STATICALLY / High | 只返回 POST save-project `{project_id,state,title}`，strict validation 与不可变 preview；dispatchAllowed=false |
+| render request | FOUND_STATICALLY / High | 独立 render-transformed handle；只接受明确 V2 engine/mode/其他参数与 bindings。实现已知 manual timing/metronome overlay，两个官方 normalization transform 尚未完整移植 |
+
+SDK 使用显式的 save_project_id / render project_id / studio_project_id / studio_project_version_id bindings，禁止把本地 draft UUID 推断成服务器 ID。示例均为 LOCAL_PLACEHOLDER。create/save 返回的真实 ID 必须在未来合法验证后绑定。preview 拒绝缺失或未观察 engine/mode；没有自动 enum 猜测。
+
+运行 `npm run dry-run:studio`。`fixtures/studio_20_clip_dry_run.json` 来自真实 20 段工程的 source IDs、markers、timing 和显式 processing，使用中性显示标签。原 GET fixture 和原始 JSON 保持不变。source duration 是 OBSERVED_MARKER_EXTENT（19×6s + 尾段 1.1109791666666666s），不是新获取的完整音频 metadata。resolved warp 下 source range 总长 115.11097916666667s，对应 timeline 182.7272894222562s / 356.3182143733995 beats；不能把两者混为一谈。
+
+历史 semantic diff 逐字段比较 decode 后 state：MATCH 563、EXPECTED_DYNAMIC 69、UNKNOWN_DIFFERENCE 0、BLOCKER 0。预期差异为新 UUID/中性标签/UI reset/静态 constructor formantCorrection 默认值与显式 hash 策略；asset/source、marker 数值、timeline 和 processing 不允许被这些类别掩盖。另有 no-op 测试保持 wire state 精确等价，包括额外未知字段及未引用 registry entries。这只证明本地转换没有损坏样本，save serializer 仍非 VERIFIED。
+
+输出 summary、每个 wire leaf 的 provenance、validation、historical diff、draft 与 request previews。renderTransformComplete=false / serverSubmissionReady=false 明确暴露未移植 normalization、未恢复的官方 downbeats 与 placeholder bindings；生成 preview 不代表可向服务器提交。未来单动作计划见 [STUDIO_WRITE_VALIDATION_PLAN.md](STUDIO_WRITE_VALIDATION_PLAN.md)。
+
+**写入物理边界**：本地 SDK 无 dispatch 能力；StudioClient 写方法拒绝；当前 shared transport validator 对 `/api/studio` 非 GET 全部拒绝，四个写候选即使去掉 dispatchAllowed、改 flag、编码 path 或改为 GET 也无法发送。旧 controller 进程需正常重启加载新代码。本轮不修改 Tampermonkey、不重新运行已完成 read/privacy/lossless live 实验、不发送 Suno 请求。

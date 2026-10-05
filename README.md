@@ -246,3 +246,30 @@ node --test tests/studio-clips.test.mjs
 ```
 
 收集器只验证已有快照哈希并按固定 seeds 提取片段。所有当前写候选仍 FOUND_STATICALLY，Add Clip 恢复为 CLIENT_STATE_MUTATION，不增加虚构 API。
+
+## Studio Dry-Run SDK
+
+无需浏览器、账号认证或网络连接，可运行真实 fixture 衍生的 20 段合并示例：
+
+```powershell
+npm run dry-run:studio
+# 可指定本地输出目录
+node examples/studio-20-clip-dry-run.mjs captures/my-local-preview
+```
+
+默认输出在 `captures/dry-run-sdk/20261005/`：project_draft、request_previews、validation_report、dry_run_summary、dry_run_provenance、historical_project_diff JSON。示例使用已有 fixture，不下载媒体；source duration 标记为已观察 marker extent，source range 与 warped timeline duration 分别报告。generated IDs 是本地 UUID/明确 placeholders，不能直接充当未来 create/save 的服务器 ID。
+
+`buildMergeDryRun()` 接受 SourceClip[]、manual timing、完整结构 template、processing profiles、显式 request bindings/render 参数。使用 `buildStudioClipDraft()` / `buildSequentialTimeline()` / `modifyExistingProject()` 可分别构造 arrangement、顺序 placement 和保留未知字段的已有工程 overlay。typed 接口见 `suno/studio/dry-run-sdk.d.mts`，可运行输入见 `fixtures/studio_20_clip_dry_run.json`。
+
+explicit pitch/amplitude/read/fade 与明确 markers 可执行；自动 uploader inverse pitch 必须严格 opt-in、始终 CORRELATED；自动响度修复和完整 trim 拒绝。修改已有工程默认 PRESERVE_EXISTING，新 draft 的 CURRENT_STATIC_ALGORITHM 仅 FOUND_STATICALLY。render 独立 state domain 只复现限制范围内的 timing/metronome overlay；两个 normalization transform 和官方 downbeat derivation 尚未完整恢复，preview 明确 `renderTransformComplete=false`，不是可直接提交的完整官方 payload。
+
+本轮所有 Studio 写请求在 shared transport boundary 强制拒绝，覆盖 raw-call、SunoBridge 和 BridgeHub；去掉 preview 标记或启用 integration 环境变量都不能放行。Studio Dry-Run SDK 自身没有网络 transport，dispatch() 也抛 NotVerifiedError。运行中的旧 controller 没有热重载，需正常重启加载这个 guard；本轮没有替换旧进程或改 userscript。
+
+```powershell
+npm test
+$env:RUN_SUNO_INTEGRATION_TESTS = '0'
+node --test tests/live.integration.mjs tests/studio-read.integration.mjs
+Remove-Item Env:RUN_SUNO_INTEGRATION_TESTS
+```
+
+未来正常具备 Studio 写权限后，按 [STUDIO_WRITE_VALIDATION_PLAN.md](docs/STUDIO_WRITE_VALIDATION_PLAN.md) 逐动作 capture，再验证静态候选。读取 VERIFIED 不推导任何写权限。实现/证据边界见 [STUDIO_DRY_RUN_SDK_REPORT.md](reports/STUDIO_DRY_RUN_SDK_REPORT.md)。
