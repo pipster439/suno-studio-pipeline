@@ -264,3 +264,9 @@ Only this body/query is VERIFIED；其他 filters、cursor、limit、workspace f
 - render-state 与 multitrack 返回 fragment 分开，multitrack download_url 不套用到 clip render；真实完整 render response 仍未知。
 
 实验记录：`captures/version-verification/20261005/version-read.json`（首次）、`version-assessment.json`（同一次响应的脱敏投影核验）、`versions-list.json`。报告/交付路径及后续 create/save/export 三个官方动作见 [STUDIO_READ_BOUNDARIES_REPORT.md](../reports/STUDIO_READ_BOUNDARIES_REPORT.md) 和 [STUDIO_WRITE_API.md](STUDIO_WRITE_API.md)。
+
+## timeSignatureChanges 精确隐私修复（2026-10-05）
+
+shared/privacy.cjs 已对精确 JSON key timeSignatureChanges 递归保留值，生成 userscript v1.3.16；相似名称、header/query、JWT/cookie/token 和 signed URL 仍过滤。49 项单测通过，包括真实完整 fixture/browser/backend 双重过滤；旧 masked-state 写准备拒绝仍保留。
+
+本轮浏览器仍报告 v1.3.15/waiting，因此**尚未发出新 version GET**，也尚未获得修复后的真实无损 wire 证据。原有版本/列表 VERIFIED 关联证据不变，不把单测提升为动态完整 state 验证。更新脚本并确认 ready/version/build 后，用原真实 JSON（只读）对同一 version 全 state 比较，包括 display labels 和全部未知字段；只保存 schema/hash/result。详情见 [STUDIO_METER_PRIVACY_REPORT.md](../reports/STUDIO_METER_PRIVACY_REPORT.md)。写 API 继续 FOUND_STATICALLY / High；没有 Studio 写 dispatch，也不继续扫描 bundle。

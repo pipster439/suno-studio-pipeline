@@ -209,3 +209,9 @@ render-state 对应生成/render clip；局部消费 data.id/title/moderation_er
 3. **Export：** 从已保存状态开始，marker=export；只提交一次官方单轨导出，捕获 render transformed state、关联 IDs、返回 clip 与官方后续状态。multitrack 是独立第四个可选动作，不能由单轨成功推导。
 
 只在账号正常具有权限后做这三个动作；本轮不执行、不修改权限或 entitlement。录制完整、实际重播成功及状态读回验证后才能升级写状态。
+
+## 后续：音乐 meter 隐私修复（2026-10-05）
+
+源码中的 timeSignatureChanges 误掩码已通过精确 JSON key 例外修复，生成 v1.3.16；值仍递归过滤凭据，header/query/signed URL 和相似名称不放宽。49 项单测通过，真实 source fixture 的全部业务值经浏览器/后端双重过滤相等，原 fixture 不改写。
+
+当前浏览器仍为 v1.3.15/waiting；本轮暂未发送新的 version GET，也不能宣称修复已在真实浏览器端到端验证。新只读实验要求匹配 installed version/build，strict 模式必须提供原真实 JSON 并比较所有 state 值（包括展示标签），无掩码才能成功；只存 schema、摘要和业务 IDs，不存原值/认证。本轮保留3001 controller/bridge 页面待用户安装更新，原3000不动。真实读验证完成后仍不放行任何写方法；save/render serializer 仍只提供显式 adapter，不能自动再次序列化 GET。报告：[STUDIO_METER_PRIVACY_REPORT.md](../reports/STUDIO_METER_PRIVACY_REPORT.md)。

@@ -192,7 +192,7 @@ const project = await studio.get_project(observedOwnedProjectId);
 
 `rawWireState → deserializeEditorState(显式 adapter) → editor-memory → serializeProjectState(显式 adapter) → save-serialized → buildSaveProjectRequest`。render 使用独立 `prepareRenderTransformedState(editor, transform, serializeRender)` 和 render-transformed handle。这里仅提供接口，不移植、执行或冒充已验证的官方 serializer；GET state 不会自动经过 serializer。输入和输出以隔离快照保存，完整未知字段由 adapter 保留，adapter 的真实语义仍待官方动作验证。
 
-**重要限制：** 当前 v1.3.15 transport 把音乐字段 `timeSignatureChanges` 误掩码为 `<redacted>`。version 响应与真实 fixture 的其余 state、ID 关联吻合，但 transport 返回值并非完整无损 wire state。raw handle 可供检查；所有带掩码/omitted 的 state 都被拒绝进入 save/render 准备。原 fixture 未变。本轮未修改已安装 userscript；修复此误掩码并验证无损读回是将来写验证的前置条件。
+**隐私修复 v1.3.16：** shared/privacy.cjs 对精确 JSON key `timeSignatureChanges` 递归保留内容，header/query/signed URL 规则不放行该名称，相似字段名也不放行；内部 token 等仍掩码。v1.3.15 的误掩码是历史限制，不修改旧日志。升级时须更新 Tampermonkey、本地页（刷新）和 controller（正常重启或新进程），避免旧过滤器仍在执行。所有带掩码/omitted 的 state 仍被拒绝进入 save/render 准备；完整 source fixture 不变。修复与严格无损读回证据见 [STUDIO_METER_PRIVACY_REPORT.md](reports/STUDIO_METER_PRIVACY_REPORT.md)，读取成功不放行写方法。
 
 仅显式执行只读实验；下面脚本分别各发一次 GET，不自动重试，不调用 revision 或写接口：
 
@@ -208,6 +208,8 @@ Remove-Item Env:RUN_SUNO_INTEGRATION_TESTS, Env:SUNO_CONTROLLER_KEY, Env:SUNO_CO
 默认 `node --test tests/studio-read.integration.mjs` 跳过真实网络；只有 RUN_SUNO_INTEGRATION_TESTS=1 才执行已知 version 的只读测试。报告/实验日志不含认证 header/token 或完整响应值，只含 schema、业务 IDs、状态和比较摘要。
 
 controller 没有热重载；更新源码后须正常重启，才能启用 hub 对 dispatchAllowed=false preview 的拒绝。StudioClient 与 SunoBridge 在调用进程内同样提前拒绝 preview。现有 controller 进程不会被本轮自动停止/替换。
+
+严格无损读验证还需显式设置 `SUNO_PROJECT_RAW_BASELINE` 为真实原 JSON 路径、`SUNO_REQUIRE_LOSSLESS_STATE=1` 和 `SUNO_REQUIRE_USERSCRIPT_VERSION=1.3.16`（可加 `SUNO_REQUIRE_USERSCRIPT_BUILD_ID`）。脚本先检查 auth/version/build；不符合时零 Suno dispatch。strict 模式包括所有 state 展示标签和未知字段，并要求与原 JSON 精确比较成功、无掩码；日志只保存 schema、业务 ID 与摘要，原始响应/原始 JSON 内容不另行落盘。原文件只读且哈希复核。
 
 ```powershell
 node scripts/analyze-studio-write.mjs captures/official-write/20261005/manifest.json captures/official-write/20261005/write-analysis.json
