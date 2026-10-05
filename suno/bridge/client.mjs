@@ -14,6 +14,7 @@ export class SunoBridge {
     return data;
   }
   async call(options, { signal } = {}) {
+    if (options?.dispatchAllowed === false) throw new BridgeError('not_verified', 'request preview forbids dispatch');
     const valid = validateCall(options);
     const requestId = options.requestId || randomUUID();
     const abort = () => { void this.cancel(requestId).catch(() => {}); };

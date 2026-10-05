@@ -62,17 +62,18 @@ test('redaction handles nested secrets, headers, JWT, signed URL query, non-JSON
 });
 test('unverified Studio operations remain unimplemented', () => {
   const client = new StudioClient({});
-  for (const key of Object.getOwnPropertyNames(StudioClient.prototype).filter((k) => !['constructor', 'create_project', 'get_project_metadata', 'get_project'].includes(k))) assert.throws(() => client[key](), NotImplementedError);
+  for (const key of Object.getOwnPropertyNames(StudioClient.prototype).filter((k) => !['constructor', 'create_project', 'get_project_metadata', 'get_project', 'get_project_version', 'get_project_versions'].includes(k))) assert.throws(() => client[key](), NotImplementedError);
 });
 
-test('StudioClient rejects unverified creation variants and unsafe ids before transport; failures are never retried', async () => {
+test('StudioClient blocks all creation variants and rejects unsafe ids before transport; read failures are never retried', async () => {
   let calls = 0; const error = new Error('transport failed');
   const client = new StudioClient({ async call() { calls++; throw error; } });
   await assert.rejects(client.create_project({ title: 'unverified title' }), NotImplementedError);
   await assert.rejects(client.create_project({ major_version: 1 }), NotImplementedError);
   for (const id of ['', '../other', 'a/b', 'a?token=x', undefined]) await assert.rejects(client.get_project_metadata(id), { kind: 'validation_error' });
   assert.equal(calls, 0);
-  await assert.rejects(client.create_project(), error); assert.equal(calls, 1);
+  await assert.rejects(client.create_project(), NotImplementedError); assert.equal(calls, 0);
+  await assert.rejects(client.get_project_metadata('safe-id'), error); assert.equal(calls, 1);
 });
 
 test('StudioClient treats wrong-id metadata as a contract failure and preserves unknown fields', async () => {

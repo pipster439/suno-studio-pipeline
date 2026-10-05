@@ -28,6 +28,7 @@ export class BridgeHub {
     return this.finish(id, new BridgeError(kind, `${kind}; remote outcome may be unknown`));
   }
   call(options, { signal } = {}) {
+    if (options?.dispatchAllowed === false) throw new BridgeError('not_verified', 'request preview forbids dispatch');
     const valid = validateCall(options);
     const id = options.requestId || randomUUID();
     if (!/^[\w-]{1,100}$/.test(id) || this.pending.has(id)) throw new BridgeError('validation_error', 'invalid or duplicate requestId');

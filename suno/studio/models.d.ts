@@ -62,3 +62,18 @@ export interface StudioProject {
   archived?: boolean;
 }
 export function fullProject(response: { result: unknown; status?: number }, expectedId: string): StudioProject;
+export interface StudioProjectVersion {
+  [key: string]: unknown;
+  id: string;
+  project_id: string;
+  state: StudioState;
+  created_at?: string;
+}
+export function projectVersion(response: { result: unknown; status?: number }, projectId: string, versionId: string): StudioProjectVersion;
+export interface StudioProjectVersions {
+  [key: string]: unknown;
+  id: string;
+  aggregated_versions: Array<{ [key: string]: unknown; hour?: string;
+    versions: Array<{ [key: string]: unknown; version_id: string; version?: number; created_at?: string }> }>;
+}
+export function projectVersions(response: { result: unknown; status?: number }, projectId: string): StudioProjectVersions;
