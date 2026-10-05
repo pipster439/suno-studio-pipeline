@@ -11,6 +11,8 @@ POST /api/studio/create-project?title=...&major_version=2
 No JSON body was sent in the tested create. Response metadata includes id/title,
 created_at/updated_at/archived/major_version. ID is bound from response then read back.
 Additional static query options remain implemented previews, not dynamically covered.
+SDK dispatch rejects create variants beyond title/major_version=2 and render enum
+branches beyond V2 fullsong_export, even under explicit local write configuration.
 
 ## Save
 

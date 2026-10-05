@@ -10,7 +10,7 @@ import {runFixtureLifecycle} from '../examples/studio-fixture-lifecycle.mjs';
 const baseline='3a50d81543a7ef1e943d222b59a30de032ee7b58',sha=b=>createHash('sha256').update(b).digest('hex');
 const stamp=new Date().toISOString().replace(/[:.]/g,'-');
 const logs=await readFile('captures/final-rc-tests.log','utf8'),counts=Object.fromEntries(['tests','pass','fail','skipped'].map(k=>[k,Number(logs.match(new RegExp('# '+k+' (\\d+)'))?.[1])]));
-if(counts.tests<186||counts.pass!==counts.tests||counts.fail!==0)throw Error('current full passing tests required');
+if(counts.tests<187||counts.pass!==counts.tests||counts.fail!==0)throw Error('current full passing tests required');
 const raw=JSON.parse(await readFile('captures/live-write/result.json','utf8'));
 const byStep=Object.fromEntries(raw.map(row=>[row.step,row]));
 const c=byStep.create_project,s1=byStep.save_project_initial,s2=byStep.save_project_transposed,r=byStep.render_state;

@@ -76,7 +76,7 @@ secrets. The code patch is separate and excludes pre-existing working-tree chang
 
 ## TEST RESULT
 
-186 unit/fixture/protocol tests passed, zero failures. All previous tests are retained;
+187 unit/fixture/protocol tests passed, zero failures. All previous tests are retained;
 obsolete assertions were changed to reflect async interfaces/current evidence while
 preserving default-deny behavior. Three real integration tests skipped under default
 gate. Full offline lifecycle: fixture transport only, explicit -5 readback, queued render,

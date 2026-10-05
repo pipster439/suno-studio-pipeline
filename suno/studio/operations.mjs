@@ -29,7 +29,7 @@ export class StudioClient {
     try { return parse(await this.bridge.call(call,{signal})); }
     catch(error) { if(error instanceof BridgeError||error?.kind)throw studioError(error);throw error; }
   }
-  async create_project(input,options={}) { this.#permit('/api/studio/create-project');return this.#write(buildCreateProjectRequest(input),options,r=>metadata(r)); }
+  async create_project(input,options={}) { this.#permit('/api/studio/create-project');if(input?.major_version!==2||Object.keys(input).some(k=>!['title','major_version'].includes(k)))throw new NotVerifiedError('only tested create title/major_version=2 request is enabled');return this.#write(buildCreateProjectRequest(input),options,r=>metadata(r)); }
   async get_project_metadata(project_id, { timeoutMs = 30000, requestId, signal } = {}) {
     if (typeof project_id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(project_id)) throw new BridgeError('validation_error', 'project_id must be a nonempty single path identifier');
     const api = VERIFIED_ENDPOINTS.get_project_metadata;
@@ -60,7 +60,7 @@ export class StudioClient {
   set_timeline() { throw new NotImplementedError('UNKNOWN'); }
   async save_project(input,options={}) { this.#permit('/api/studio/save-project');return this.#write(buildSaveProjectRequest(input),options,r=>savedProject(r,input.project_id)); }
   save_version() { throw new NotVerifiedError('save_version'); }
-  async render_project(input,options={}) { this.#permit('/api/studio/render-state');return this.#write(buildRenderProjectRequest(input),options,r=>queuedRender(r,input)); }
+  async render_project(input,options={}) { this.#permit('/api/studio/render-state');if(input?.export_mode!=='fullsong_export'||input.render_engine!==undefined&&input.render_engine!=='v2')throw new NotVerifiedError('only tested V2 fullsong_export submission is enabled');return this.#write(buildRenderProjectRequest(input),options,r=>queuedRender(r,input)); }
   render_multitrack() { throw new NotVerifiedError('render_multitrack'); }
   export_project() { throw new NotVerifiedError('export_project'); }
   export_multitrack() { throw new NotVerifiedError('export_multitrack'); }
