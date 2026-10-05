@@ -14,4 +14,6 @@ Known owned IDs are pinned in shared/studio-protocol.cjs; no enumeration. Three 
 
 Versions: controller 0.2.0, protocol 2, userscript 1.3.17, harness 1.1.0. See docs/STUDIO_CAPTURE_HARNESS.md for four-step setup. Controller restart is normal/manual; old independent harness must be disabled with the combined script.
 
+Task-owned controller is online at http://127.0.0.1:3001; its loopback handshake was checked (200 / expected versions / FREE / LOCKED), without persisting the capability. Update script from that port. Old controller on 3000 was not stopped. Local handshake is not real-browser or Suno API evidence.
+
 Browser connector in this task returned request-header policy load failure. No installation barrier was bypassed and no new live GET was performed. Run Read-Only Self Test creates a per-run ZIP/handoff with actual COMPLETE/INCOMPLETE, LOSSLESS/NOT LOSSLESS and LIVE VERIFIED/NOT VERIFIED. Offline rehearsal never upgrades live evidence.

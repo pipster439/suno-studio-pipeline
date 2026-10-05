@@ -45,6 +45,7 @@ const files=Object.fromEntries(await Promise.all(names.map(async n=>[n,await rea
 files['REPORT.md']=await readFile('reports/STUDIO_BROWSER_READONLY_REPORT.md','utf8');
 files['CODEX_LIVE_VALIDATION_HANDOFF.md']=await readFile('CODEX_LIVE_VALIDATION_HANDOFF.md','utf8');
 files['TESTS.txt']=logs+'\n'+await readFile('captures/browser-read-integration-default.log','utf8');
+try{files['controller_readiness.json']=await readFile('captures/browser-read-controller-readiness.json','utf8');}catch(e){if(e.code!=='ENOENT')throw e;}
 files['offline_browser_rehearsal.json']=JSON.stringify({origin:'SIMULATED_OFFLINE',complete:true,actualBrowser:false,networkRequests:0,liveVerified:false,scope:'modeled read scenario; actual panel/controller VM integration separately exercised in unit tests',checks:['fetch','XHR','correlation','reload','SPA fragment','second-tab lease rejection','privacy','lossless','archive']},null,2);
 const preserved=[];
 for(const [path,expected]of [

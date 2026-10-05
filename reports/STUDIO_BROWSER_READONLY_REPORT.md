@@ -51,11 +51,13 @@ Evidence grades unchanged: GET project, pinned version and versions list VERIFIE
 ## Artifacts and next action
 
 - Report: `reports/STUDIO_BROWSER_READONLY_REPORT.md`; handoff: `CODEX_LIVE_VALIDATION_HANDOFF.md`.
+- New controller is running at `http://127.0.0.1:3001`; loopback handshake returned HTTP 200 with all expected versions, FREE and LOCKED. Old controller on 3000 was left untouched. This is local readiness, not browser/Suno live evidence. Startup printed no local capability/auth token; Node process is a task-owned headless helper.
 - Generated installation: `userscripts/local-transport.user.js` (v1.3.17, includes harness); standalone passive asset also rebuilt but do not enable both.
 - Tests: `captures/browser-read-development-tests.log`, `captures/browser-read-integration-default.log`.
 - Offline A-H: `captures/browser-read-offline-ah-20261005/offline_validation_rehearsal.json`.
 - Development export pointer: `captures/browser-read-development-latest.json`; contains a fresh evidence ZIP path/hash. Its browser summary explicitly remains SIMULATED_OFFLINE / realBrowser=false / harnessBrowserLiveVerified=false.
 - Task-only patch: `deliverables/SUNO_STUDIO_BROWSER_READONLY.patch` (separate from ZIP). ZIP includes report/logs/small summaries/manifests/commit metadata only, not source, raw fixtures, dependencies, caches, old archives or credentials. External `.sha256` never included inside ZIP.
 - Real self-test exports to `deliverables/browser-read/<run>/SUNO_STUDIO_BROWSER_READONLY_LIVE_EVIDENCE.zip` with its own live/failed handoff. Four manual steps: update script (disable obsolete independent recorder if enabled), start/restart controller if needed, refresh ordinary Suno, click Run Read-Only Self Test.
+- Ready installation link: `http://127.0.0.1:3001/local-transport.user.js`. If the helper is stopped later, use `SUNO_PORT=3001` with `npm start` in PowerShell (`$env:SUNO_PORT='3001'; npm start`). No token copying is required.
 
 The computer-use skill forbids bypassing browser safety barriers and requires action-time confirmation for extension installation; neither installation nor a safety barrier bypass was automated. Skill: `C:/Users/ROG/.codex/plugins/cache/openai-bundled/computer-use/26.930.31730/skills/computer-use/SKILL.md`; associated confirmations policy says “Blocking confirmation required immediately before the action” for “install browser extensions”. The user-performed install step keeps this delivery independent of that UI boundary.
