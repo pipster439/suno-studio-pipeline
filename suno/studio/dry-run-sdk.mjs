@@ -3,12 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { BridgeError } from '../bridge/errors.mjs';
 import { NotVerifiedError } from './operations.mjs';
 import { sourceClipMetadata, buildAnalyzedAudioClipDraft, inspectClipDraft, deserializeAudioProjectState,
-  durationSecondsToBeats, warpBeatsFromSeconds } from './clip-pipeline.mjs';
+  durationSecondsToBeats, warpBeatsFromSeconds, serializeAudioProjectState } from './clip-pipeline.mjs';
 import { rawWireState, deserializeEditorState, inspectEditorState, serializeProjectState, inspectSaveSerializedState,
   prepareRenderTransformedState, inspectRenderTransformedState } from './state-boundaries.mjs';
 import { buildSaveProjectRequest, buildRenderProjectRequest } from './request-builders.mjs';
 import { WarpHashStrategy, serializeWarpState, markersSignature } from './warp-registry.mjs';
 import { validId, validateJsonData, validateProjectForSave, changedPaths } from './validation.mjs';
+import { transformRenderState, deriveDownbeats, deriveManualRenderTiming } from './render-pipeline.mjs';
 export { WarpHashStrategy };
 const fail = m => { throw new BridgeError('validation_error', m); };
 const finite = (v, name) => { if (!Number.isFinite(v)) fail(name + ' must be finite'); return v; };
@@ -115,12 +116,7 @@ export function buildProjectDraft(template,timing,{title='Local Studio Draft',tr
   return {id:randomUUID(),title,identity:{kind:'LOCAL_DRAFT',serverProjectId:null},state};
 }
 function safeRenderMemory(memory) {
-  // Preview policy implements the observed manual-timing/metronome overlay only.
-  // The two opaque official normalization transforms remain a live-validation hypothesis.
-  if(memory.tracks.length!==1||memory.tracks[0].mute||memory.tracks[0].solo||memory.tracks[0].takeLanes.length||memory.masterSignalChain.length||memory.tracks[0].signalChain.length)
-    throw new NotVerifiedError('restricted manual single-track render preview');
-  durationSecondsToBeats(1,memory.timing);
-  return {...copy(memory),timing:{...copy(memory.timing),type:'manual'},metronome:{enabled:false,amplitude:1}};
+  return transformRenderState(memory);
 }
 export function buildSaveProjectRequestPreview(input,{provenance={},validation={}}={}) {
   validateJsonData(provenance);validateJsonData(validation);
@@ -180,7 +176,9 @@ export function buildMergeDryRun({sources,timing,profile={},perClipProfiles=[],t
   const editor=deserializeEditorState(rawWireState(storage.state),deserializeAudioProjectState);
   const save=serializeProjectState(editor,m=>serializeWarpState(m,{strategy:hashStrategy,originalWire:storage.state}).state);
   const wire=inspectSaveSerializedState(save);
-  const renderHandle=prepareRenderTransformedState(editor,safeRenderMemory,m=>serializeWarpState(m,{strategy:hashStrategy,originalWire:wire}).state);
+  // Render uses the current static serializer's fresh referenced-only registry.
+  // Editing preservation policy must not leak dropped clips' registry entries here.
+  const renderHandle=prepareRenderTransformedState(editor,safeRenderMemory,serializeAudioProjectState);
   const renderWire=inspectRenderTransformedState(renderHandle);validateProjectForSave(renderWire);
   const provenanceReport={schemaVersion:1,status:'LOCAL_ONLY',endpointStatus:'FOUND_STATICALLY',serverWriteVerified:false,
     fields:provenanceForState(wire,clips,storage.provenance),
@@ -190,19 +188,20 @@ export function buildMergeDryRun({sources,timing,profile={},perClipProfiles=[],t
     bindings:Object.fromEntries(Object.entries(requestContext).map(([k])=>[k,{status:'USER_SUPPLIED',bindingStatus:requestContext.binding_status??'UNVERIFIED_BINDING',noIdentityInference:true}])),
     aliases:{'/saveRequestPreview/body/state':'/state','/projectDraft/state':'/state','/editorState/payload':'explicit decode of /state'},
     render:{endpointStatus:'FOUND_STATICALLY',render_engine:{status:'USER_SUPPLIED',staticValue:'v2'},export_mode:{status:'USER_SUPPLIED'},
-      statePolicy:'restricted manual single-track preview',timingAndMetronome:'FOUND_STATICALLY',markerStorage:'FOUND_STATICALLY',
-      otherOfficialNormalizationTransforms:'NOT_REPRODUCED; live capture required',serverVerified:false},
+      statePolicy:'manual audio MVP: audible tracks / supported assets / unmuted clips',timingAndMetronome:'FOUND_STATICALLY',markerStorage:'rebuild referenced-only registry; FOUND_STATICALLY',
+      hashStrategy:{strategy:WarpHashStrategy.CURRENT_STATIC_ALGORITHM,status:'FOUND_STATICALLY',serverVerified:false},
+      normalizationTransforms:'17660 then 950155; FOUND_STATICALLY',downbeats:render.downbeats===undefined?'FOUND_STATICALLY derived':'USER_SUPPLIED override',serverVerified:false},
     hashStrategy:{strategy:hashStrategy,status:hashStrategy===WarpHashStrategy.CURRENT_STATIC_ALGORITHM?'FOUND_STATICALLY':'OBSERVED',serverVerified:false},
     uploaderMetadataAppliedOnlyByOptIn:true,placementMode,sourceDurationUnits:'underlying source seconds',timelineDurationUnits:'project playback seconds',
     rules:clips.flatMap((c,i)=>c.provenance.map(p=>({clipIndex:i,...p}))),
     readiness:{readyForLocalValidation:true,serverSubmissionReady:false,requires:['normal Studio write access','real create/save response bindings','official render-state transform comparison']}};
   const saveRequestPreview=buildSaveProjectRequestPreview({project_id:requestContext.save_project_id,title:draft.title,state:save},{validation,provenance:{state:'/state',endpointStatus:'FOUND_STATICALLY',binding:'explicit save_project_id; no render/workspace ID substitution'}});
-  const renderRequestPreview=buildRenderStateRequestPreview({...render,...requestContext,title:draft.title,state:renderHandle,start_beats:timeline.startBeats,end_beats:timeline.endBeats},
+  const renderRequestPreview=buildRenderStateRequestPreview({...render,downbeats:render.downbeats??deriveDownbeats({type:'manual',...deriveManualRenderTiming(timing)},timeline.startBeats,timeline.endBeats),...requestContext,title:draft.title,state:renderHandle,start_beats:timeline.startBeats,end_beats:timeline.endBeats},
     {validation,provenance:provenanceReport.render});
   draft.state=wire;
   const summary={clipCount:clips.length,trackCount:1,sourceTotalDurationSeconds:clips.reduce((a,c)=>a+c.source.duration_seconds,0),timelineTotalDurationSeconds:timeline.totalDurationSeconds,
     timelineTotalBeats:timeline.totalDurationBeats,warpRegistryEntries:Object.keys(wire.markersRegistry).length,writeDispatches:0,hashStrategy,placementMode,
-    renderTransformComplete:false,serverWriteVerified:false,bindingsReady:requestContext.binding_status==='REAL_OBSERVED'};
+    renderTransformComplete:true,renderTransformScope:'manual audio MVP / static port',serverWriteVerified:false,bindingsReady:requestContext.binding_status==='REAL_OBSERVED'};
   return deepFreeze({sourceClips:clips.map(c=>c.source),projectDraft:draft,editorState:{kind:'editor-memory',payload:inspectEditorState(editor)},saveSerializedState:{kind:'save-serialized',payload:wire},
     renderTransformedState:{kind:'render-transformed',payload:renderWire},saveRequestPreview,renderRequestPreview,
     validationReport:{...validation,networkWriteCount:0,serverSubmissionReady:false},provenanceReport,summary});

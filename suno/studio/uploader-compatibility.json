@@ -1,0 +1,13 @@
+{
+  "scope": "observed uploader workflow; does not redefine official Studio wire schema",
+  "profile": "UploaderCompatibilityProfile",
+  "rules": [
+    {"input":"clipId alias","effect":"historical clipId == asset.id; ordinary official constructor omits alias","status":"OBSERVED","confidence":"High for fixture only","automatic":false,"policy":"preserve_observed_clip_id_alias requires matching observed alias"},
+    {"input":"pitchShiftSemitones / restorePitchInStudio","effect":"observed +8 / true correlates with transposition -8","status":"CORRELATED","confidence":"single historical workflow","automatic":false,"policy":"strict opt-in; still CORRELATED; clamp is a separate static official setter rule"},
+    {"input":"transposition","effect":"explicit arrangement transposition","status":"FOUND_STATICALLY","confidence":"High","automatic":false,"policy":"only explicit user-supplied value by default"},
+    {"input":"warp","effect":"fixture shares one full-range map for 19 clips, separate tail map","status":"OBSERVED","confidence":"High for fixture only","automatic":false,"policy":"explicit map or explicit identity_project_bps policy; hash strategy must be declared"},
+    {"input":"gainReference / repairLoudness / repairLoudnessOnMerge","effect":"no confirmed conversion to amplitude/automation/render; third-party orchestration concern","status":"UNKNOWN","confidence":"insufficient effect evidence","automatic":false,"policy":"retain opaque uploader metadata; loudness repair always NotVerifiedError"},
+    {"input":"silencePadSeconds","effect":"no confirmed Studio state mapping","status":"UNKNOWN","confidence":"import field observed, effect unresolved","automatic":false,"policy":"retain metadata only"},
+    {"input":"sourceStartSecond / sourceEndSecond","effect":"not equivalent to timeline bounds or explicit readStartBeats without source mapping","status":"UNKNOWN","confidence":"import fields observed, full trim mapping unresolved","automatic":false,"policy":"retain metadata; no implicit trim"}
+  ]
+}

@@ -1,0 +1,674 @@
+{
+  "scope": "116 already acquired official assets; literal AST inventory, no new download",
+  "calls": 25,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/studio/clip/{clip_id}/download",
+      "category": "READ",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{clip_id:t},query:{format:a}}"
+        }
+      ],
+      "responseSchema": "UNKNOWN; static client consumption only",
+      "sources": [
+        {
+          "bundle": "455mvnvi04a89.js",
+          "sha256": "780a958e3bcde79b441b44f5ebe408a52c274f9621e587a14d636ac84050d3cf",
+          "module": 329176,
+          "offset": 24283,
+          "byteOffset": 24287,
+          "function": null,
+          "call": "e.GET(\"/api/studio/clip/{clip_id}/download\",{params:{path:{clip_id:t},query:{format:a}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/render-state-multitrack",
+      "category": "EXPORT",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": "t",
+          "params": null
+        }
+      ],
+      "responseSchema": "requires download_url; full response UNKNOWN",
+      "sources": [
+        {
+          "bundle": "455mvnvi04a89.js",
+          "sha256": "780a958e3bcde79b441b44f5ebe408a52c274f9621e587a14d636ac84050d3cf",
+          "module": 329176,
+          "offset": 24676,
+          "byteOffset": 24680,
+          "function": "es",
+          "call": "e.POST(\"/api/studio/render-state-multitrack\",{body:t})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/studio/project/{project_id}",
+      "category": "READ",
+      "status": "VERIFIED",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{project_id:e}}"
+        },
+        {
+          "body": null,
+          "params": "{path:{project_id:n}}"
+        },
+        {
+          "body": null,
+          "params": "{path:{project_id:r}}"
+        }
+      ],
+      "responseSchema": "open GET schema; suno/studio/models.mjs",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 477258,
+          "offset": 1010960,
+          "byteOffset": 1010999,
+          "function": null,
+          "call": "c.GET(\"/api/studio/project/{project_id}\",{params:{path:{project_id:e}}})"
+        },
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 140764,
+          "offset": 1332226,
+          "byteOffset": 1332279,
+          "function": "a",
+          "call": "e.GET(\"/api/studio/project/{project_id}\",{params:{path:{project_id:n}},signal:i})"
+        },
+        {
+          "bundle": "24i4o5miwzvt8.js",
+          "sha256": "050a1e7539ae7aa56871b3c9f863a4d6fd6d5e53aa7a9037d511e254a2b8f804",
+          "module": 882521,
+          "offset": 21520,
+          "byteOffset": 21520,
+          "function": null,
+          "call": "e.GET(\"/api/studio/project/{project_id}\",{params:{path:{project_id:r}}})"
+        }
+      ],
+      "currentSupport": "READ client",
+      "dispatchAllowed": true,
+      "evidenceRefs": [
+        "reports/STUDIO_METER_LIVE_VERIFICATION_REPORT.md",
+        "reports/STUDIO_READ_BOUNDARIES_REPORT.md"
+      ],
+      "verifiedRequestSchema": "path IDs; versions query return_days_only=false",
+      "verifiedResponseSchema": "models.mjs open schema",
+      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/studio/clips/{clip_id}/projects",
+      "category": "READ",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{clip_id:i.id}}"
+        },
+        {
+          "body": null,
+          "params": "{path:{clip_id:r}}"
+        }
+      ],
+      "responseSchema": "consumes data.projects; entry schema UNKNOWN",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 477258,
+          "offset": 1011093,
+          "byteOffset": 1011132,
+          "function": null,
+          "call": "c.GET(\"/api/studio/clips/{clip_id}/projects\",{params:{path:{clip_id:i.id}}})"
+        },
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 140764,
+          "offset": 1334200,
+          "byteOffset": 1334253,
+          "function": "d",
+          "call": "e.GET(\"/api/studio/clips/{clip_id}/projects\",{params:{path:{clip_id:r}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/render-state",
+      "category": "RENDER",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": "{title:r||`${n.title||\"Untitled Project\"}${n.editClipId?\" (Edit)\":\"\"}`,lyrics:o,state:p((0,m.default)((0,a.default)(n))),project_id:i,...e.clipType===f.StudioExport?{studio_project_id:e.studioProjectId,export_mode:e.exportMode}:{from_studio_project_id:e.fromStudioProjectId,export_mode:f.RenderedContextWindow},start_beats:c,end_beats:u,downbeats:g,web_client_pathname:window.location.pathname,render_engine:C}",
+          "params": null
+        },
+        {
+          "body": "{title:e,lyrics:(0,y.getPlaintextLyrics)((0,v.default)(u,w,{trackIds:u.tracks.map(e=>e.id),startBeats:x,endBeats:k})),tags:\"\",negative_tags:\"\",style_summary:\"\",caption:\"\",state:(0,a.serializeProjectState)({...(0,i.default)((0,n.default)(u)),timing:{type:\"manual\",...(0,o.getDerivedTiming)(s)},metronome:{enabled:!1,amplitude:1}}),start_beats:x,end_beats:k,project_id:N.currentProjectId,studio_project_id:m,studio_project_version_id:g??void 0,web_client_pathname:window.location.pathname,downbeats:(0,b.getDownbeatsFromTiming)((0,o.getDerivedTiming)(s),x,k),export_mode:t?\"fullsong_export\":\"selected_time_range_export\",render_engine:\"v2\"}",
+          "params": null
+        }
+      ],
+      "responseSchema": "data object; moderation_error_message; V2 consumer id/title then song link; full response UNKNOWN",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 130800,
+          "offset": 1309291,
+          "byteOffset": 1309344,
+          "function": "y",
+          "call": "t.POST(\"/api/studio/render-state\",{body:{title:r||`${n.title||\"Untitled Project\"}${n.editClipId?\" (Edit)\":\"\"}`,lyrics:o,state:p((0,m.default)((0,a.default)(n))),project_id:i,...e.clipType===f.StudioExport?{studio_project_id:e.studioProjectId,export_mode:e.exportMode}:{from_studio_project_id:e.fromStudioProjectId,export_mode:f.RenderedContextWindow},start_beats:c,end_beats:u,downbeats:g,web_client_pathname:window.location.pathname,render_engine:C}})"
+        },
+        {
+          "bundle": "3g9-3c-u44c0o.js",
+          "sha256": "bf8b5b2cc55b072da1b4fce305c5c51dbc3c4c7920f35ec57de24692bcb3ad24",
+          "module": 748387,
+          "offset": 825864,
+          "byteOffset": 826412,
+          "function": null,
+          "call": "c.POST(\"/api/studio/render-state\",{body:{title:e,lyrics:(0,y.getPlaintextLyrics)((0,v.default)(u,w,{trackIds:u.tracks.map(e=>e.id),startBeats:x,endBeats:k})),tags:\"\",negative_tags:\"\",style_summary:\"\",caption:\"\",state:(0,a.serializeProjectState)({...(0,i.default)((0,n.default)(u)),timing:{type:\"manual\",...(0,o.getDerivedTiming)(s)},metronome:{enabled:!1,amplitude:1}}),start_beats:x,end_beats:k,project_id:N.currentProjectId,studio_project_id:m,studio_project_version_id:g??void 0,web_client_pathname:window.location.pathname,downbeats:(0,b.getDownbeatsFromTiming)((0,o.getDerivedTiming)(s),x,k),export_mode:t?\"fullsong_export\":\"selected_time_range_export\",render_engine:\"v2\"}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/studio/project_revision/{revision_id}",
+      "category": "READ",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{revision_id:t}}"
+        }
+      ],
+      "responseSchema": "returns data; management consumes project_id / is_owner before version read; revision/version equivalence UNKNOWN",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 140764,
+          "offset": 1332604,
+          "byteOffset": 1332657,
+          "function": "n",
+          "call": "e.GET(\"/api/studio/project_revision/{revision_id}\",{params:{path:{revision_id:t}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/studio/{project_id}/version/{version_id}",
+      "category": "READ",
+      "status": "VERIFIED",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{project_id:t,version_id:a}}"
+        }
+      ],
+      "responseSchema": "open GET schema; suno/studio/models.mjs",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 140764,
+          "offset": 1332841,
+          "byteOffset": 1332894,
+          "function": "i",
+          "call": "e.GET(\"/api/studio/{project_id}/version/{version_id}\",{params:{path:{project_id:t,version_id:a}}})"
+        }
+      ],
+      "currentSupport": "READ client",
+      "dispatchAllowed": true,
+      "evidenceRefs": [
+        "reports/STUDIO_METER_LIVE_VERIFICATION_REPORT.md",
+        "reports/STUDIO_READ_BOUNDARIES_REPORT.md"
+      ],
+      "verifiedRequestSchema": "path IDs; versions query return_days_only=false",
+      "verifiedResponseSchema": "models.mjs open schema",
+      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/create-project",
+      "category": "PROJECT",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{query:{title:t,...void 0!==n&&{major_version:n},...a?.trigger!==void 0&&{trigger:a.trigger},...a?.extract_mode!==void 0&&{extract_mode:a.extract_mode},...a?.num_stems_sent!==void 0&&{num_stems_sent:a.num_stems_sent},...a?.entry_source!==void 0&&{entry_source:a.entry_source}}}"
+        }
+      ],
+      "responseSchema": "consumes id, title; full response UNKNOWN",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 140764,
+          "offset": 1333113,
+          "byteOffset": 1333166,
+          "function": "o",
+          "call": "e.POST(\"/api/studio/create-project\",{params:{query:{title:t,...void 0!==n&&{major_version:n},...a?.trigger!==void 0&&{trigger:a.trigger},...a?.extract_mode!==void 0&&{extract_mode:a.extract_mode},...a?.num_stems_sent!==void 0&&{num_stems_sent:a.num_stems_sent},...a?.entry_source!==void 0&&{entry_source:a.entry_source}}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/save-project",
+      "category": "SAVE",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": "{project_id:t,state:a,title:n}",
+          "params": null
+        }
+      ],
+      "responseSchema": "requires version_id; full response UNKNOWN",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 140764,
+          "offset": 1333674,
+          "byteOffset": 1333727,
+          "function": "l",
+          "call": "e.POST(\"/api/studio/save-project\",{body:{project_id:t,state:a,title:n}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/create-or-load-project-for-clip/{clip_id}",
+      "category": "CLIP",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{clip_id:r}}"
+        }
+      ],
+      "responseSchema": "requires id, returns id; no body; source-linked create-or-load differs from query-title create",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 140764,
+          "offset": 1333928,
+          "byteOffset": 1333981,
+          "function": "s",
+          "call": "e.POST(\"/api/studio/create-or-load-project-for-clip/{clip_id}\",{params:{path:{clip_id:r}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/project_revision/{revision_id}/clone",
+      "category": "PROJECT",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": "{title:a,...void 0!==n&&{major_version:n}}",
+          "params": "{path:{revision_id:t}}"
+        }
+      ],
+      "responseSchema": "UNKNOWN; static client consumption only",
+      "sources": [
+        {
+          "bundle": "0kfolb-xhy_j4.js",
+          "sha256": "ef24940f421ace114c67bc80a482d93130cba288c2da6a374c8a4d7e236e938d",
+          "module": 140764,
+          "offset": 1334410,
+          "byteOffset": 1334463,
+          "function": "c",
+          "call": "e.POST(\"/api/studio/project_revision/{revision_id}/clone\",{params:{path:{revision_id:t}},body:{title:a,...void 0!==n&&{major_version:n}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/project/{project_id}/bookmark",
+      "category": "PROJECT",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": "{bookmarked:t}",
+          "params": "{path:{project_id:e}}"
+        }
+      ],
+      "responseSchema": "UNKNOWN; static client consumption only",
+      "sources": [
+        {
+          "bundle": "24i4o5miwzvt8.js",
+          "sha256": "050a1e7539ae7aa56871b3c9f863a4d6fd6d5e53aa7a9037d511e254a2b8f804",
+          "module": 882521,
+          "offset": 20742,
+          "byteOffset": 20742,
+          "function": null,
+          "call": "o.POST(\"/api/studio/project/{project_id}/bookmark\",{params:{path:{project_id:e}},body:{bookmarked:t}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/studio/list-projects",
+      "category": "READ",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{query:{cursor:o,limit:16,name:e,archived:t,sort_order:\"latest\"===r?\"desc\":\"asc\",bookmarked:!!i||void 0}}"
+        }
+      ],
+      "responseSchema": "UNKNOWN; static client consumption only",
+      "sources": [
+        {
+          "bundle": "24i4o5miwzvt8.js",
+          "sha256": "050a1e7539ae7aa56871b3c9f863a4d6fd6d5e53aa7a9037d511e254a2b8f804",
+          "module": 882521,
+          "offset": 26442,
+          "byteOffset": 26442,
+          "function": null,
+          "call": "a.apiClient.GET(\"/api/studio/list-projects\",{params:{query:{cursor:o,limit:16,name:e,archived:t,sort_order:\"latest\"===r?\"desc\":\"asc\",bookmarked:!!i||void 0}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/project/{project_id}/archive",
+      "category": "PROJECT",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{project_id:e}}"
+        },
+        {
+          "body": null,
+          "params": "{path:{project_id:e}}"
+        }
+      ],
+      "responseSchema": "UNKNOWN; static client consumption only",
+      "sources": [
+        {
+          "bundle": "24i4o5miwzvt8.js",
+          "sha256": "050a1e7539ae7aa56871b3c9f863a4d6fd6d5e53aa7a9037d511e254a2b8f804",
+          "module": 882521,
+          "offset": 27566,
+          "byteOffset": 27566,
+          "function": null,
+          "call": "y.POST(\"/api/studio/project/{project_id}/archive\",{params:{path:{project_id:e}}})"
+        },
+        {
+          "bundle": "0ureacebq_re1.js",
+          "sha256": "de20925cb9640eb012da11b92abe7aad004eeb8ae5019bcc9a7e943b455038db",
+          "module": 434887,
+          "offset": 5986,
+          "byteOffset": 5986,
+          "function": null,
+          "call": "em.POST(\"/api/studio/project/{project_id}/archive\",{params:{path:{project_id:e}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/project/{project_id}/metadata",
+      "category": "PROJECT",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": "{title:e.title,notes:e.notes,image_s3_id:e.imageS3Id}",
+          "params": "{path:{project_id:x}}"
+        },
+        {
+          "body": "{title:e.title,notes:e.notes,image_s3_id:e.imageS3Id}",
+          "params": "{path:{project_id:ej}}"
+        },
+        {
+          "body": "{title:r}",
+          "params": "{path:{project_id:tH}}"
+        }
+      ],
+      "responseSchema": "UNKNOWN; static client consumption only",
+      "sources": [
+        {
+          "bundle": "24i4o5miwzvt8.js",
+          "sha256": "050a1e7539ae7aa56871b3c9f863a4d6fd6d5e53aa7a9037d511e254a2b8f804",
+          "module": 882521,
+          "offset": 31329,
+          "byteOffset": 31329,
+          "function": null,
+          "call": "y.POST(\"/api/studio/project/{project_id}/metadata\",{params:{path:{project_id:x}},body:{title:e.title,notes:e.notes,image_s3_id:e.imageS3Id}})"
+        },
+        {
+          "bundle": "0ureacebq_re1.js",
+          "sha256": "de20925cb9640eb012da11b92abe7aad004eeb8ae5019bcc9a7e943b455038db",
+          "module": 434887,
+          "offset": 11459,
+          "byteOffset": 11459,
+          "function": null,
+          "call": "em.POST(\"/api/studio/project/{project_id}/metadata\",{params:{path:{project_id:ej}},body:{title:e.title,notes:e.notes,image_s3_id:e.imageS3Id}})"
+        },
+        {
+          "bundle": "3g9-3c-u44c0o.js",
+          "sha256": "bf8b5b2cc55b072da1b4fce305c5c51dbc3c4c7920f35ec57de24692bcb3ad24",
+          "module": 452737,
+          "offset": 813903,
+          "byteOffset": 814451,
+          "function": null,
+          "call": "n.POST(\"/api/studio/project/{project_id}/metadata\",{params:{path:{project_id:tH}},body:{title:r}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/studio/project/{project_id}/unarchive",
+      "category": "PROJECT",
+      "status": "FOUND_STATICALLY",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{project_id:e}}"
+        }
+      ],
+      "responseSchema": "UNKNOWN; static client consumption only",
+      "sources": [
+        {
+          "bundle": "0ureacebq_re1.js",
+          "sha256": "de20925cb9640eb012da11b92abe7aad004eeb8ae5019bcc9a7e943b455038db",
+          "module": 434887,
+          "offset": 6207,
+          "byteOffset": 6207,
+          "function": null,
+          "call": "em.POST(\"/api/studio/project/{project_id}/unarchive\",{params:{path:{project_id:e}}})"
+        }
+      ],
+      "currentSupport": "inventory/preview only",
+      "dispatchAllowed": false,
+      "evidenceRefs": [
+        "docs/STUDIO_WRITE_API.md"
+      ],
+      "verifiedRequestSchema": null,
+      "verifiedResponseSchema": null,
+      "lastVerifiedAgainst": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/studio/{project_id}/versions",
+      "category": "READ",
+      "status": "VERIFIED",
+      "confidence": "High",
+      "request": [
+        {
+          "body": null,
+          "params": "{path:{project_id:s},query:{return_days_only:!1}}"
+        },
+        {
+          "body": null,
+          "params": "{path:{project_id:e},query:{return_days_only:!1}}"
+        }
+      ],
+      "responseSchema": "open GET schema; suno/studio/models.mjs",
+      "sources": [
+        {
+          "bundle": "0ureacebq_re1.js",
+          "sha256": "de20925cb9640eb012da11b92abe7aad004eeb8ae5019bcc9a7e943b455038db",
+          "module": 32799,
+          "offset": 18467,
+          "byteOffset": 18467,
+          "function": null,
+          "call": "v.GET(\"/api/studio/{project_id}/versions\",{params:{path:{project_id:s},query:{return_days_only:!1}}})"
+        },
+        {
+          "bundle": "0ureacebq_re1.js",
+          "sha256": "de20925cb9640eb012da11b92abe7aad004eeb8ae5019bcc9a7e943b455038db",
+          "module": 572419,
+          "offset": 28516,
+          "byteOffset": 28516,
+          "function": null,
+          "call": "v.GET(\"/api/studio/{project_id}/versions\",{params:{path:{project_id:e},query:{return_days_only:!1}}})"
+        }
+      ],
+      "currentSupport": "READ client",
+      "dispatchAllowed": true,
+      "evidenceRefs": [
+        "reports/STUDIO_METER_LIVE_VERIFICATION_REPORT.md",
+        "reports/STUDIO_READ_BOUNDARIES_REPORT.md"
+      ],
+      "verifiedRequestSchema": "path IDs; versions query return_days_only=false",
+      "verifiedResponseSchema": "models.mjs open schema",
+      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence"
+    }
+  ]
+}

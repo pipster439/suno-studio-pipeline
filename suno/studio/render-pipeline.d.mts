@@ -1,0 +1,13 @@
+import type {StudioState,StudioTiming}from'./models.js';
+export const ExportMode:Readonly<{FULL_SONG:'fullsong_export';SELECTION:'selected_time_range_export';CONTEXT:'rendered_context_window';SELECTION_DOWNLOAD:'selection_download_export'}>;
+export const RenderEngine:Readonly<{V2:'v2'}>;
+export const RENDER_EVIDENCE:Readonly<Record<string,unknown>>;
+export function normalizeRenderStateStage1(state:StudioState):StudioState;
+export function normalizeRenderStateStage2(state:StudioState):StudioState;
+export function normalizeLegacyRenderState(state:StudioState):StudioState;
+export function transformRenderState(state:StudioState):StudioState;
+export function transformMultitrackRenderState(state:StudioState):StudioState;
+export function deriveManualRenderTiming(timing:StudioTiming):{bps:number;bpsAutomation:[];firstBeatSeconds:0};
+export function deriveDownbeats(timing:StudioTiming,startBeats:number,endBeats:number):Array<[number,number]>;
+export function renderRange(state:StudioState,options?:{fullSong?:boolean}):{startBeats:number;endBeats:number};
+export function getPlaintextLyrics(tokens:Array<{text:string;[key:string]:unknown}>):string;

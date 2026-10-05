@@ -26,7 +26,7 @@ export function validateCall({ path, method = 'GET', timeoutMs = 30000 }) {
   catch { throw new BridgeError('validation_error', 'invalid encoded path'); }
   if (/%[0-9a-f]{2}/i.test(decoded) || decoded.startsWith('//') || /[\\\s#]/.test(decoded)) throw new BridgeError('validation_error', 'ambiguous encoded path');
   decoded = new URL(decoded, 'https://studio-api-prod.suno.com').pathname.replace(/\/{2,}/g, '/').replace(/\/+$/, '');
-  if (/^\/api\/studio(?:\/|$)/i.test(decoded) && (method !== 'GET' ||
+  if (/^\/api\/studio/i.test(decoded) && (method !== 'GET' ||
     /^\/api\/studio\/(?:create-project|save-project|render-state|render-state-multitrack)$/i.test(decoded))) {
     throw new BridgeError('not_verified', 'Studio write dispatch is disabled at the transport boundary');
   }

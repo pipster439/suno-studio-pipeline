@@ -28,7 +28,7 @@ export interface DryRunInput {
   perClipProfiles?: StudioPostProcessProfile[]; compatibility?: UploaderCompatibilityProfile;
   placementMode?: 'SOURCE_DURATION' | 'RESOLVED_WARP'; hashStrategy?: WarpHashStrategyValue; title?: string;
   requestContext: FutureRequestBindings;
-  render: { render_engine: 'v2'; export_mode: 'fullsong_export' | 'selected_time_range_export'; web_client_pathname: string; lyrics: string; downbeats: unknown };
+  render: { render_engine: 'v2'; export_mode: 'fullsong_export' | 'selected_time_range_export'; web_client_pathname: string; lyrics: string; downbeats?: unknown };
 }
 export interface StudioProjectDraft { id: string; title: string; identity: { kind: 'LOCAL_DRAFT'; serverProjectId: null }; state: StudioState; }
 export interface DryRunRequestPreview extends RequestPreview { readonly endpointStatus: 'FOUND_STATICALLY'; readonly provenance: Record<string, unknown>; readonly validation: Record<string, unknown>; }
