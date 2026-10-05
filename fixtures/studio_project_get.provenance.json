@@ -1,0 +1,107 @@
+{
+  "source": "user exported actual HTTP 200 GET response body",
+  "requestPath": "/api/studio/project/3ebbb451-08a7-4599-9885-788f0b8f5def",
+  "sourceFile": "C:/Users/ROG/Downloads/capturesstudio_project_3ebbb451-08a7-4599-9885-788f0b8f5def.json",
+  "rawCaptureCopy": "captures\\studio_project_3ebbb451-08a7-4599-9885-788f0b8f5def.json",
+  "rawSha256": "a1e2213a987eaa3c3012244eed3e69c9b5e044c1ad54b9fb288f3e19d9ecc334",
+  "fixtureSha256": "b5cc87081cda785b6d59b753908687c0487dfd23f1e3c262b7b563ba5a2ec64a",
+  "rawUnchanged": true,
+  "latestVersionId": "e491cbde-9266-4884-997c-3a9789877a56",
+  "audioTracks": 1,
+  "audioClips": 20,
+  "redactions": [
+    {
+      "path": "$.state.tracks[0].clips[0].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[1].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[2].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[3].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[4].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[5].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[6].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[7].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[8].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[9].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[10].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[11].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[12].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[13].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[14].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[15].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[16].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[17].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[18].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].clips[19].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.state.tracks[0].name",
+      "reason": "user supplied display label"
+    },
+    {
+      "path": "$.title",
+      "reason": "user supplied display label"
+    }
+  ],
+  "credentialOrAccountFieldsObserved": false,
+  "unknownStateFieldsRetained": true,
+  "apiReadStatus": "VERIFIED",
+  "writeStatus": "not verified by this read",
+  "sourceTimestamp": "not supplied with body; no fabricated capture timestamp"
+}

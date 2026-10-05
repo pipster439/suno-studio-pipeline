@@ -1,5 +1,6 @@
 import { VERIFIED_ENDPOINTS } from './api.mjs';
 import { BridgeError } from '../bridge/errors.mjs';
+import { fullProject } from './models.mjs';
 export class NotImplementedError extends Error {}
 function metadata(response, expectedId) {
   const value = response?.result;
@@ -28,13 +29,19 @@ export class StudioClient {
     const api = VERIFIED_ENDPOINTS.get_project_metadata;
     return metadata(await this.bridge.call({ method: api.method, path: api.pathPrefix + encodeURIComponent(project_id), timeoutMs, requestId }, { signal }), project_id);
   }
-  get_project() { throw new NotImplementedError('UNKNOWN: full project/timeline state is not VERIFIED; use get_project_metadata for observed metadata only'); }
+  async get_project(project_id, { timeoutMs = 30000, requestId, signal } = {}) {
+    if (typeof project_id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(project_id)) throw new BridgeError('validation_error', 'project_id must be a nonempty single path identifier');
+    const api = VERIFIED_ENDPOINTS.get_project;
+    return fullProject(await this.bridge.call({ method: api.method, path: api.pathPrefix + encodeURIComponent(project_id), timeoutMs, requestId }, { signal }), project_id);
+  }
   add_audio() { throw new NotImplementedError('UNKNOWN'); }
   add_clip() { throw new NotImplementedError('UNKNOWN'); }
   move_clip() { throw new NotImplementedError('UNKNOWN'); }
   trim_clip() { throw new NotImplementedError('UNKNOWN'); }
   update_clip() { throw new NotImplementedError('UNKNOWN'); }
   set_timeline() { throw new NotImplementedError('UNKNOWN'); }
-  save_project() { throw new NotImplementedError('UNKNOWN'); }
-  export_project() { throw new NotImplementedError('UNKNOWN'); }
+  save_project() { throw new NotImplementedError('FOUND_STATICALLY: whole-state save and version_id response; not write-verified'); }
+  save_version() { throw new NotImplementedError('FOUND_STATICALLY: official saveProjectVersion aliases project save; not write-verified'); }
+  export_project() { throw new NotImplementedError('FOUND_STATICALLY: render-state; not write-verified'); }
+  export_multitrack() { throw new NotImplementedError('FOUND_STATICALLY: render-state-multitrack; not write-verified'); }
 }

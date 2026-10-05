@@ -1,0 +1,816 @@
+{
+  "state": {
+    "loop": {
+      "enabled": false,
+      "startBeats": 0,
+      "endBeats": 32
+    },
+    "selection": {
+      "trackIds": [
+        "ed5e9ca4-d471-40ef-8574-b56d765512f5"
+      ],
+      "focusBeats": 362.1682143733995,
+      "contextBeforeBeats": 32,
+      "focusedArea": "timeline",
+      "focusedTrackId": "ed5e9ca4-d471-40ef-8574-b56d765512f5",
+      "noteIds": [],
+      "automationPointIndices": [],
+      "contextAfterBeats": 32,
+      "warpMarkerSeconds": {},
+      "anchorBeats": 0
+    },
+    "timeSignatureChanges": [
+      {
+        "subdivisionsPerBar": 4,
+        "startBeats": 0,
+        "beatsPerSubdivision": 1
+      }
+    ],
+    "sections": {},
+    "timing": {
+      "firstBeatSeconds": 0,
+      "bpsAutomation": [],
+      "lockBPS": true,
+      "bps": 1.95,
+      "type": "manual"
+    },
+    "routing": {},
+    "layout": {
+      "arrangementEditorHeight": 280,
+      "midiAutomationLaneHeight": 24,
+      "midiAutomationLaneId": {
+        "property": "velocity",
+        "category": "noteProperty"
+      }
+    },
+    "contextualWindowConfig": {
+      "focusedPanel": "generate",
+      "expanded": true
+    },
+    "markersRegistry": {
+      "warp_MDowLDY6MTguNTcyNTkyMzA4": {
+        "0": 0,
+        "6": 18.572592308027932
+      },
+      "warp_MDowLDEuMTEwOTc5MTY2NjY2": {
+        "0": 0,
+        "1.1109791666666666": 3.4389605208687692
+      }
+    },
+    "recording": {
+      "preRollBars": 0,
+      "countInBars": 0
+    },
+    "metronome": {
+      "enabled": false,
+      "amplitude": 1
+    },
+    "amplitude": 1,
+    "songFadeInBeats": 0,
+    "tracks": [
+      {
+        "takeLanes": [],
+        "eq": {
+          "band1": {
+            "frequency": 60,
+            "q": 0.707,
+            "type": "highpass",
+            "enabled": false,
+            "gain": 0
+          },
+          "band5": {
+            "frequency": 3200,
+            "enabled": true,
+            "gain": 0,
+            "q": 0.707,
+            "type": "highshelf"
+          },
+          "enabled": true,
+          "band4": {
+            "type": "peaking",
+            "q": 0.707,
+            "frequency": 1200,
+            "enabled": true,
+            "gain": 0
+          },
+          "band3": {
+            "frequency": 450,
+            "enabled": true,
+            "q": 0.707,
+            "gain": 0,
+            "type": "peaking"
+          },
+          "band6": {
+            "q": 0.707,
+            "type": "lowpass",
+            "enabled": false,
+            "frequency": 8800,
+            "gain": 0
+          },
+          "band2": {
+            "enabled": true,
+            "q": 0.707,
+            "frequency": 160,
+            "gain": 0,
+            "type": "lowshelf"
+          }
+        },
+        "faderAutomation": {},
+        "color": "#208BFF",
+        "balance": 0,
+        "routingMode": "linear",
+        "type": "audio",
+        "instrument": {
+          "type": "song"
+        },
+        "amplitude": 1,
+        "solo": false,
+        "id": "ed5e9ca4-d471-40ef-8574-b56d765512f5",
+        "clipCreationIntents": [],
+        "height": 88,
+        "mute": false,
+        "clips": [
+          {
+            "streaming": false,
+            "fadeInCurve": 1,
+            "mute": false,
+            "warp": {
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "awaitingAnalysis": false,
+              "enabled": true
+            },
+            "fadeOutBeats": 0,
+            "asset": {
+              "id": "24b34204-d2a9-4496-971b-b2de949aa3c5",
+              "type": "clip"
+            },
+            "reversed": false,
+            "fadeOutCurve": 1,
+            "loop": {
+              "endBeats": 18.572592308027932,
+              "enabled": false,
+              "startBeats": 0
+            },
+            "type": "audio",
+            "clipId": "24b34204-d2a9-4496-971b-b2de949aa3c5",
+            "color": "#FF6A00",
+            "transposition": -8,
+            "amplitude": 1,
+            "name": "<redacted display label 1>",
+            "fadeInBeats": 0,
+            "startBeats": 0,
+            "endBeats": 18.572592308027932,
+            "readStartBeats": 0,
+            "id": "4019f5d0-c8c7-4548-a4cf-3a427c843221"
+          },
+          {
+            "color": "#02AF4A",
+            "transposition": -8,
+            "endBeats": 37.145184616055865,
+            "startBeats": 18.572592308027932,
+            "asset": {
+              "type": "clip",
+              "id": "3aaaf64b-2832-4b92-8991-82cae0b4bcc9"
+            },
+            "fadeInBeats": 0,
+            "name": "<redacted display label 2>",
+            "fadeOutCurve": 1,
+            "fadeInCurve": 1,
+            "type": "audio",
+            "warp": {
+              "enabled": true,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "awaitingAnalysis": false
+            },
+            "clipId": "3aaaf64b-2832-4b92-8991-82cae0b4bcc9",
+            "fadeOutBeats": 0,
+            "mute": false,
+            "amplitude": 1,
+            "id": "d84f5483-37e8-41c3-b87f-17f385cf6957",
+            "reversed": false,
+            "streaming": false,
+            "readStartBeats": 0,
+            "loop": {
+              "endBeats": 18.572592308027932,
+              "enabled": false,
+              "startBeats": 0
+            }
+          },
+          {
+            "color": "#DE1677",
+            "startBeats": 37.145184616055865,
+            "mute": false,
+            "type": "audio",
+            "asset": {
+              "id": "73d52402-8637-47e8-86e1-98d8601e8de5",
+              "type": "clip"
+            },
+            "reversed": false,
+            "id": "87badc9b-03d9-4b3f-b8e9-6909fe03b316",
+            "endBeats": 55.71777692408379,
+            "clipId": "73d52402-8637-47e8-86e1-98d8601e8de5",
+            "loop": {
+              "startBeats": 0,
+              "endBeats": 18.572592308027932,
+              "enabled": false
+            },
+            "amplitude": 1,
+            "warp": {
+              "awaitingAnalysis": false,
+              "enabled": true,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+            },
+            "transposition": -8,
+            "fadeInCurve": 1,
+            "fadeOutBeats": 0,
+            "streaming": false,
+            "fadeInBeats": 0,
+            "fadeOutCurve": 1,
+            "name": "<redacted display label 3>",
+            "readStartBeats": 0
+          },
+          {
+            "id": "c8bac1d6-4a11-4925-bf35-4e5b9fef5365",
+            "readStartBeats": 0,
+            "endBeats": 74.29036923211173,
+            "fadeOutBeats": 0,
+            "clipId": "6d8c3190-7883-4e06-8ef7-63b54d859f2e",
+            "amplitude": 1,
+            "fadeInCurve": 1,
+            "fadeInBeats": 0,
+            "warp": {
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "awaitingAnalysis": false,
+              "enabled": true
+            },
+            "color": "#D4BB03",
+            "startBeats": 55.7177769240838,
+            "loop": {
+              "startBeats": 0,
+              "endBeats": 18.572592308027932,
+              "enabled": false
+            },
+            "fadeOutCurve": 1,
+            "type": "audio",
+            "transposition": -8,
+            "reversed": false,
+            "streaming": false,
+            "mute": false,
+            "asset": {
+              "type": "clip",
+              "id": "6d8c3190-7883-4e06-8ef7-63b54d859f2e"
+            },
+            "name": "<redacted display label 4>"
+          },
+          {
+            "id": "b2060556-e6f5-423f-975e-51caf073bfb2",
+            "color": "#7251F7",
+            "type": "audio",
+            "mute": false,
+            "fadeInBeats": 0,
+            "name": "<redacted display label 5>",
+            "readStartBeats": 0,
+            "fadeInCurve": 1,
+            "amplitude": 1,
+            "transposition": -8,
+            "loop": {
+              "startBeats": 0,
+              "enabled": false,
+              "endBeats": 18.572592308027932
+            },
+            "reversed": false,
+            "warp": {
+              "awaitingAnalysis": false,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "enabled": true
+            },
+            "startBeats": 74.29036923211173,
+            "endBeats": 92.86296154013966,
+            "fadeOutBeats": 0,
+            "fadeOutCurve": 1,
+            "asset": {
+              "type": "clip",
+              "id": "1bc31a3b-7d4d-46d7-a023-afde3ccc62f0"
+            },
+            "streaming": false,
+            "clipId": "1bc31a3b-7d4d-46d7-a023-afde3ccc62f0"
+          },
+          {
+            "color": "#208BFF",
+            "clipId": "a410a779-982f-4a9e-baf4-4254074843b2",
+            "streaming": false,
+            "loop": {
+              "startBeats": 0,
+              "enabled": false,
+              "endBeats": 18.572592308027932
+            },
+            "mute": false,
+            "amplitude": 1,
+            "id": "a3b32adb-cd2a-4c5e-ac70-7e50e6a757fc",
+            "startBeats": 92.86296154013966,
+            "endBeats": 111.4355538481676,
+            "fadeInBeats": 0,
+            "readStartBeats": 0,
+            "asset": {
+              "type": "clip",
+              "id": "a410a779-982f-4a9e-baf4-4254074843b2"
+            },
+            "reversed": false,
+            "name": "<redacted display label 6>",
+            "fadeOutCurve": 1,
+            "warp": {
+              "enabled": true,
+              "awaitingAnalysis": false,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+            },
+            "type": "audio",
+            "transposition": -8,
+            "fadeOutBeats": 0,
+            "fadeInCurve": 1
+          },
+          {
+            "amplitude": 1,
+            "fadeInBeats": 0,
+            "reversed": false,
+            "endBeats": 130.00814615619552,
+            "color": "#FF6A00",
+            "asset": {
+              "id": "48168d2a-83c4-44cc-be84-9e1e955728e2",
+              "type": "clip"
+            },
+            "type": "audio",
+            "fadeOutBeats": 0,
+            "name": "<redacted display label 7>",
+            "streaming": false,
+            "warp": {
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "awaitingAnalysis": false,
+              "enabled": true
+            },
+            "id": "1e605957-46bf-4bc1-a34c-8fe59ed6e89c",
+            "transposition": -8,
+            "fadeInCurve": 1,
+            "fadeOutCurve": 1,
+            "readStartBeats": 0,
+            "startBeats": 111.4355538481676,
+            "mute": false,
+            "loop": {
+              "enabled": false,
+              "startBeats": 0,
+              "endBeats": 18.572592308027932
+            },
+            "clipId": "48168d2a-83c4-44cc-be84-9e1e955728e2"
+          },
+          {
+            "id": "2c5eb919-f0af-4c37-a2d7-a21c3797617f",
+            "fadeInBeats": 0,
+            "streaming": false,
+            "reversed": false,
+            "fadeOutBeats": 0,
+            "fadeInCurve": 1,
+            "asset": {
+              "id": "925f1b1c-709a-4a13-8223-7466b26ec588",
+              "type": "clip"
+            },
+            "transposition": -8,
+            "loop": {
+              "startBeats": 0,
+              "endBeats": 18.572592308027932,
+              "enabled": false
+            },
+            "clipId": "925f1b1c-709a-4a13-8223-7466b26ec588",
+            "startBeats": 130.00814615619552,
+            "name": "<redacted display label 8>",
+            "readStartBeats": 0,
+            "type": "audio",
+            "warp": {
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "awaitingAnalysis": false,
+              "enabled": true
+            },
+            "amplitude": 1,
+            "mute": false,
+            "fadeOutCurve": 1,
+            "endBeats": 148.58073846422346,
+            "color": "#02AF4A"
+          },
+          {
+            "endBeats": 167.1533307722514,
+            "transposition": -8,
+            "fadeInCurve": 1,
+            "fadeOutCurve": 1,
+            "fadeInBeats": 0,
+            "streaming": false,
+            "startBeats": 148.58073846422346,
+            "fadeOutBeats": 0,
+            "type": "audio",
+            "name": "<redacted display label 9>",
+            "color": "#DE1677",
+            "amplitude": 1,
+            "warp": {
+              "awaitingAnalysis": false,
+              "enabled": true,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+            },
+            "asset": {
+              "type": "clip",
+              "id": "873941d7-acd8-486f-946f-147c96ca86e3"
+            },
+            "clipId": "873941d7-acd8-486f-946f-147c96ca86e3",
+            "mute": false,
+            "reversed": false,
+            "readStartBeats": 0,
+            "id": "729d86a3-8297-4c17-841e-d6215a730bde",
+            "loop": {
+              "endBeats": 18.572592308027932,
+              "enabled": false,
+              "startBeats": 0
+            }
+          },
+          {
+            "endBeats": 185.72592308027933,
+            "loop": {
+              "endBeats": 18.572592308027932,
+              "enabled": false,
+              "startBeats": 0
+            },
+            "fadeOutBeats": 0,
+            "mute": false,
+            "fadeInBeats": 0,
+            "streaming": false,
+            "id": "8ebb868a-efcc-43a7-8176-184bd5bab513",
+            "startBeats": 167.1533307722514,
+            "readStartBeats": 0,
+            "type": "audio",
+            "color": "#D4BB03",
+            "transposition": -8,
+            "clipId": "a1c2180c-159d-4e4a-82a4-57b0b30889c5",
+            "warp": {
+              "awaitingAnalysis": false,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "enabled": true
+            },
+            "reversed": false,
+            "asset": {
+              "id": "a1c2180c-159d-4e4a-82a4-57b0b30889c5",
+              "type": "clip"
+            },
+            "fadeOutCurve": 1,
+            "amplitude": 1,
+            "fadeInCurve": 1,
+            "name": "<redacted display label 10>"
+          },
+          {
+            "endBeats": 204.29851538830727,
+            "readStartBeats": 0,
+            "asset": {
+              "id": "6a807861-3b91-42a8-b929-836ce0dd8eeb",
+              "type": "clip"
+            },
+            "warp": {
+              "awaitingAnalysis": false,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "enabled": true
+            },
+            "amplitude": 1,
+            "fadeInCurve": 1,
+            "clipId": "6a807861-3b91-42a8-b929-836ce0dd8eeb",
+            "fadeOutCurve": 1,
+            "streaming": false,
+            "name": "<redacted display label 11>",
+            "mute": false,
+            "color": "#7251F7",
+            "fadeInBeats": 0,
+            "reversed": false,
+            "type": "audio",
+            "transposition": -8,
+            "fadeOutBeats": 0,
+            "startBeats": 185.72592308027933,
+            "id": "979a0a6b-8815-4679-8b83-4d8007fe2063",
+            "loop": {
+              "endBeats": 18.572592308027932,
+              "startBeats": 0,
+              "enabled": false
+            }
+          },
+          {
+            "readStartBeats": 0,
+            "mute": false,
+            "streaming": false,
+            "id": "5155cc66-a5be-41ff-82fb-bf6af1b3a4ab",
+            "reversed": false,
+            "fadeOutBeats": 0,
+            "color": "#208BFF",
+            "name": "<redacted display label 12>",
+            "clipId": "90c7b147-2960-45e4-b2f0-6551530d9f9f",
+            "amplitude": 1,
+            "fadeOutCurve": 1,
+            "startBeats": 204.29851538830727,
+            "endBeats": 222.8711076963352,
+            "fadeInCurve": 1,
+            "transposition": -8,
+            "warp": {
+              "enabled": true,
+              "awaitingAnalysis": false,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+            },
+            "asset": {
+              "type": "clip",
+              "id": "90c7b147-2960-45e4-b2f0-6551530d9f9f"
+            },
+            "type": "audio",
+            "loop": {
+              "endBeats": 18.572592308027932,
+              "enabled": false,
+              "startBeats": 0
+            },
+            "fadeInBeats": 0
+          },
+          {
+            "id": "f22e3067-c1c8-4638-9703-a8c1a79f3611",
+            "streaming": false,
+            "transposition": -8,
+            "color": "#FF6A00",
+            "clipId": "54f7d3d0-b297-4b55-a13a-f3c3a9b3dc4c",
+            "type": "audio",
+            "reversed": false,
+            "fadeInBeats": 0,
+            "name": "<redacted display label 13>",
+            "fadeOutBeats": 0,
+            "fadeOutCurve": 1,
+            "loop": {
+              "enabled": false,
+              "startBeats": 0,
+              "endBeats": 18.572592308027932
+            },
+            "asset": {
+              "type": "clip",
+              "id": "54f7d3d0-b297-4b55-a13a-f3c3a9b3dc4c"
+            },
+            "readStartBeats": 0,
+            "startBeats": 222.8711076963352,
+            "amplitude": 1,
+            "endBeats": 241.44370000436314,
+            "mute": false,
+            "fadeInCurve": 1,
+            "warp": {
+              "awaitingAnalysis": false,
+              "enabled": true,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+            }
+          },
+          {
+            "clipId": "62b1ace5-591c-48fd-9568-0be25bede111",
+            "asset": {
+              "type": "clip",
+              "id": "62b1ace5-591c-48fd-9568-0be25bede111"
+            },
+            "amplitude": 1,
+            "color": "#02AF4A",
+            "type": "audio",
+            "warp": {
+              "awaitingAnalysis": false,
+              "enabled": true,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+            },
+            "fadeInBeats": 0,
+            "fadeOutBeats": 0,
+            "reversed": false,
+            "fadeOutCurve": 1,
+            "fadeInCurve": 1,
+            "id": "72cfb9b2-1bd5-4283-a1fb-a2db327e16b0",
+            "readStartBeats": 0,
+            "loop": {
+              "startBeats": 0,
+              "enabled": false,
+              "endBeats": 18.572592308027932
+            },
+            "name": "<redacted display label 14>",
+            "transposition": -8,
+            "startBeats": 241.44370000436314,
+            "endBeats": 260.01629231239104,
+            "mute": false,
+            "streaming": false
+          },
+          {
+            "fadeInCurve": 1,
+            "endBeats": 278.588884620419,
+            "type": "audio",
+            "asset": {
+              "type": "clip",
+              "id": "9a8d9b29-0296-47be-9fb0-be0b379445e6"
+            },
+            "id": "61ae826a-c332-45cc-ab66-a4e3ce3c280c",
+            "readStartBeats": 0,
+            "fadeOutCurve": 1,
+            "transposition": -8,
+            "fadeOutBeats": 0,
+            "reversed": false,
+            "name": "<redacted display label 15>",
+            "color": "#DE1677",
+            "fadeInBeats": 0,
+            "warp": {
+              "enabled": true,
+              "awaitingAnalysis": false,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+            },
+            "amplitude": 1,
+            "loop": {
+              "enabled": false,
+              "endBeats": 18.572592308027932,
+              "startBeats": 0
+            },
+            "streaming": false,
+            "mute": false,
+            "clipId": "9a8d9b29-0296-47be-9fb0-be0b379445e6",
+            "startBeats": 260.01629231239104
+          },
+          {
+            "endBeats": 297.1614769284469,
+            "amplitude": 1,
+            "readStartBeats": 0,
+            "asset": {
+              "id": "61c75b2d-8a22-4495-ae17-1b9736a3ba5d",
+              "type": "clip"
+            },
+            "clipId": "61c75b2d-8a22-4495-ae17-1b9736a3ba5d",
+            "color": "#D4BB03",
+            "mute": false,
+            "fadeInCurve": 1,
+            "warp": {
+              "enabled": true,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "awaitingAnalysis": false
+            },
+            "name": "<redacted display label 16>",
+            "startBeats": 278.588884620419,
+            "loop": {
+              "enabled": false,
+              "endBeats": 18.572592308027932,
+              "startBeats": 0
+            },
+            "transposition": -8,
+            "fadeOutCurve": 1,
+            "id": "eceb0d27-08c4-407e-9b66-d4563d8a3750",
+            "reversed": false,
+            "fadeInBeats": 0,
+            "fadeOutBeats": 0,
+            "type": "audio",
+            "streaming": false
+          },
+          {
+            "streaming": false,
+            "name": "<redacted display label 17>",
+            "fadeInCurve": 1,
+            "asset": {
+              "id": "8b583d8d-b5ca-4264-b0dd-c6d6ea7b38b9",
+              "type": "clip"
+            },
+            "type": "audio",
+            "transposition": -8,
+            "endBeats": 315.73406923647485,
+            "color": "#7251F7",
+            "reversed": false,
+            "fadeInBeats": 0,
+            "fadeOutCurve": 1,
+            "id": "7608e71f-791f-49cc-9ace-c9a6e6972a00",
+            "amplitude": 1,
+            "fadeOutBeats": 0,
+            "clipId": "8b583d8d-b5ca-4264-b0dd-c6d6ea7b38b9",
+            "mute": false,
+            "startBeats": 297.1614769284469,
+            "readStartBeats": 0,
+            "loop": {
+              "enabled": false,
+              "endBeats": 18.572592308027932,
+              "startBeats": 0
+            },
+            "warp": {
+              "awaitingAnalysis": false,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "enabled": true
+            }
+          },
+          {
+            "fadeInBeats": 0,
+            "fadeOutBeats": 0,
+            "fadeInCurve": 1,
+            "color": "#208BFF",
+            "fadeOutCurve": 1,
+            "type": "audio",
+            "streaming": false,
+            "mute": false,
+            "name": "<redacted display label 18>",
+            "warp": {
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "awaitingAnalysis": false,
+              "enabled": true
+            },
+            "asset": {
+              "id": "dfd75444-912e-444f-9e29-c9ab41319f7f",
+              "type": "clip"
+            },
+            "reversed": false,
+            "transposition": -8,
+            "clipId": "dfd75444-912e-444f-9e29-c9ab41319f7f",
+            "amplitude": 1,
+            "startBeats": 315.73406923647485,
+            "endBeats": 334.3066615445028,
+            "readStartBeats": 0,
+            "id": "f6f80f34-ef5e-4750-83e7-40be07fb4102",
+            "loop": {
+              "startBeats": 0,
+              "endBeats": 18.572592308027932,
+              "enabled": false
+            }
+          },
+          {
+            "warp": {
+              "enabled": true,
+              "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+              "awaitingAnalysis": false
+            },
+            "clipId": "03796b77-3017-4c3d-a98d-1d454e37ffe4",
+            "endBeats": 352.8792538525307,
+            "readStartBeats": 0,
+            "name": "<redacted display label 19>",
+            "reversed": false,
+            "color": "#FF6A00",
+            "fadeInBeats": 0,
+            "startBeats": 334.3066615445028,
+            "fadeOutCurve": 1,
+            "type": "audio",
+            "id": "953725bc-816d-46e8-87cf-3fedd9362af4",
+            "streaming": false,
+            "fadeInCurve": 1,
+            "transposition": -8,
+            "mute": false,
+            "loop": {
+              "enabled": false,
+              "startBeats": 0,
+              "endBeats": 18.572592308027932
+            },
+            "asset": {
+              "type": "clip",
+              "id": "03796b77-3017-4c3d-a98d-1d454e37ffe4"
+            },
+            "amplitude": 1,
+            "fadeOutBeats": 0
+          },
+          {
+            "asset": {
+              "type": "clip",
+              "id": "5877bce4-6386-482a-8aa1-9047152b9388"
+            },
+            "startBeats": 352.8792538525307,
+            "transposition": -8,
+            "loop": {
+              "startBeats": 0,
+              "enabled": false,
+              "endBeats": 3.4389605208687692
+            },
+            "type": "audio",
+            "fadeOutBeats": 0,
+            "name": "<redacted display label 20>",
+            "clipId": "5877bce4-6386-482a-8aa1-9047152b9388",
+            "fadeInBeats": 0,
+            "streaming": false,
+            "id": "02573b49-5737-4d71-b072-d3718a9a4a2d",
+            "endBeats": 356.3182143733995,
+            "readStartBeats": 0,
+            "amplitude": 1,
+            "fadeOutCurve": 1,
+            "color": "#02AF4A",
+            "fadeInCurve": 1,
+            "mute": false,
+            "reversed": false,
+            "warp": {
+              "markersHash": "warp_MDowLDEuMTEwOTc5MTY2NjY2",
+              "enabled": true,
+              "awaitingAnalysis": false
+            }
+          }
+        ],
+        "arm": false,
+        "name": "<redacted display label 21>",
+        "takeLanesExpanded": false,
+        "signalChain": []
+      }
+    ],
+    "masterSignalChain": [],
+    "midiCcMappings": {},
+    "songFadeOutBeats": 0,
+    "editorPointerModes": {
+      "audio": "select",
+      "midi": "select"
+    },
+    "masterRoutingMode": "linear",
+    "lyricsCorrectionsByClipId": {}
+  },
+  "latest_version_id": "e491cbde-9266-4884-997c-3a9789877a56",
+  "id": "3ebbb451-08a7-4599-9885-788f0b8f5def",
+  "title": "<redacted display label 22>",
+  "created_at": "2026-10-05T06:22:37.102Z",
+  "updated_at": "2026-10-05T06:22:37.509Z",
+  "archived": false
+}
