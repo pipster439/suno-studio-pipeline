@@ -12,11 +12,17 @@ import { ReferenceStore, REFERENCE_ORIGINS } from './recorder/reference-store.mj
 import { StudioValidationHarness } from './recorder/studio-validation.mjs';
 import { StudioClient } from './studio/operations.mjs';
 import { analyzeValidationRun } from './studio/run-analysis.mjs';
+import protocol from '../shared/studio-protocol.cjs';
+import { BrowserReadSmoke } from './recorder/browser-read-smoke.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export async function createController({ port = 3000, captureRoot = resolve(root, 'captures'), key = randomBytes(32).toString('hex') } = {}) {
+export async function createController({ port = 3000, captureRoot = resolve(root, 'captures'), key = randomBytes(32).toString('hex'), baseline, evidenceOutput=resolve(root,'deliverables/browser-read'), validationOrigin='LIVE_CAPTURE' } = {}) {
   const hub = new BridgeHub(); const captures = new CaptureStore(captureRoot);
   const reference = new ReferenceStore(resolve(captureRoot, 'reference'));
-  const studioValidation = await new StudioValidationHarness(resolve(captureRoot,'live'),{reader:new StudioClient(hub)}).init();
+  const studioValidation = await new StudioValidationHarness(resolve(captureRoot,'live'),{reader:new StudioClient(hub),origin:validationOrigin}).init();
+  if(baseline===undefined){try{baseline=JSON.parse(await readFile(resolve(root,'captures/studio_project_'+protocol.projectId+'.json'),'utf8'));}catch{baseline=null;}}
+  const browserRead=await new BrowserReadSmoke({root:resolve(captureRoot,'browser-read'),harness:studioValidation,baseline,output:evidenceOutput,origin:validationOrigin}).init();
+  const readCapability=randomBytes(32).toString('hex');
+  const readRoutes=new Set(['/api/studio-validation/recorder-config','/api/studio-validation/recorder-status','/api/studio-validation/events','/api/browser-read/status','/api/browser-read/start','/api/browser-read/step','/api/browser-read/finish','/api/browser-read/cancel','/api/browser-read/take-over','/api/browser-read/lease-proof','/api/browser-read/archive']);
   let referenceRecorder = { at: 0, pending: 0, queued: 0, dropped: 0, omissions: 0, activeSession: null, version: null, buildId: null };
   let recorder = { at: 0, queued: 0, dropped: 0, pending: 0, activeSession: null }, lastAuth = 0;
   const secretMatches = (v) => typeof v === 'string' && Buffer.byteLength(v) === Buffer.byteLength(key) && timingSafeEqual(Buffer.from(v), Buffer.from(key));
@@ -39,21 +45,43 @@ export async function createController({ port = 3000, captureRoot = resolve(root
         res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'");
         res.writeHead(200, { 'Content-Type': type }); return res.end(bytes);
       }
-      if (!secretMatches(req.headers['x-controller-key'])) return reply(403, { error: { kind: 'permission_error', message: 'pairing required' } });
+      const bootstrap=path==='/api/browser-read/handshake'&&req.method==='POST'&&req.headers['x-studio-harness']==='2';
+      const readPaired=typeof req.headers['x-controller-key']==='string'&&req.headers['x-controller-key']===readCapability&&readRoutes.has(path);
+      if (!bootstrap&&!readPaired&&!secretMatches(req.headers['x-controller-key'])) return reply(403, { error: { kind: 'permission_error', message: 'pairing required' } });
       const allowedOrigin = !req.headers.origin || req.headers.origin === origin ||
-        (path.startsWith('/api/recorder/') || path === '/api/captures' || ['/api/studio-validation/recorder-config','/api/studio-validation/recorder-status','/api/studio-validation/events'].includes(path)) && ['https://suno.com', 'https://www.suno.com'].includes(req.headers.origin) ||
+        (path.startsWith('/api/recorder/') || path === '/api/captures' || readRoutes.has(path) || bootstrap) && ['https://suno.com', 'https://www.suno.com'].includes(req.headers.origin) ||
         ['/api/reference/events', '/api/reference/status'].includes(path) && REFERENCE_ORIGINS.includes(req.headers.origin);
       if (!allowedOrigin) return reply(403, { error: { kind: 'permission_error', message: 'Origin rejected' } });
       if (req.method === 'GET' && path === '/api/status') { const { auth, ...rest } = state(); return reply(200, { ...rest, authStatus: auth }); }
-      if(req.method==='GET'&&path==='/api/studio-validation/recorder-config')return reply(200,studioValidation.config(new URL(req.url,origin).searchParams.get('page')));
-      if(req.method==='GET'&&path==='/api/studio-validation/status')return reply(200,{...studioValidation.status(),bridgeOnline:!!hub.peer,authReady:hub.auth.ready===true});
+      if(req.method==='GET'&&path==='/api/studio-validation/recorder-config'){
+        const query=new URL(req.url,origin).searchParams,c=studioValidation.config(query.get('page'),query.get('document'));if(c.ownerConflict)browserRead.observeBlockedPage(query.get('page'));
+        return reply(200,{...c,...protocol.versions,capturedRequests:studioValidation.events?.filter(e=>e.eventType==='request').length??0,writeGuard:'LOCKED',productEntitlement:'FREE',writeValidation:'BLOCKED_BY_PRODUCT_ENTITLEMENT',readSmoke:browserRead.status()});
+      }
+      if(req.method==='GET'&&path==='/api/browser-read/status')return reply(200,{...studioValidation.status(),...protocol.versions,writeGuard:'LOCKED',productEntitlement:'FREE',writeValidation:'BLOCKED_BY_PRODUCT_ENTITLEMENT',readSmoke:browserRead.status()});
+      if(req.method==='GET'&&path==='/api/browser-read/archive'){
+        const result=browserRead.current?.result;if(!result)return reply(404,{error:{message:'read evidence not generated yet'}});res.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':'attachment; filename="SUNO_STUDIO_BROWSER_READONLY_LIVE_EVIDENCE.zip"'});return res.end(await readFile(result.archivePath));
+      }
+      if(req.method==='GET'&&path==='/api/studio-validation/status')return reply(200,{...studioValidation.status(),bridgeOnline:!!hub.peer,authReady:hub.auth.ready===true,...protocol.versions,writeGuard:'LOCKED',productEntitlement:'FREE',liveValidationBlockedReason:'PRODUCT_ENTITLEMENT',writeValidation:'BLOCKED_BY_PRODUCT_ENTITLEMENT',offlineRehearsal:'AVAILABLE',liveWriteValidation:'UNAVAILABLE'});
       if (req.method !== 'POST') return reply(404, { error: { kind: 'validation_error', message: 'route not found' } });
       if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) return reply(415, { error: { kind: 'validation_error', message: 'JSON required' } });
       let size = 0, chunks = [];
       for await (const chunk of req) { size += chunk.length; if (size > 4 * 1024 * 1024) return reply(413, { error: { kind: 'validation_error', message: 'payload too large' } }); chunks.push(chunk); }
       let body; try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return reply(400, { error: { kind: 'validation_error', message: 'invalid JSON' } }); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return reply(400, { error: { kind: 'validation_error', message: 'object required' } });
-      if(path==='/api/studio-validation/begin')return reply(200,await studioValidation.begin(body.scenario,body));
+      if(bootstrap)return reply(200,{...protocol.versions,key:readCapability,scope:'READ_SMOKE + passive recorder only; no raw_call or write wizard',writeGuard:'LOCKED',productEntitlement:'FREE'});
+      if(path==='/api/browser-read/start')return reply(200,await browserRead.start(body));
+      if(path==='/api/browser-read/step')return reply(200,await browserRead.step(body));
+      if(path==='/api/browser-read/lease-proof')return reply(200,await browserRead.leaseProof(body));
+      if(path==='/api/browser-read/finish')return reply(200,await browserRead.finish(body));
+      if(path==='/api/browser-read/cancel')return reply(200,await browserRead.cancel(body.pageId));
+      if(path==='/api/browser-read/take-over'){
+        if(browserRead.current&&!browserRead.current.finished)await browserRead.cancel(browserRead.current.pageId);
+        return reply(200,await studioValidation.takeOver(body.pageId,body.documentId));
+      }
+      if(path==='/api/studio-validation/begin'){
+        if(body.scenario!=='READ_SMOKE')throw new BridgeError('product_entitlement','BLOCKED_BY_PRODUCT_ENTITLEMENT: Free account; offline rehearsal remains available');
+        return reply(200,await studioValidation.begin(body.scenario,body));
+      }
       if(path==='/api/studio-validation/end')return reply(200,await studioValidation.end(body));
       if(path==='/api/studio-validation/report')return reply(200,await studioValidation.report(body.runId,body.scenario));
       if(path==='/api/studio-validation/export')return reply(200,await studioValidation.exportScenario(body.runId,body.scenario));
@@ -89,7 +117,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
       reply(404, { error: { kind: 'validation_error', message: 'unknown local route' } });
     } catch (error) {
       const e = error instanceof BridgeError ? error.toJSON() : { kind: 'controller_error', message: 'local action failed; check capture/connection state' };
-      reply(e.kind === 'validation_error' ? 400 : 502, { ok: false, error: e });
+      reply(e.kind === 'validation_error' ? 400 : e.kind==='product_entitlement'?403:502, { ok: false, error: e });
     }
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 * 1024 });
@@ -125,7 +153,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
   }, 4000);
   await new Promise((yes, no) => { server.once('error', no); server.listen(port, '127.0.0.1', yes); });
   origin = `http://127.0.0.1:${server.address().port}`;
-  return { server, hub, captures, reference, key, origin, state, async close() { clearInterval(heartbeat); for (const ws of wss.clients) ws.terminate(); await captures.stop(); await reference.stop(); await studioValidation.chain; await new Promise((r) => server.close(r)); } };
+  return { server, hub, captures, reference, key, origin, state, studioValidation,browserRead,async close() { clearInterval(heartbeat); for (const ws of wss.clients) ws.terminate(); await captures.stop(); await reference.stop(); await studioValidation.chain; await new Promise((r) => server.close(r)); } };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const app = await createController({ port: Number(process.env.SUNO_PORT || 3000) });

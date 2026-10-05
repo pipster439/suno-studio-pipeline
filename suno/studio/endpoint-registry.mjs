@@ -1,7 +1,7 @@
 import {readFileSync}from'node:fs';
 import {NotVerifiedError}from'./operations.mjs';
 import {deepFreeze}from'./dry-run-sdk.mjs';
-export const STUDIO_ENDPOINT_REGISTRY=deepFreeze(JSON.parse(readFileSync(new URL('./endpoint-inventory.json',import.meta.url),'utf8')).endpoints);
+export const STUDIO_ENDPOINT_REGISTRY=deepFreeze(JSON.parse(readFileSync(new URL('./endpoint-inventory.json',import.meta.url),'utf8')).endpoints.map(e=>({...e,liveValidationBlockedReason:e.method==='GET'?null:'PRODUCT_ENTITLEMENT'})));
 function normalized(path){let p=path.split('?')[0];for(let i=0;i<8&&/%[\da-f]{2}/i.test(p);i++)p=decodeURIComponent(p);if(/[%\\\s#]/.test(p)||!p.startsWith('/')||p.startsWith('//'))throw Error('ambiguous path');return new URL(p,'https://studio-api-prod.suno.com').pathname.replace(/\/{2,}/g,'/').replace(/\/+$/,'');}
 export function findEndpoint(method,path,registry=STUDIO_ENDPOINT_REGISTRY){const p=normalized(path);return registry.find(e=>e.method===method.toUpperCase()&&new RegExp('^'+e.path.replace(/[.*+?^$()|[\]\\]/g,'\\$&').replace(/\{[^}]+\}/g,'[A-Za-z0-9_-]+')+'$').test(p));}
 export function endpointGate(method,path,{registry=STUDIO_ENDPOINT_REGISTRY,allow_verified_studio_writes=false}={}){

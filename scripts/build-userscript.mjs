@@ -14,8 +14,10 @@ replace('// @name         Suno Console 登录同步助手', '// @name         Su
 replace('// @namespace    https://suno-console.local/', '// @namespace    https://suno-controller.local/');
 source = source.replace(/^\/\/ @(?:updateURL|downloadURL|match|connect).*\n/gm, '');
 replace('// @run-at', '// @match        https://suno.com/*\n// @match        https://www.suno.com/*\n// @match        http://127.0.0.1:3000/*\n// @match        http://127.0.0.1:3001/*\n// @match        http://127.0.0.1:3002/*\n// @connect      studio-api-prod.suno.com\n// @connect      127.0.0.1\n// @run-at');
-replace('// @version      1.3.11', '// @version      1.3.16');
-replace("const VERSION = '1.3.11';", "const VERSION = '1.3.16';");
+replace('// @version      1.3.11', '// @version      1.3.17');
+replace("const VERSION = '1.3.11';", "const VERSION = '1.3.17';");
+replace('// @grant        unsafeWindow','// @grant        GM_getTab\n// @grant        GM_saveTab\n// @grant        unsafeWindow');
+replace('function currentHeaders() {',(await read('userscripts/studio-read-adapter.js'))+'\n    function currentHeaders() {');
 source = source.replaceAll('void checkForScriptUpdate(panel);', '// Local build: no auto-update request.');
 replace('async function refreshAccount() {', 'async function refreshAccount() {\n      return null; // No workbench account request in local-only build.\n      /*');
 replace('async function sync(payload) {', '*/ }\n\n    async function sync(payload) {\n      emitLocalAuthState(); return; // Never upload auth to controller.\n      /*');
@@ -27,6 +29,8 @@ replace('function callSunoApi(path, method = \'GET\', body) {', `function callSu
       if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || /[\\\\\\s#]/.test(path) || /%(?:0[0-9a-f]|1[0-9a-f]|5c)/i.test(path) || !['GET','POST','PUT','PATCH','DELETE'].includes(method)) {
         return { promise: Promise.reject(Object.assign(new Error('Invalid path or method'), { kind: 'validation_error' })), abort() {} };
       }
+      const blocked = StudioProtocol.dispatchBlock(path, method);
+      if (blocked) return { promise: Promise.reject(Object.assign(new Error('STUDIO WRITES LOCKED'), { kind: blocked })), abort() {} };
       const startedAt = performance.now();`);
 replace('resolve(result);', 'resolve({ body: result, status: response.status, durationMs: performance.now() - startedAt });');
 replace('ok: true, result }', 'ok: true, result: result.body, status: result.status, durationMs: result.durationMs }');
@@ -38,7 +42,7 @@ source = source.replaceAll("new Error('请求 Suno 超时')", "Object.assign(new
 source = source.replaceAll("new Error('Suno 登录未续期，请打开已登录的 Suno 页面后重试')", "Object.assign(new Error('Suno 登录未续期，请打开已登录的 Suno 页面后重试'), { kind: 'auth_error' })");
 replace('async function refreshAccount() {', (await read('userscripts/local-adapter.js')) + '\n    async function refreshAccount() {');
 const end = source.indexOf('// ==/UserScript==') + '// ==/UserScript=='.length;
-source = source.slice(0, end) + '\n' + await read('shared/privacy.cjs') + '\n' + await read('userscripts/recorder.js') + '\n' + source.slice(end);
+source = source.slice(0, end) + '\n' + await read('shared/privacy.cjs') + '\n' + await read('shared/studio-privacy.cjs') + '\n' + await read('shared/studio-protocol.cjs') + '\n' + await read('userscripts/studio-read-panel.js') + '\n' + await read('userscripts/studio-validation-hooks.js') + '\n' + await read('userscripts/recorder.js') + '\n' + source.slice(end);
 source = source.replace('__LOCAL_BUILD_HASH__', createHash('sha256').update(source).digest('hex'));
 await mkdir(resolve(root, 'userscripts'), { recursive: true });
 await writeFile(resolve(root, 'userscripts/local-transport.user.js'), source);

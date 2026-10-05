@@ -33,7 +33,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": null
     },
     {
       "method": "POST",
@@ -66,7 +67,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "GET",
@@ -126,7 +128,8 @@
       ],
       "verifiedRequestSchema": "path IDs; versions query return_days_only=false",
       "verifiedResponseSchema": "models.mjs open schema",
-      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence"
+      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence",
+      "liveValidationBlockedReason": null
     },
     {
       "method": "GET",
@@ -172,7 +175,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": null
     },
     {
       "method": "POST",
@@ -218,7 +222,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "GET",
@@ -251,7 +256,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": null
     },
     {
       "method": "GET",
@@ -285,7 +291,8 @@
       ],
       "verifiedRequestSchema": "path IDs; versions query return_days_only=false",
       "verifiedResponseSchema": "models.mjs open schema",
-      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence"
+      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence",
+      "liveValidationBlockedReason": null
     },
     {
       "method": "POST",
@@ -318,7 +325,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "POST",
@@ -351,7 +359,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "POST",
@@ -384,7 +393,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "POST",
@@ -417,7 +427,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "POST",
@@ -450,7 +461,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "GET",
@@ -483,7 +495,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": null
     },
     {
       "method": "POST",
@@ -529,7 +542,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "POST",
@@ -588,7 +602,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "POST",
@@ -621,7 +636,8 @@
       ],
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null
+      "lastVerifiedAgainst": null,
+      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
     },
     {
       "method": "GET",
@@ -668,7 +684,8 @@
       ],
       "verifiedRequestSchema": "path IDs; versions query return_days_only=false",
       "verifiedResponseSchema": "models.mjs open schema",
-      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence"
+      "lastVerifiedAgainst": "2026-10-05 owned project/version evidence",
+      "liveValidationBlockedReason": null
     }
   ]
 }

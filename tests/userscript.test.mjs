@@ -26,10 +26,13 @@ test('adapted real userscript keeps auth out of workbench, returns status and ca
   async function call(detail) { const done = new Promise((r) => w.addEventListener('suno-console-upload-response', (e) => r(e.detail), { once: true })); w.dispatchEvent(new CE('suno-console-upload-request', { detail })); return done; }
   const response = await call({ requestId: 'test1', path: '/api/session/', method: 'GET' });
   assert.equal(response.ok, true); assert.equal(response.status, 200);
-  assert.match(source, /const VERSION = '1\.3\.16'/);
+  assert.match(source, /const VERSION = '1\.3\.17'/);
   assert.deepEqual(JSON.parse(JSON.stringify(response.result.state.timeSignatureChanges)), { '0': { numerator: 7, denominator: 8 } });
   assert.equal(gmCalls[0].headers.authorization, credential); assert.equal(backendCalls.length, 0);
   assert.equal((await call({ requestId: 'bad', path: '//evil.example/' })).kind, 'validation_error');
+  const beforeWrites=gmCalls.length;
+  for(const path of ['/api/studio/save-project','/api/%73tudio/save-project','/api/x/../studio/save-project','/api//studio/render-state'])for(const method of ['GET','POST','PUT','PATCH','DELETE'])assert.equal((await call({requestId:'blocked',path,method})).kind,'not_verified');
+  assert.equal(gmCalls.length,beforeWrites);
   hold = true; const p = call({ requestId: 'abort', path: '/api/session/' });
   await new Promise((r) => setImmediate(r)); w.dispatchEvent(new CE('suno-console-upload-cancel', { detail: { requestId: 'abort' } }));
   assert.equal((await p).kind, 'cancelled'); assert.equal(aborted, true);
