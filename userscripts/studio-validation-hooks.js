@@ -10,11 +10,11 @@
     if(typeof mountStudioReadPanel==='function')mountStudioReadPanel({page,gm:()=>Promise.reject(Error('multiple recorder owners')),sync:async()=>{},identityReady:Promise.resolve(),status:()=>({control:{...StudioProtocol.versions,ownerConflict:true,connectionError:'multiple recorder owners; disable the old standalone harness and refresh'},auth:{ready:false},pageId:'duplicate-recorder',documentId:'duplicate-recorder',pending:0,queued:0,dropped:0,storageFailures:1})});
     return;
   }
-  page.__STUDIO_VALIDATION_HOOKS__={version:'1.1.0'};
+  page.__STUDIO_VALIDATION_HOOKS__={version:'1.1.1'};
   let pageId;try{pageId=page.sessionStorage.getItem('studio-validation-page');if(!pageId){pageId=crypto.randomUUID();page.sessionStorage.setItem('studio-validation-page',pageId);}}catch{pageId=crypto.randomUUID();}
   const documentId=crypto.randomUUID();let tabIdentityReliable=false;
   const identityReady=typeof GM_getTab==='function'&&typeof GM_saveTab==='function'?new Promise(resolve=>GM_getTab(tab=>{try{tab.studioHarnessTabId??=crypto.randomUUID();GM_saveTab(tab);pageId=tab.studioHarnessTabId;tabIdentityReliable=true;}catch{}resolve();})):Promise.resolve();
-  let pair=GM_getValue(CONFIG,null),control=GM_getValue('studioValidation:control',{controlVersion:0,active:null}),queue=GM_getValue(QUEUE,[]),busy=false,syncing=false,pending=0,dropped=GM_getValue('studioValidation:dropped',0),storageFailures=0,probeId=null,latestAuth={ready:false},panel;
+  let pair=GM_getValue(CONFIG,null),control=GM_getValue('studioValidation:control',{controlVersion:0,active:null}),queue=GM_getValue(QUEUE,[]),busy=false,syncing=false,pending=0,dropped=GM_getValue('studioValidation:dropped',0),storageFailures=0,probeId=null,latestAuth={ready:false},panel,stopAckBusy=false;
   GM_addValueChangeListener(CONFIG,(_k,_a,v)=>{pair=v;void sync();});
   const id=()=>crypto.randomUUID(),clock=()=>new Date().toISOString();
   function context(raw){try{const u=new URL(raw,location.href),a=control.active;return control.pageId===pageId&&a?.acceptNew&&['https:','wss:'].includes(u.protocol)&&u.hostname==='studio-api-prod.suno.com'&&u.pathname.startsWith('/api/studio/')?{...a,url:u.href}:null;}catch{return null;}}
@@ -24,18 +24,52 @@
   async function pump(){if(busy||!pair||!queue.length)return;busy=true;let delivered=false;try{if(queue[0].base!==pair.base){dropped++;queue.shift();save();delivered=true;return;}const row=queue[0],{base,...event}=row;const result=await gm('/api/studio-validation/events',event);if(result.accepted===false)dropped++;queue.shift();save();delivered=true;}catch{}finally{busy=false;if(delivered&&queue.length)setTimeout(()=>{void pump();},0);}}
   async function bootstrap(){
     for(const base of [...new Set([pair?.base,'http://127.0.0.1:3000','http://127.0.0.1:3001','http://127.0.0.1:3002'].filter(base=>/^http:\/\/127\.0\.0\.1:300[012]$/.test(base??'')))]){
-      try{const result=await new Promise((yes,no)=>GM_xmlhttpRequest({method:'POST',url:base+'/api/browser-read/handshake',headers:{'Content-Type':'application/json','X-Studio-Harness':'2'},data:'{}',timeout:1500,onload:r=>{try{if(r.status!==200)return no(Error('Controller update required'));yes(JSON.parse(r.responseText));}catch{no(Error('Protocol unavailable'));}},onerror:no,ontimeout:no}));
-        if(!/^[a-f0-9]{64}$/.test(result.key??''))continue;pair={base,key:result.key};GM_setValue(CONFIG,pair);return true;
+      try{const result=await new Promise((yes,no)=>GM_xmlhttpRequest({method:'POST',url:base+'/api/browser-read/handshake',headers:{'Content-Type':'application/json','X-Studio-Harness':String(StudioProtocol.versions.captureProtocolVersion)},data:'{}',timeout:1500,onload:r=>{try{if(r.status!==200)return no(Error('Controller update required'));yes(JSON.parse(r.responseText));}catch{no(Error('Protocol unavailable'));}},onerror:no,ontimeout:no}));
+        if(!StudioProtocol.compatible(result)||!/^[a-f0-9]{64}$/.test(result.key??''))continue;pair={base,key:result.key};GM_setValue(CONFIG,pair);return true;
       }catch{}
     }return false;
   }
   async function sync(){if(syncing)return control;syncing=true;try{await identityReady;if(!pair&&!await bootstrap())return control;
     try{control=await gm('/api/studio-validation/recorder-config?page='+pageId+'&document='+documentId);}catch{if(!await bootstrap())throw Error('Controller restart/update required');control=await gm('/api/studio-validation/recorder-config?page='+pageId+'&document='+documentId);}
+    if(typeof StudioProtocol!=='undefined'&&!StudioProtocol.compatible(control)){if(!await bootstrap())throw Error('Controller restart/update required');control=await gm('/api/studio-validation/recorder-config?page='+pageId+'&document='+documentId);}
     if(control.ownerConflict){panel?.update();return control;}control.connectionError=null;GM_setValue('studioValidation:control',control);await pump();
     page.dispatchEvent(new CustomEvent('suno-studio-read-status-request'));
-    await gm('/api/studio-validation/recorder-status',{pageId,documentId,controlVersion:control.controlVersion,pending,queued:queue.length,dropped,storageFailures,multipleOwners:page.__STUDIO_VALIDATION_HOOKS__?.multipleOwners===true,versions:{controllerVersion:control.controllerVersion,userscriptVersion:latestAuth.userscriptVersion,harnessVersion:'1.1.0',captureProtocolVersion:2}});
+    await gm('/api/studio-validation/recorder-status',{pageId,documentId,controlVersion:control.controlVersion,pending,queued:queue.length,dropped,storageFailures,multipleOwners:page.__STUDIO_VALIDATION_HOOKS__?.multipleOwners===true,versions:{controllerVersion:control.controllerVersion,userscriptVersion:latestAuth.userscriptVersion,harnessVersion:StudioProtocol.versions.harnessVersion,captureProtocolVersion:StudioProtocol.versions.captureProtocolVersion}});
+    if(control.active?.stop)await flushStop(control.active);
     return control;
   }catch{control.active=null;control.connectionError='Controller restart/update required';return control;}finally{syncing=false;panel?.update();}}
+  function persistStop(value){try{GM_setValue('studioValidation:stop',value);}catch{storageFailures++;throw Error('stop storage failure');}}
+  async function flushStop(active){
+    if(stopAckBusy||control.ownerConflict||control.pageId!==pageId||pending||queue.length||busy||storageFailures)return;
+    stopAckBusy=true;try{
+      const stop=active.stop;if(!stop||stop.captureId!==active.captureId||stop.scenario!==active.scenario)throw Error('stop identity mismatch');
+      // New records are already disabled by persisted controller state. In-flight rows
+      // keep their original captureId and are drained by the unchanged queue pump.
+      active.acceptNew=false;save();if(storageFailures||pending||queue.length||busy)return;
+      const local={captureId:active.captureId,scenario:active.scenario,requestId:stop.requestId,pageId,phase:'STOPPED'};
+      persistStop(local);GM_setValue('studioValidation:control',control);
+      const result=await gm('/api/studio-validation/stop-ack',{...local,controlVersion:stop.controlVersion,documentId,pending:0,queued:0,dropped,storageFailures,persisted:true,acceptNew:false,finalSequence:stop.lastSequence,versions:{...StudioProtocol.versions,userscriptVersion:latestAuth.userscriptVersion}});
+      if(result.captureId!==local.captureId||result.scenario!==local.scenario||result.requestId!==local.requestId||result.phase!=='ACKNOWLEDGED'||result.complete!==true)throw Error('stop ACK correlation mismatch');
+      persistStop({...local,phase:'ACKNOWLEDGED',result});return result;
+    }catch(e){if(/storage/.test(e.message))storageFailures++;throw e;}finally{stopAckBusy=false;}
+  }
+  async function stopScenario({captureId,scenario='READ_SMOKE'}){
+    await identityReady;await sync();
+    if(control.active?.captureId===captureId){control.active.acceptNew=false;GM_setValue('studioValidation:control',control);}
+    let stop;for(let retry=0;retry<3&&!stop;retry++){try{stop=await gm('/api/studio-validation/stop-request',{captureId,scenario,pageId});}catch{await sync();const cached=control.active?.stop;if(cached?.captureId===captureId&&cached.scenario===scenario)stop=cached;}}
+    if(!stop)throw Error('stop request unavailable; persisted identity retained for retry');
+    if(stop.captureId!==captureId||stop.scenario!==scenario)throw Error('stop request correlation mismatch');
+    persistStop({captureId,scenario,requestId:stop.requestId,pageId,phase:'STOP_REQUEST_SENT'});
+    const deadline=Date.now()+15000;
+    while(Date.now()<deadline){
+      await sync();const query=new URLSearchParams({captureId,scenario,pageId,requestId:stop.requestId});
+      let result;try{result=await gm('/api/studio-validation/stop-result?'+query);}catch{await new Promise(r=>setTimeout(r,100));continue;}
+      if(result.complete===true&&result.phase==='ACKNOWLEDGED'&&result.captureId===captureId&&result.scenario===scenario&&result.requestId===stop.requestId){if(storageFailures)throw Error('stop storage failure');persistStop({captureId,scenario,requestId:stop.requestId,pageId,phase:'ACKNOWLEDGED',result});return result;}
+      if(storageFailures)throw Error('stop storage failure');await new Promise(r=>setTimeout(r,100));
+    }
+    throw Error('stop acknowledgment unavailable; persisted stop can be retried');
+  }
+  function exportEvidence(){return new Promise((yes,no)=>GM_xmlhttpRequest({method:'GET',url:pair.base+'/api/browser-read/archive',headers:{'X-Controller-Key':pair.key},responseType:'arraybuffer',timeout:10000,onload:r=>{if(r.status!==200||!r.response?.byteLength)return no(Error('evidence archive unavailable'));const url=URL.createObjectURL(new Blob([r.response],{type:'application/zip'})),link=document.createElement('a');link.href=url;link.download='SUNO_STUDIO_BROWSER_READONLY_LIVE_EVIDENCE.zip';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);yes();},onerror:no,ontimeout:no}));}
   page.addEventListener('suno-studio-read-status',e=>{latestAuth=e.detail??{ready:false};panel?.update();});
   page.addEventListener('suno-studio-read-probe-start',e=>{probeId=e.detail?.requestId??null;});
   page.addEventListener('suno-studio-read-probe-end',()=>{probeId=null;});
@@ -72,6 +106,6 @@
   }
   for(const method of ['pushState','replaceState'])if(page.history?.[method]){const native=page.history[method];page.history[method]=function(){const r=native.apply(this,arguments),c=control.active;if(c&&control.pageId===pageId)emit(c,{eventType:'navigation',eventId:id(),timestamp:clock(),event:'spa-'+method,route:location.pathname,pending});return r;};}
   page.addEventListener('pagehide',()=>{const c=control.active;if(c&&control.pageId===pageId)emit(c,{eventType:'navigation',eventId:id(),timestamp:clock(),route:location.pathname,event:'pagehide',pending});if(control.pageId===pageId)save();});
-  if(typeof mountStudioReadPanel==='function')panel=mountStudioReadPanel({page,gm,sync,identityReady,status:()=>({control,pageId,documentId,tabIdentityReliable,pending,queued:queue.length,dropped,storageFailures,auth:latestAuth})});
+  if(typeof mountStudioReadPanel==='function')panel=mountStudioReadPanel({page,gm,sync,stopScenario,exportEvidence,identityReady,status:()=>({control,pageId,documentId,tabIdentityReliable,pending,queued:queue.length,dropped,storageFailures,auth:latestAuth})});
   // No page-exposed credential/config object. Server-owned scenario control survives navigation.
 })();

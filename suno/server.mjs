@@ -22,7 +22,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
   if(baseline===undefined){try{baseline=JSON.parse(await readFile(resolve(root,'captures/studio_project_'+protocol.projectId+'.json'),'utf8'));}catch{baseline=null;}}
   const browserRead=await new BrowserReadSmoke({root:resolve(captureRoot,'browser-read'),harness:studioValidation,baseline,output:evidenceOutput,origin:validationOrigin}).init();
   const readCapability=randomBytes(32).toString('hex');
-  const readRoutes=new Set(['/api/studio-validation/recorder-config','/api/studio-validation/recorder-status','/api/studio-validation/events','/api/browser-read/status','/api/browser-read/start','/api/browser-read/step','/api/browser-read/finish','/api/browser-read/cancel','/api/browser-read/take-over','/api/browser-read/lease-proof','/api/browser-read/archive']);
+  const readRoutes=new Set(['/api/studio-validation/recorder-config','/api/studio-validation/recorder-status','/api/studio-validation/events','/api/studio-validation/stop-request','/api/studio-validation/stop-ack','/api/studio-validation/stop-result','/api/browser-read/status','/api/browser-read/start','/api/browser-read/step','/api/browser-read/finish','/api/browser-read/cancel','/api/browser-read/take-over','/api/browser-read/lease-proof','/api/browser-read/archive']);
   let referenceRecorder = { at: 0, pending: 0, queued: 0, dropped: 0, omissions: 0, activeSession: null, version: null, buildId: null };
   let recorder = { at: 0, queued: 0, dropped: 0, pending: 0, activeSession: null }, lastAuth = 0;
   const secretMatches = (v) => typeof v === 'string' && Buffer.byteLength(v) === Buffer.byteLength(key) && timingSafeEqual(Buffer.from(v), Buffer.from(key));
@@ -45,7 +45,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
         res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'");
         res.writeHead(200, { 'Content-Type': type }); return res.end(bytes);
       }
-      const bootstrap=path==='/api/browser-read/handshake'&&req.method==='POST'&&req.headers['x-studio-harness']==='2';
+      const bootstrap=path==='/api/browser-read/handshake'&&req.method==='POST'&&req.headers['x-studio-harness']===String(protocol.versions.captureProtocolVersion);
       const readPaired=typeof req.headers['x-controller-key']==='string'&&req.headers['x-controller-key']===readCapability&&readRoutes.has(path);
       if (!bootstrap&&!readPaired&&!secretMatches(req.headers['x-controller-key'])) return reply(403, { error: { kind: 'permission_error', message: 'pairing required' } });
       const allowedOrigin = !req.headers.origin || req.headers.origin === origin ||
@@ -58,6 +58,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
         return reply(200,{...c,...protocol.versions,capturedRequests:studioValidation.events?.filter(e=>e.eventType==='request').length??0,writeGuard:'LOCKED',productEntitlement:'FREE',writeValidation:'BLOCKED_BY_PRODUCT_ENTITLEMENT',readSmoke:browserRead.status()});
       }
       if(req.method==='GET'&&path==='/api/browser-read/status')return reply(200,{...studioValidation.status(),...protocol.versions,writeGuard:'LOCKED',productEntitlement:'FREE',writeValidation:'BLOCKED_BY_PRODUCT_ENTITLEMENT',readSmoke:browserRead.status()});
+      if(req.method==='GET'&&path==='/api/studio-validation/stop-result'){const q=new URL(req.url,origin).searchParams;return reply(200,studioValidation.stopResult(Object.fromEntries(['captureId','scenario','pageId','requestId'].filter(k=>q.has(k)).map(k=>[k,q.get(k)]))));}
       if(req.method==='GET'&&path==='/api/browser-read/archive'){
         const result=browserRead.current?.result;if(!result)return reply(404,{error:{message:'read evidence not generated yet'}});res.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':'attachment; filename="SUNO_STUDIO_BROWSER_READONLY_LIVE_EVIDENCE.zip"'});return res.end(await readFile(result.archivePath));
       }
@@ -69,6 +70,8 @@ export async function createController({ port = 3000, captureRoot = resolve(root
       let body; try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return reply(400, { error: { kind: 'validation_error', message: 'invalid JSON' } }); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) return reply(400, { error: { kind: 'validation_error', message: 'object required' } });
       if(bootstrap)return reply(200,{...protocol.versions,key:readCapability,scope:'READ_SMOKE + passive recorder only; no raw_call or write wizard',writeGuard:'LOCKED',productEntitlement:'FREE'});
+      if(path==='/api/studio-validation/stop-request')return reply(200,await studioValidation.prepareStop(body));
+      if(path==='/api/studio-validation/stop-ack')return reply(200,await studioValidation.acknowledgeStop(body));
       if(path==='/api/browser-read/start')return reply(200,await browserRead.start(body));
       if(path==='/api/browser-read/step')return reply(200,await browserRead.step(body));
       if(path==='/api/browser-read/lease-proof')return reply(200,await browserRead.leaseProof(body));

@@ -1,10 +1,11 @@
 import {mkdir,readFile,writeFile}from'node:fs/promises';import{resolve}from'node:path';import{randomUUID,createHash}from'node:crypto';
 import protocol from'../../shared/studio-protocol.cjs';import privacy from'../../shared/studio-privacy.cjs';import{archiveEvidence,scanEvidenceText}from'../../shared/evidence-zip.mjs';
+import {durableJson}from'../../shared/durable-json.mjs';
 const digest=v=>createHash('sha256').update(JSON.stringify(protocol.canonical(v))).digest('hex');
 export class BrowserReadSmoke{
   constructor({root,harness,baseline,output,origin='LIVE_CAPTURE'}){this.root=resolve(root);this.harness=harness;this.baseline=baseline;this.output=resolve(output);this.origin=origin;this.current=null;}
   async init(){await mkdir(this.root,{recursive:true});try{this.current=JSON.parse(await readFile(resolve(this.root,'smoke-control.json'),'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}return this;}
-  async persist(){await writeFile(resolve(this.root,'smoke-control.json'),JSON.stringify(this.current,null,2)+'\n');}
+  async persist(){await durableJson(resolve(this.root,'smoke-control.json'),this.current);}
   handshake(auth){return {...protocol.versions,productEntitlement:'FREE',writeGuard:'LOCKED',liveValidationBlockedReason:'PRODUCT_ENTITLEMENT',compatible:protocol.compatible({...protocol.versions,...auth}),authReady:auth?.ready===true};}
   async start(args){if(this.starting||this.finishing)throw Error('read smoke lifecycle transition active');this.starting=true;try{return await this.startInternal(args);}finally{this.starting=false;}}
   async startInternal({pageId,documentId,versions,auth,browser,tabIdentityReliable,popupAvailable}){
@@ -18,7 +19,7 @@ export class BrowserReadSmoke{
     if(blockers.length){await this.persist();return await this.finish({pageId,blocked:true});}
     const b=await this.harness.begin('READ_SMOKE',{runId});this.current.captureId=b.active.captureId;await this.persist();return this.status();
   }
-  status(){return this.current?{runId:this.current.runId,phase:this.current.phase,finished:this.current.finished,initialDocument:this.current.initialDocument,leaseProof:this.current.leaseProof,blockers:this.current.blockers,result:this.current.result??null}:null;}
+  status(){return this.current?{runId:this.current.runId,captureId:this.current.captureId,scenario:'READ_SMOKE',phase:this.current.phase,finished:this.current.finished,initialDocument:this.current.initialDocument,leaseProof:this.current.leaseProof,blockers:this.current.blockers,result:this.current.result??null}:null;}
   owned(pageId){if(!this.current||this.current.pageId!==pageId)throw Error('only the recorder owner can control its read smoke');}
   async step({pageId,documentId,step,result}){
     this.owned(pageId);const run=this.current;if(run.finished)throw Error('read smoke finished');
@@ -43,15 +44,17 @@ export class BrowserReadSmoke{
   observeBlockedPage(pageId){if(pageId&&pageId!==this.harness.ownerPage)this.blockedPage=pageId;}
   async leaseProof({pageId,runId}){if(!this.current||this.current.finished||runId!==this.current.runId||pageId!==this.blockedPage||pageId===this.current.pageId)throw Error('second tab rejection evidence required');this.current.leaseProof=true;await this.persist();return {blocked:true,ownerChanged:false};}
   async cancel(pageId){this.owned(pageId);this.current.blockers.push('self test cancelled / reload interruption');return this.finish({pageId});}
-  async finish({pageId,blocked=false}){
+  async finish({pageId,blocked=false,captureId,scenario,stopRequestId}){
+    if(captureId&&captureId!==this.current?.captureId||scenario&&scenario!=='READ_SMOKE')throw Error('wrong captureId/scenario');
     if(this.starting&&!blocked)throw Error('read smoke starting; wait for capture handshake');
     this.owned(pageId);if(this.finishing)return this.finishing;
+    if(!this.current.finished&&this.origin==='LIVE_CAPTURE'&&!blocked){let received=false;try{received=!!stopRequestId&&this.harness.stopResult({captureId:this.current.captureId,scenario:'READ_SMOKE',pageId,requestId:stopRequestId}).complete===true;}catch{}this.current.clientStopAckReceived=received;if(!received)this.current.blockers.push('stop acknowledgment receipt unavailable');}
     this.finishing=this.finishInternal({pageId,blocked});try{return await this.finishing;}finally{this.finishing=null;}
   }
   async finishInternal({pageId,blocked=false}){
     this.owned(pageId);const run=this.current;if(run.finished)return run.result;
     let capture={captureComplete:false,completeness:'INCOMPLETE',incompleteReasons:run.blockers,requestCount:0},records=[],events=[];
-    if(!blocked&&this.harness.active){const r=await this.harness.end({drainMs:this.origin==='LIVE_CAPTURE'?5000:0});capture=r.report;records=this.harness.records();events=this.harness.events;}
+    if(!blocked&&(this.harness.active?.captureId===run.captureId||this.harness.completedStops[run.captureId]?.endResult)){const r=await this.harness.end({captureId:run.captureId,scenario:'READ_SMOKE',pageId,drainMs:this.origin==='LIVE_CAPTURE'?5000:0});capture=r.report;events=JSON.parse(await readFile(resolve(this.harness.safeDirectory({runId:run.runId,scenario:'READ_SMOKE'}),'events.json'),'utf8'));records=this.harness.records(events);}
     const expected=this.baseline?.state?digest(this.baseline.state):null,checks=[];
     for(const name of ['FETCH','XHR','RESUMED_FETCH']){
       const proof=run.steps[name],matches=proof?records.filter(r=>r.probeId===proof.requestId):[],record=matches.length===1?matches[0]:null;
@@ -72,7 +75,7 @@ export class BrowserReadSmoke{
     const complete=capture.captureComplete&&reasons.length===0,realBrowser=this.origin==='LIVE_CAPTURE'&&run.browser.window&&!run.browser.node;
     const summary={origin:this.origin,realBrowser,requestCaptured:checks.every(c=>c.requestCaptured),responseCaptured:checks.every(c=>c.responseCaptured),requestResponseCorrelated:checks.every(c=>c.requestResponseCorrelated),httpStatus:readPassed?200:null,
       maskedStatePaths:[...new Set(checks.flatMap(c=>c.maskedStatePaths))],losslessState:readPassed,verificationPassed:complete&&realBrowser,harnessBrowserLiveVerified:complete&&realBrowser,
-      captureCompleteness:complete?'COMPLETE':'INCOMPLETE',reloadPersistence:reload,spaNavigationPersistence:spa,spaScope:'same-path fragment history.replaceState and restoration; not arbitrary application route transition',oneTabLeaseVerified:run.leaseProof,
+      recorderStopAcknowledged:capture.recorderStopAcknowledged===true,clientStopAckReceived:run.clientStopAckReceived===true,captureCompleteness:complete?'COMPLETE':'INCOMPLETE',reloadPersistence:reload,spaNavigationPersistence:spa,spaScope:'same-path fragment history.replaceState and restoration; not arbitrary application route transition',oneTabLeaseVerified:run.leaseProof,
       realStudioPOST:writes.POST,realStudioPUT:writes.PUT,realStudioPATCH:writes.PATCH,realStudioDELETE:writes.DELETE,controllerStudioWriteDispatches:0,writeGuard:'LOCKED',studioWriteValidation:'BLOCKED_BY_PRODUCT_ENTITLEMENT',productEntitlement:'FREE',endpointUnlocks:0,entitlementBypass:0,blockers:reasons};
     const handshake={...run.handshake,authBridge:run.handshake.authReady?'READY':'NOT_READY'},completeness={status:summary.captureCompleteness,verificationPassed:summary.verificationPassed,reasons,capture};
     const artifacts={'browser_smoke_summary.json':summary,'protocol_handshake.json':handshake,'capture_completeness.json':completeness,

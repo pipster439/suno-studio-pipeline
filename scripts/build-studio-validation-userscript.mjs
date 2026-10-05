@@ -2,7 +2,7 @@ import {readFile,writeFile}from'node:fs/promises';
 const header=`// ==UserScript==
 // @name Suno Studio Validation Capture Harness
 // @namespace https://suno-controller.local/studio-validation
-// @version 1.1.0
+// @version 1.1.1
 // @match https://suno.com/*
 // @match https://www.suno.com/*
 // @match http://127.0.0.1:3000/*

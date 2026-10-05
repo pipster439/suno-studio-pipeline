@@ -1,5 +1,5 @@
 (function(root){
-  const versions=Object.freeze({controllerVersion:'0.2.0',captureProtocolVersion:2,userscriptVersion:'1.3.17',harnessVersion:'1.1.0'});
+  const versions=Object.freeze({controllerVersion:'0.2.1',captureProtocolVersion:3,userscriptVersion:'1.3.18',harnessVersion:'1.1.1'});
   const projectId='3ebbb451-08a7-4599-9885-788f0b8f5def',versionId='e491cbde-9266-4884-997c-3a9789877a56';
   const versionPath=`/api/studio/${projectId}/version/${versionId}`;
   function compatible(v){return !!v&&Object.entries(versions).every(([k,value])=>v[k]===value);}
