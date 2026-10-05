@@ -1,6 +1,6 @@
 # 本地 Suno Controller / API Recorder
 
-Node.js 单进程 + 原生浏览器页面 + 一个依赖 ws，无数据库或前端框架。已通过真实 controller 重播、读回和官方页面确认默认空工程创建及工程元数据读取，见 `docs/STUDIO_API_MAP.md`。`StudioClient.create_project()` 当前只支持 Untitled Project、major_version=2；`get_project_metadata(id)` 只返回工程信息。完整 timeline、素材、clip、保存与导出仍未识别，相关操作均抛 `NotImplementedError`，完整素材→timeline→保存 MVP 尚未完成。
+Node.js 单进程 + 原生浏览器页面 + 一个依赖 ws，无数据库或前端框架。完整 project GET 已由真实 fixture 确认；version GET 与 versions GET 已通过浏览器/Tampermonkey 实际返回 HTTP 200 并确认工程/版本关联。当前所有 StudioClient 写入口（包括历史默认 create）均抛 `NotVerifiedError`，纯 request builder 只生成预览。读取成功不表示账号具有写权限；完整素材→timeline→保存 MVP 尚未完成。证据见 `docs/STUDIO_API_MAP.md`、`reports/STUDIO_READ_BOUNDARIES_REPORT.md`。
 
 ## 架构与安装
 
@@ -64,17 +64,18 @@ const result = await bridge.call({ path: observedPath, method: 'PATCH', body: ob
 
 支持 GET/POST/PUT/PATCH/DELETE；body 为 JSON；不允许自带认证头。错误区分 auth_error / permission_error / validation_error / rate_limit / network_error / suno_api_error / unknown_error，以及本地 timeout/cancelled/controller_error。不保存 raw-call 请求/响应到磁盘；浏览器回传结果先脱敏，所以 token/signed query 不能作为后端可重播值使用。
 
-已验证 StudioClient 用法（以下调用会在真实账号新增一个默认空工程）：
+已验证 StudioClient 只读用法：
 
 ```js
 import { SunoBridge } from './suno/bridge/client.mjs';
 import { StudioClient } from './suno/studio/operations.mjs';
 const studio = new StudioClient(new SunoBridge());
-const created = await studio.create_project(); // body 省略；不自动重试
-const metadata = await studio.get_project_metadata(created.id);
+const project = await studio.get_project('3ebbb451-08a7-4599-9885-788f0b8f5def');
+const version = await studio.get_project_version(project.id, 'e491cbde-9266-4884-997c-3a9789877a56');
+const versions = await studio.get_project_versions(project.id);
 ```
 
-timeoutMs/requestId/signal 可传给这两个方法；metadata 只包含已观察的工程信息，不能当成完整 timeline。自定义 title、其他 major_version 尚未复现，当前会抛 NotImplementedError。GM transport 重播不会被官方 fetch/XHR recorder 捕获；本轮审计保存了明确标注来源的脱敏重播回执，并与官方 GET 和 UI 证据比对，未把回执伪装为被动 capture。
+timeoutMs/requestId/signal 可传给只读方法；metadata 不能当成完整 timeline。GM transport 重播不会被官方 fetch/XHR recorder 捕获，动态证据明确标注 explicit replay。`create_project/save_project/render_project/render_multitrack` 和 save/export 别名默认拒绝，即使传入 allowWrite/integration 等参数也不能解锁；目前没有 StudioClient 写 gate。generic raw-call 仍是人工显式调试 transport，不属于此客户端的写入口，本轮禁止调用 Studio POST。
 
 若将来真实 Studio 操作需要未支持的媒体上传、特殊 header 或签名 URL，应先审计捕获并扩展 **浏览器侧**能力，不把凭据写入 controller。已有 Cover/audio 能力保留源逻辑，本轮未调用；它们不属于 VERIFIED Studio 功能。
 
@@ -185,7 +186,28 @@ const project = await studio.get_project(observedOwnedProjectId);
 // project.state 原值；project.latest_version_id 是真实服务端版本关联。
 ```
 
-写 API 的 endpoint/method/body、response 局部消费、bundle/hash/offset 与调用链见 [STUDIO_WRITE_API.md](docs/STUDIO_WRITE_API.md)。save_project/save_version/export_project/export_multitrack 仍抛 NotImplementedError；对应静态元数据集中在 STATIC_WRITE_CANDIDATES，不属于 VERIFIED dispatch registry。既有默认 create_project 实现保留，不因此放行其他版本/参数。
+写 API 的 endpoint/method/body、response 局部消费、bundle/hash/offset 与调用链见 [STUDIO_WRITE_API.md](docs/STUDIO_WRITE_API.md)。全部写入口抛 NotVerifiedError；历史默认 create 证据移入 HISTORICAL_VERIFICATIONS，写候选集中在 STATIC_WRITE_CANDIDATES，不属于 VERIFIED dispatch registry。
+
+## State 边界与版本只读实验
+
+`rawWireState → deserializeEditorState(显式 adapter) → editor-memory → serializeProjectState(显式 adapter) → save-serialized → buildSaveProjectRequest`。render 使用独立 `prepareRenderTransformedState(editor, transform, serializeRender)` 和 render-transformed handle。这里仅提供接口，不移植、执行或冒充已验证的官方 serializer；GET state 不会自动经过 serializer。输入和输出以隔离快照保存，完整未知字段由 adapter 保留，adapter 的真实语义仍待官方动作验证。
+
+**重要限制：** 当前 v1.3.15 transport 把音乐字段 `timeSignatureChanges` 误掩码为 `<redacted>`。version 响应与真实 fixture 的其余 state、ID 关联吻合，但 transport 返回值并非完整无损 wire state。raw handle 可供检查；所有带掩码/omitted 的 state 都被拒绝进入 save/render 准备。原 fixture 未变。本轮未修改已安装 userscript；修复此误掩码并验证无损读回是将来写验证的前置条件。
+
+仅显式执行只读实验；下面脚本分别各发一次 GET，不自动重试，不调用 revision 或写接口：
+
+```powershell
+$env:RUN_SUNO_INTEGRATION_TESTS = '1'
+$env:SUNO_CONTROLLER_KEY = '<当前临时本地配对码>'
+$env:SUNO_CONTROLLER_BASE = 'http://127.0.0.1:3000'
+node scripts/verify-studio-version.mjs
+node scripts/verify-studio-versions.mjs
+Remove-Item Env:RUN_SUNO_INTEGRATION_TESTS, Env:SUNO_CONTROLLER_KEY, Env:SUNO_CONTROLLER_BASE
+```
+
+默认 `node --test tests/studio-read.integration.mjs` 跳过真实网络；只有 RUN_SUNO_INTEGRATION_TESTS=1 才执行已知 version 的只读测试。报告/实验日志不含认证 header/token 或完整响应值，只含 schema、业务 IDs、状态和比较摘要。
+
+controller 没有热重载；更新源码后须正常重启，才能启用 hub 对 dispatchAllowed=false preview 的拒绝。StudioClient 与 SunoBridge 在调用进程内同样提前拒绝 preview。现有 controller 进程不会被本轮自动停止/替换。
 
 ```powershell
 node scripts/analyze-studio-write.mjs captures/official-write/20261005/manifest.json captures/official-write/20261005/write-analysis.json

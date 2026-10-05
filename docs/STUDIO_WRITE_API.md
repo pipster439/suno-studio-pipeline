@@ -1,5 +1,7 @@
 # 官方 Studio 写 API 静态恢复
 
+> 2026-10-05 后续「最小动态验证 + 客户端边界」更新：version GET 和 versions GET 已实际 VERIFIED；所有当前 StudioClient 写入口（包含历史默认 create）关闭。以下静态调查是历史证据，不重新搜索 bundle。最新结果、serializer 边界和风险见文末及 `reports/STUDIO_READ_BOUNDARIES_REPORT.md`。
+
 2026-10-05，Asia/Shanghai。任务基线 `0b5bdbd4337de819b69c9b45a8e86179dbb1055f`。本轮仅分析官方已下发公共 JS 与用户提供的真实 HTTP 200 GET body；没有向 Suno 发出任何写请求，也没有调用 candidate GET/version 路由、迁移工程或修改权限。
 
 ## 结论与状态
@@ -156,3 +158,54 @@ npm test
 README/API Map 同步本轮结论。原公共源码和完整解析结果在 ignored `captures/official-write/20261005/`；用户 raw body 字节副本 ignored，不共享。独立 patch 为 `deliverables/SUNO_STUDIO_WRITE_STATIC.patch`，仅基线后本轮变更，隔离应用后与目标 Git blobs 一致。证据包 `deliverables/SUNO_STUDIO_WRITE_STATIC_EVIDENCE.zip` 从独立 `.evidence-staging/phase1-studio-write-static-20261005` 构建，含本报告、脱敏 fixture/provenance、精简调用/body证据、manifest/hash、测试/验证日志；无完整源码、依赖、raw body、token、历史包或嵌套包。zip SHA-256 外置。
 
 本轮静态任务到此结束，不自动推进未知写重播。账号具备相应权限时，仍需逐个实际观察 create/save/render 请求并单独重播，确认 version relation 和服务器 state diff，之后才能实现这些业务写方法。
+
+## 后续：最小只读验证与安全客户端边界（2026-10-05）
+
+本轮未继续静态扫描，controller 经浏览器/Tampermonkey 各派发一次以下 GET，均 HTTP 200，无自动重试或 Studio POST：
+
+| Endpoint | 当前状态 | 确认内容 |
+|---|---|---|
+| GET /api/studio/project/{project_id} | VERIFIED（此前） | 用户真实完整 project fixture；本轮未再次请求 |
+| GET /api/studio/{project_id}/version/{version_id} | VERIFIED | 响应 id=version_id、project_id=真实 project；含 state，与 fixture 的 transport 脱敏投影一致（去除展示标签） |
+| GET /api/studio/{project_id}/versions?return_days_only=false | VERIFIED | 顶层 id=真实 project，aggregated_versions[].versions[].version_id 包含真实 latest_version_id |
+| GET /api/studio/project_revision/{revision_id} | FOUND_STATICALLY | 未有明确 revision_id，不把 version_id 代替它，未调用 |
+
+version response 顶层实测字段为 id/project_id/state/created_at；列表顶层为 id/aggregated_versions，分组为 hour/versions，每项为 created_at/version/version_id。类型开放并保留完整返回值。`StudioClient.get_project_version` 和 `get_project_versions` 仅发 GET，验证资源关系；response 完整 schema 来自实验日志，不由字段清单拼造 fixture。原 project fixture 不变。
+
+**timeSignatureChanges 限制：** v1.3.15 的 sensitive-key regex 匹配 `signature`，把音乐 timeSignatureChanges 掩码。第一次严格 state 比较因此失败；在不重复请求的情况下，对原 fixture 应用同一已安装隐私规则，其摘要与真实版本响应完全相符。除 title/name 展示标签和该掩码字段外，完整 state 的结构/数值/clip引用匹配；这足以确认读取与工程/版本关系，不能称为无损 state 获取。报告保存首次比较和后续判断两个文件。未修改原 fixture 或已安装 userscript；带掩码或 omitted 的 state 不能进入保存/渲染准备。
+
+`create_project/save_project/render_project/render_multitrack`、save_version/export_project/export_multitrack 均抛 `NotVerifiedError`（继承 NotImplementedError），没有解锁参数或当前写 gate。create 历史默认 VERIFIED 记录保存在 HISTORICAL_VERIFICATIONS，只读 VERIFIED_ENDPOINTS 中已移除 create。四个当前写候选仍 **FOUND_STATICALLY / High**，历史证据与当前账号写许可区分。通用 raw-call 未改，它是明确人工调试能力，不由 StudioClient 写方法调用。
+
+### State 与 serializer 路径
+
+```text
+raw wire state（收到的 JSON，可能被 transport 掩码）
+  → rawWireState
+  → deserializeEditorState(raw, 显式 deserializer adapter)
+  → EditorMemoryState
+  → serializeProjectState(editor, 显式 project serializer adapter)
+  → SaveSerializedState
+  → buildSaveProjectRequest({project_id, state, title})
+  → 只读 preview；没有 POST dispatch
+  → 将来真实保存成功时才消费 version_id
+
+EditorMemoryState
+  → prepareRenderTransformedState(editor, 显式 transform, 显式 render serializer)
+  → RenderTransformedState
+  → buildRenderProjectRequest / buildRenderMultitrackRequest
+  → 只读 preview；没有 POST dispatch
+```
+
+类型使用不兼容 domain 品牌，运行时使用 WeakMap handle 校验；不接受伪造 kind、GET raw handle、render handle 作为 save 输入，也不接受 save handle 用作 render。没有隐式 identity/default adapter；不存在官方 serializer 的本地已验证移植。接口接受 JSON-compatible state 快照，adapter 语义尚需验证。读取不改变字段；adapter 在隔离副本上执行，未知字段由 adapter 完整保留，单测确保示例快照不会修改原 state。掩码/omitted 数据在转换入口和输出均拒绝。
+
+create builder 仅构造静态已出现的 query，省略 body。save builder 只包装完整 SaveSerializedState 为 project_id/state/title，不再次序列化。两个 render builder 仅预览静态 V2 分支；project_id、studio_project_id、studio_project_version_id 为不同显式输入，绝不按名称替换。context-window branch 没有被合成为新实现。
+
+render-state 对应生成/render clip；局部消费 data.id/title/moderation_error_message，开放 response fragment 不声称完整响应只有这些字段。multitrack 对应多轨下载，独立 download_url fragment（不能当 render clip schema）。前者不会加入 format/export_surface/from_studio_project_id 的 multitrack 字段；后者为 wav/v2/studio_v2，省略单轨 export_mode。download_url 签名仍不保存真实值或用日志掩码值下载。
+
+### 账号具备真实写权限后的最少三个官方动作
+
+1. **Create：** 从官方工程列表开始，capture marker=create；只创建一次空工程，捕获实际 query/body 和响应 IDs，再只读确认工程与版本关系。历史默认 create 证据不替代当前版本权限验证。
+2. **Save：** 打开测试工程，capture marker=save；只移动一个已知 clip 一次，让官方完成一次保存。捕获完整 save state、版本响应，GET 新 version/project 比较指定 clip 位置及所有未知字段保留。不要另外手工点击多个编辑动作。
+3. **Export：** 从已保存状态开始，marker=export；只提交一次官方单轨导出，捕获 render transformed state、关联 IDs、返回 clip 与官方后续状态。multitrack 是独立第四个可选动作，不能由单轨成功推导。
+
+只在账号正常具有权限后做这三个动作；本轮不执行、不修改权限或 entitlement。录制完整、实际重播成功及状态读回验证后才能升级写状态。

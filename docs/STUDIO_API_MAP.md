@@ -4,16 +4,21 @@
 
 | 操作 | Observed endpoint | 状态 | 证据 |
 |---|---|---|---|
-| 新建默认空工程 | `POST /api/studio/create-project?title=Untitled%20Project&major_version=2` | VERIFIED | controller 重播一次、元数据读回、官方新工程列表及打开后空 timeline UI 确认 |
+| 创建（当前客户端） | `POST /api/studio/create-project` | FOUND_STATICALLY / High | 历史默认创建 VERIFIED 证据保留；当前写 dispatch 关闭 |
 | 读取工程元数据 | `GET /api/studio/project/{实际返回的 id}` | VERIFIED | controller GET、StudioClient GET、官方 GET 元数据均与创建响应一致；只含 metadata |
+| 读取完整工程 | `GET /api/studio/project/{project_id}` | VERIFIED | 用户真实 HTTP 200 fixture |
+| 读取版本 | `GET /api/studio/{project_id}/version/{version_id}` | VERIFIED | 本轮 authenticated replay HTTP 200；id/project_id 与真实基线相符；state 对应（见脱敏限制） |
+| 读取版本列表 | `GET /api/studio/{project_id}/versions?return_days_only=false` | VERIFIED | 本轮 HTTP 200；返回工程 id 与包含 latest_version_id 的 grouped history |
+| 读取 revision | `GET /api/studio/project_revision/{revision_id}` | FOUND_STATICALLY | 未取得真实 revision_id；未调用 |
 | 添加已有音频 | UNKNOWN | UNKNOWN | 未捕获 |
 | 新建 clip | UNKNOWN | UNKNOWN | 未捕获 |
 | 移动 clip | UNKNOWN | UNKNOWN | 未捕获 |
 | 调整 clip 起点/终点 | UNKNOWN | UNKNOWN | 未捕获 |
 | 调整 timeline 位置 | UNKNOWN | UNKNOWN | 未捕获 |
-| 保存工程 | UNKNOWN | UNKNOWN | 未捕获 |
-| 重新加载工程 | UNKNOWN | UNKNOWN | 未捕获 |
-| 导出/render | UNKNOWN | UNKNOWN | 未捕获 |
+| 保存工程 / 版本 | `POST /api/studio/save-project` | FOUND_STATICALLY / High | whole serialized state；未写验证 |
+| 重新加载工程 | `GET /api/studio/project/{project_id}` | VERIFIED（读取） | 不表示新写入已持久化 |
+| 导出/render clip | `POST /api/studio/render-state` | FOUND_STATICALLY / High | 独立 render state；未写验证 |
+| 多轨下载 | `POST /api/studio/render-state-multitrack` | FOUND_STATICALLY / High | download_url 局部消费；未写验证 |
 
 状态定义：UNKNOWN = 未识别；OBSERVED = 真实官方操作捕获到候选；REPRODUCED = 通过通用 bridge 成功复现候选；VERIFIED = 复现后读回/官方 UI 比较确认该业务行为成功。录到请求、看到 HTTP 200 或函数命名合理，都不足以确认业务接口。
 
@@ -139,7 +144,7 @@ status: 200; browser durationMs: 1217
 
 重要 IDs：返回 `id` 是本次工程标识，作为 metadata GET 路径段使用。`project_id` 是本地方法参数名，不声明其为此创建响应字段。白名单里的 clip_id/offset/duration/position 仍不构成任何 clip API 证据。
 
-Client 范围：`create_project()` 当前只放行 Untitled Project、major_version=2；其他标题/版本直接 NotImplementedError。`get_project_metadata(id)` 只读取上述六字段 metadata，保留未来额外字段。`get_project()` 的完整工程状态、素材、clip、位置、保存、重载与导出继续 NotImplementedError。
+历史 Client 范围（当时）：默认创建曾放行 Untitled Project、major_version=2。当前默认写入口已全部关闭；get_project/get_project_version/get_project_versions 只读实现见后续更新。metadata 历史校验保留，不能用于验证 timeline 写入。
 
 官方 UI 仍有 Preview / Upgrade to edit。创建及元数据读取验证不证明编辑、保存或导出权限。下一轮只观察添加一个已有音频；先确认用户是否有可编辑 Studio 工程。工程列表路由 `GET /api/studio/list-projects` 及 limit/name/archived/sort_order query 键为本次实际 **OBSERVED**，query 值仍脱敏，未重播、不实现列表 API。
 
@@ -246,3 +251,16 @@ Only this body/query is VERIFIED；其他 filters、cursor、limit、workspace f
 写候选状态按本轮要求为 **FOUND_STATICALLY**，详细 schema、统一 client/helper、create→serialize→save/version、render 分支和具体 offsets 见 [STUDIO_WRITE_API.md](STUDIO_WRITE_API.md)。POST save-project 的 version_id 消费已找到；saveProjectVersion 与 saveProject 为同一回调。POST render-state 与 render-state-multitrack 也找到实际构造链，但未发送任何请求，不升级 VERIFIED。
 
 新增 save_version/export_multitrack skeleton 只抛 NotImplementedError，既有 save_project/export_project 仍不 dispatch。完整 GET 已确认，不表示 timeline 写入、保存持久化或导出成功；此前完整 MVP 仍未验证。本轮按用户范围完成静态分析后停止。
+
+## 最小动态只读验证与客户端边界（2026-10-05）
+
+当前新增 VERIFIED：GET `/api/studio/{project_id}/version/{version_id}` 与 GET `/api/studio/{project_id}/versions?return_days_only=false`。
+
+- project_id：3ebbb451-08a7-4599-9885-788f0b8f5def；version_id：e491cbde-9266-4884-997c-3a9789877a56。前者版本响应返回 id=version_id、project_id=project_id；后者顶层 id=project_id，aggregated_versions[].versions[].version_id 含该 latest version。
+- 两条 GET 各由 controller 显式派发一次，HTTP 200，经过现有 v1.3.15 authenticated bridge；日志没有 auth header/token。版本 state 含 1 track/20 clips，与真实 project fixture 在 transport 可见字段上对应。第一次完整比较失败原因是 timeSignatureChanges 被隐私 regex 误掩码；原 fixture 脱敏投影摘要与收到的 state 一致。不能把该返回值称为无损 state，不能用它保存。
+- revision_id 未知，没有调用 project_revision；version_id 不冒充 revision_id。
+- GET wrappers 保留整个返回对象及未知字段。所有当前写入口及别名均 NotVerifiedError 默认拒绝；纯 builder 无 dispatch；历史默认 create 证据保留为历史事实，不充当写许可。
+- raw wire / editor memory / save serialized / render transformed 使用独立品牌与运行时 handle；serializer 是显式 adapter 接口，GET 不自动重序列化。mask/omitted state 在写准备边界拒绝。
+- render-state 与 multitrack 返回 fragment 分开，multitrack download_url 不套用到 clip render；真实完整 render response 仍未知。
+
+实验记录：`captures/version-verification/20261005/version-read.json`（首次）、`version-assessment.json`（同一次响应的脱敏投影核验）、`versions-list.json`。报告/交付路径及后续 create/save/export 三个官方动作见 [STUDIO_READ_BOUNDARIES_REPORT.md](../reports/STUDIO_READ_BOUNDARIES_REPORT.md) 和 [STUDIO_WRITE_API.md](STUDIO_WRITE_API.md)。
