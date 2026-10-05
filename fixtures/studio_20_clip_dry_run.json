@@ -1,0 +1,653 @@
+{
+  "sources": [
+    {
+      "clip_id": "24b34204-d2a9-4496-971b-b2de949aa3c5",
+      "duration_seconds": 6,
+      "title": "Clip 1",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "24b34204-d2a9-4496-971b-b2de949aa3c5"
+      }
+    },
+    {
+      "clip_id": "3aaaf64b-2832-4b92-8991-82cae0b4bcc9",
+      "duration_seconds": 6,
+      "title": "Clip 2",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "3aaaf64b-2832-4b92-8991-82cae0b4bcc9"
+      }
+    },
+    {
+      "clip_id": "73d52402-8637-47e8-86e1-98d8601e8de5",
+      "duration_seconds": 6,
+      "title": "Clip 3",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "73d52402-8637-47e8-86e1-98d8601e8de5"
+      }
+    },
+    {
+      "clip_id": "6d8c3190-7883-4e06-8ef7-63b54d859f2e",
+      "duration_seconds": 6,
+      "title": "Clip 4",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "6d8c3190-7883-4e06-8ef7-63b54d859f2e"
+      }
+    },
+    {
+      "clip_id": "1bc31a3b-7d4d-46d7-a023-afde3ccc62f0",
+      "duration_seconds": 6,
+      "title": "Clip 5",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "1bc31a3b-7d4d-46d7-a023-afde3ccc62f0"
+      }
+    },
+    {
+      "clip_id": "a410a779-982f-4a9e-baf4-4254074843b2",
+      "duration_seconds": 6,
+      "title": "Clip 6",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "a410a779-982f-4a9e-baf4-4254074843b2"
+      }
+    },
+    {
+      "clip_id": "48168d2a-83c4-44cc-be84-9e1e955728e2",
+      "duration_seconds": 6,
+      "title": "Clip 7",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "48168d2a-83c4-44cc-be84-9e1e955728e2"
+      }
+    },
+    {
+      "clip_id": "925f1b1c-709a-4a13-8223-7466b26ec588",
+      "duration_seconds": 6,
+      "title": "Clip 8",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "925f1b1c-709a-4a13-8223-7466b26ec588"
+      }
+    },
+    {
+      "clip_id": "873941d7-acd8-486f-946f-147c96ca86e3",
+      "duration_seconds": 6,
+      "title": "Clip 9",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "873941d7-acd8-486f-946f-147c96ca86e3"
+      }
+    },
+    {
+      "clip_id": "a1c2180c-159d-4e4a-82a4-57b0b30889c5",
+      "duration_seconds": 6,
+      "title": "Clip 10",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "a1c2180c-159d-4e4a-82a4-57b0b30889c5"
+      }
+    },
+    {
+      "clip_id": "6a807861-3b91-42a8-b929-836ce0dd8eeb",
+      "duration_seconds": 6,
+      "title": "Clip 11",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "6a807861-3b91-42a8-b929-836ce0dd8eeb"
+      }
+    },
+    {
+      "clip_id": "90c7b147-2960-45e4-b2f0-6551530d9f9f",
+      "duration_seconds": 6,
+      "title": "Clip 12",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "90c7b147-2960-45e4-b2f0-6551530d9f9f"
+      }
+    },
+    {
+      "clip_id": "54f7d3d0-b297-4b55-a13a-f3c3a9b3dc4c",
+      "duration_seconds": 6,
+      "title": "Clip 13",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "54f7d3d0-b297-4b55-a13a-f3c3a9b3dc4c"
+      }
+    },
+    {
+      "clip_id": "62b1ace5-591c-48fd-9568-0be25bede111",
+      "duration_seconds": 6,
+      "title": "Clip 14",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "62b1ace5-591c-48fd-9568-0be25bede111"
+      }
+    },
+    {
+      "clip_id": "9a8d9b29-0296-47be-9fb0-be0b379445e6",
+      "duration_seconds": 6,
+      "title": "Clip 15",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "9a8d9b29-0296-47be-9fb0-be0b379445e6"
+      }
+    },
+    {
+      "clip_id": "61c75b2d-8a22-4495-ae17-1b9736a3ba5d",
+      "duration_seconds": 6,
+      "title": "Clip 16",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "61c75b2d-8a22-4495-ae17-1b9736a3ba5d"
+      }
+    },
+    {
+      "clip_id": "8b583d8d-b5ca-4264-b0dd-c6d6ea7b38b9",
+      "duration_seconds": 6,
+      "title": "Clip 17",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "8b583d8d-b5ca-4264-b0dd-c6d6ea7b38b9"
+      }
+    },
+    {
+      "clip_id": "dfd75444-912e-444f-9e29-c9ab41319f7f",
+      "duration_seconds": 6,
+      "title": "Clip 18",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "dfd75444-912e-444f-9e29-c9ab41319f7f"
+      }
+    },
+    {
+      "clip_id": "03796b77-3017-4c3d-a98d-1d454e37ffe4",
+      "duration_seconds": 6,
+      "title": "Clip 19",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "03796b77-3017-4c3d-a98d-1d454e37ffe4"
+      }
+    },
+    {
+      "clip_id": "5877bce4-6386-482a-8aa1-9047152b9388",
+      "duration_seconds": 1.1109791666666666,
+      "title": "Clip 20",
+      "duration_basis": "OBSERVED_MARKER_EXTENT; full audio metadata not available",
+      "uploader_metadata": {
+        "observed_clip_id_alias": "5877bce4-6386-482a-8aa1-9047152b9388"
+      }
+    }
+  ],
+  "perClipProfiles": [
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#FF6A00"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#02AF4A"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#DE1677"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#D4BB03"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#7251F7"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#208BFF"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#FF6A00"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#02AF4A"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#DE1677"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#D4BB03"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#7251F7"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#208BFF"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#FF6A00"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#02AF4A"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#DE1677"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#D4BB03"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#7251F7"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#208BFF"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "6": 18.572592308027932
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#FF6A00"
+      }
+    },
+    {
+      "explicit": {
+        "transposition": -8,
+        "amplitude": 1,
+        "read_start_beats": 0,
+        "fade_in_beats": 0,
+        "fade_out_beats": 0,
+        "fade_in_curve": 1,
+        "fade_out_curve": 1
+      },
+      "warp": {
+        "markers": {
+          "0": 0,
+          "1.1109791666666666": 3.4389605208687692
+        },
+        "enabled": true,
+        "awaiting_analysis": false
+      },
+      "display": {
+        "color": "#02AF4A"
+      }
+    }
+  ],
+  "timing": {
+    "firstBeatSeconds": 0,
+    "bpsAutomation": [],
+    "lockBPS": true,
+    "bps": 1.95,
+    "type": "manual"
+  },
+  "title": "Local 20 Clip Dry Run",
+  "placementMode": "RESOLVED_WARP",
+  "hashStrategy": "CURRENT_STATIC_ALGORITHM",
+  "compatibility": {
+    "preserve_observed_clip_id_alias": true
+  },
+  "requestContext": {
+    "save_project_id": "dry-run-created-studio-project",
+    "project_id": "dry-run-workspace-project",
+    "studio_project_id": "dry-run-created-studio-project",
+    "studio_project_version_id": "dry-run-saved-version",
+    "binding_status": "LOCAL_PLACEHOLDER"
+  },
+  "render": {
+    "render_engine": "v2",
+    "export_mode": "fullsong_export",
+    "web_client_pathname": "/studio",
+    "lyrics": "",
+    "downbeats": []
+  }
+}

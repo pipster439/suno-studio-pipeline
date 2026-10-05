@@ -19,6 +19,17 @@ export function validateCall({ path, method = 'GET', timeoutMs = 30000 }) {
   }
   method = String(method).toUpperCase();
   if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) throw new BridgeError('validation_error', 'unsupported method');
+  // Mandatory controller/client/hub guard. Flags, stripped preview metadata and integration
+  // environment variables cannot enable Studio writes. Official UI is a separate transport.
+  let decoded = path.split('?')[0];
+  try { for (let i = 0; i < 8 && /%[0-9a-f]{2}/i.test(decoded); i++) decoded = decodeURIComponent(decoded); }
+  catch { throw new BridgeError('validation_error', 'invalid encoded path'); }
+  if (/%[0-9a-f]{2}/i.test(decoded) || decoded.startsWith('//') || /[\\\s#]/.test(decoded)) throw new BridgeError('validation_error', 'ambiguous encoded path');
+  decoded = new URL(decoded, 'https://studio-api-prod.suno.com').pathname.replace(/\/{2,}/g, '/').replace(/\/+$/, '');
+  if (/^\/api\/studio(?:\/|$)/i.test(decoded) && (method !== 'GET' ||
+    /^\/api\/studio\/(?:create-project|save-project|render-state|render-state-multitrack)$/i.test(decoded))) {
+    throw new BridgeError('not_verified', 'Studio write dispatch is disabled at the transport boundary');
+  }
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000) throw new BridgeError('validation_error', 'timeoutMs must be 1..120000');
   return { path, method, timeoutMs };
 }

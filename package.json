@@ -11,7 +11,8 @@
     "build:reference-recorder": "node scripts/build-reference-recorder.mjs",
     "start": "node suno/server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "test:live": "node --test tests/live.integration.mjs"
+    "test:live": "node --test tests/live.integration.mjs",
+    "dry-run:studio": "node examples/studio-20-clip-dry-run.mjs"
   },
   "bin": {
     "sunoctl": "./suno/cli.mjs"
