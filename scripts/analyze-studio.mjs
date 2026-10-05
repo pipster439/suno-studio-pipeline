@@ -11,8 +11,11 @@ function children(node) {
 const name = n => n?.type==='Identifier'?n.name:n?.type==='Literal'?n.value:null;
 function moduleOf(stack) {
   for(let i=stack.length-1;i>0;i--) {
-    const fn=stack[i],array=stack[i-1];
-    if(!/Function/.test(fn.type)||array.type!=='ArrayExpression')continue;
+    const fn=stack[i],array=stack[i-1],registration=stack[i-2];
+    // e.s(["default", 0, function ...]) is an export, not another module.
+    if(!/Function/.test(fn.type)||array.type!=='ArrayExpression'||
+      registration?.type!=='CallExpression'||registration.callee.type!=='MemberExpression'||
+      name(registration.callee.property)!=='push'||!registration.arguments.includes(array))continue;
     const previous=array.elements[array.elements.indexOf(fn)-1];
     if(previous?.type==='Literal'&&typeof previous.value==='number')return {node:fn,id:previous.value};
   }

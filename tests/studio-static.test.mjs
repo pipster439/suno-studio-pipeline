@@ -35,3 +35,9 @@ test('mixed getter and constant export records do not shift later names',()=>{
   const result=analyzeStudio(source);assert.deepEqual(result.calls[0].exportNames,['saveProject']);
   const track=result.exports.find(e=>e.name==='createAudioTrack');assert.equal(track.binding,'track');assert.equal(track.moduleId,99);
 });
+
+test('a directly exported function keeps its real registration module instead of export sentinel zero',()=>{
+  const source='bundle.push([12,e=>{e.s(["default",0,async function(c){return c.POST("/api/studio/render-state",{body:{state}})}],12)}]);';
+  const result=analyzeStudio(source); assert.equal(result.calls[0].moduleId,12);
+  assert.deepEqual(result.calls[0].exportNames,['default']);
+});

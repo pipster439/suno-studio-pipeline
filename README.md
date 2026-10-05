@@ -173,3 +173,23 @@ finally {
 ```
 
 测试固定读取该目录的 001 request/response，要求原请求恰为上述已验证查询，比较资源 ID 与 has_more。历史素材库变动会导致对比失败，应重新进行单动作观察，不能将差异忽略。交付证据额外掩码 account userId/user_id 并省略歌名、lyrics、媒体 URL；本机原 capture 保留非凭据的业务 ID，因此不要直接分享整个原 capture。
+
+## 完整 Studio GET 与写接口静态恢复
+
+真实用户导出的 HTTP 200 GET body 已形成 [脱敏 fixture](fixtures/studio_project_get.json) 和 [provenance](fixtures/studio_project_get.provenance.json)。Downloads 原文件和 ignored `captures/studio_project_3ebbb451-08a7-4599-9885-788f0b8f5def.json` 字节副本保持不变；共享 fixture 只替换 title/name 标签，完整 state、20 个 clip、markersRegistry 和 version 引用保留。
+
+`StudioClient.get_project(id, {timeoutMs, requestId, signal})` 现在执行已经确认的 GET，返回完整原 JSON，不构造默认 state，不修改 warp/transposition 或删除未知字段。`models.d.ts` 提供五个开放类型。历史 get_project_metadata 校验限旧默认创建 metadata；完整工程请使用 get_project。本轮 getter 以真实 fixture 做结构/无损测试，未通过当前离线 bridge 再次发起 live GET，不把测试响应当新的网络证据。
+
+```js
+const project = await studio.get_project(observedOwnedProjectId);
+// project.state 原值；project.latest_version_id 是真实服务端版本关联。
+```
+
+写 API 的 endpoint/method/body、response 局部消费、bundle/hash/offset 与调用链见 [STUDIO_WRITE_API.md](docs/STUDIO_WRITE_API.md)。save_project/save_version/export_project/export_multitrack 仍抛 NotImplementedError；对应静态元数据集中在 STATIC_WRITE_CANDIDATES，不属于 VERIFIED dispatch registry。既有默认 create_project 实现保留，不因此放行其他版本/参数。
+
+```powershell
+node scripts/analyze-studio-write.mjs captures/official-write/20261005/manifest.json captures/official-write/20261005/write-analysis.json
+npm test
+```
+
+工具只解析已经取得的公共代码，验证 SHA-256 后输出语法引用/有限 import 调用图，不下载、不求值、不调用 API。sourceMappingURL 检查的 5 个关键 URL 均 404；源码枚举仅限当前实际下发范围。静态结果不能证明写权限或保存/导出成功。本阶段完成后停在证据报告，不自动重播未知写接口。

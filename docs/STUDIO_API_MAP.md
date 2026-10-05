@@ -236,3 +236,13 @@ Only this body/query is VERIFIED；其他 filters、cursor、limit、workspace f
 公开 `0ureacebq_re1.js` 的 Share modal 内部确有 GET `/api/studio/{project_id}/versions`、query return_days_only=false，但当前页面在进入它之前显示升级提示，本轮没有观察到该版本请求。它继续 STATIC_CLIENT / UNKNOWN / Verified=no；不把静态模板代入真实 ID 后强行调用，也不因此声称取得 revision/version state。
 
 完整 get_project、timeline 写入、save/readback、export 仍未完成。当前证据支持的执行层仅默认创建、六字段 metadata、自有素材库固定第一页读取。更详细的完成性与阻塞审计见 [CONTINUATION_BLOCKER_REPORT.md](CONTINUATION_BLOCKER_REPORT.md)。
+
+## 新完整 GET 证据与本轮静态写分析（2026-10-05）
+
+本节使用用户新提供的真实响应，更新此前「尚未取得完整 state」的历史结论；旧报告保留当时证据，不作为当前 schema 的限制。GET `/api/studio/project/3ebbb451-08a7-4599-9885-788f0b8f5def`：**VERIFIED**，来源为用户导出的 HTTP 200 response body。latest_version_id=`e491cbde-9266-4884-997c-3a9789877a56`；[fixture/provenance](../fixtures/studio_project_get.provenance.json) 保存源 SHA 与脱敏规则，未虚构 headers/timestamp。
+
+真实 state 含 1 audio track、20 audio clip，timing/markersRegistry/routing/selection/loop/layout/contextualWindowConfig 等字段完整保留。clip 有独立 arrangement id、clipId、asset.id/type=clip、start/end/readStartBeats、transposition=-8、warp.enabled=true、amplitude/mute/loop/fades/reversed/streaming/name/color。source 原文件未改动；共享 fixture 仅替换展示标签。`StudioClient.get_project` 返回完整 state 原值；新薄 types 保留未知字段。
+
+写候选状态按本轮要求为 **FOUND_STATICALLY**，详细 schema、统一 client/helper、create→serialize→save/version、render 分支和具体 offsets 见 [STUDIO_WRITE_API.md](STUDIO_WRITE_API.md)。POST save-project 的 version_id 消费已找到；saveProjectVersion 与 saveProject 为同一回调。POST render-state 与 render-state-multitrack 也找到实际构造链，但未发送任何请求，不升级 VERIFIED。
+
+新增 save_version/export_multitrack skeleton 只抛 NotImplementedError，既有 save_project/export_project 仍不 dispatch。完整 GET 已确认，不表示 timeline 写入、保存持久化或导出成功；此前完整 MVP 仍未验证。本轮按用户范围完成静态分析后停止。
