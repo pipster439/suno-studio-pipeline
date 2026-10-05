@@ -221,3 +221,13 @@ render-state 对应生成/render clip；局部消费 data.id/title/moderation_er
 交接后用户已安装1.3.16，后端实际确认 ready 与目标 build。指定 project/version 只执行一次 authenticated GET，HTTP 200；响应资源关系正确，全 state 与 Downloads 原真实 JSON 规范化严格比较相等（含 title/name 和所有未知字段），timeSignatureChanges 相等，无掩码，losslessState=true。此次无损 wire 验证通过，不再处于 pending；详细 schema/摘要/原输入哈希见 [STUDIO_METER_LIVE_VERIFICATION_REPORT.md](../reports/STUDIO_METER_LIVE_VERIFICATION_REPORT.md)。旧 pending 日志/包保留为历史证据，未覆盖。
 
 没有 Studio 写请求，write endpoint 仍 FOUND_STATICALLY / High，所有写方法及 preview guard 保持拒绝。无损 GET 不验证 in-memory deserializer、save serializer 或 render transformation，也不意味着取得写权限或服务器持久化效果。接下来只有账号正常具有写权限时，才逐一 capture create/save/export 三个官方动作；本轮到只读验证完成为止。
+
+## Clip pipeline 扩展与当前 serializer 状态（2026-10-05）
+
+Add Clip 已恢复为 **CLIENT_STATE_MUTATION / FOUND_STATICALLY**，不是一个新写 endpoint。library drop/intent 构造 audio arrangement，native store 添加 entity 与 container membership，save 时序列化整个工程。已取得模块的 17 个 method/path 模板仍无单独 arrangement insert API；create-or-load-project-for-clip 属于工程初始化 helper。
+
+本地新增 `deserializeAudioProjectState` / `serializeAudioProjectState`：对 audio MVP 显式重建 module 634782 的 inline markers ↔ registry/hash 转换，保留未知字段，严格拒绝不完整/掩码/错误域。marker hash 复现 module 879379 的当前 MD5 算法；真实历史 fixture 使用不同 hash 拼法，只在新 preview 输出改变 key，原 fixture 不变。静态 port 和本地往返测试不升级写 VERIFIED、不授权服务器提交，也不代替 render serializer。此前“只有 adapter 接口、未移植”的描述是扩展前的历史状态；现在有静态 local adapter，仍无 server write verification。
+
+原四个 POST method/path/body schema、NotVerifiedError 入口及 dispatchAllowed=false preview 不变；render-state 的生成/clip 流程与 multitrack download_url 模型继续分开。通用 raw-call 能力未修改，本轮未调用。
+
+后续有正常写权限时，验证动作扩展为 **A create → B add one existing clip → C save → D move → E save → F change one processing property → G save → H single-track export**，各动作独立 capture/marker，通过 before/after state 和 version_id diff 对应；遇到 autosave 明确记录其实际时序。只有捕获、单独重播及读回验证后升级 VERIFIED。详细证据和已实现/未实现边界见 [STUDIO_CLIP_PIPELINE.md](STUDIO_CLIP_PIPELINE.md)。本轮停止在本地 preview。

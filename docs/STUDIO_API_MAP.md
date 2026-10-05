@@ -278,3 +278,11 @@ shared/privacy.cjs 已对精确 JSON key timeSignatureChanges 递归保留值，
 仅派发一次 GET `/api/studio/3ebbb451-08a7-4599-9885-788f0b8f5def/version/e491cbde-9266-4884-997c-3a9789877a56`，requestId=version-read-1791193822559，HTTP 200。返回 id=version ID、project_id=project ID；state 为1 track/20 clips，与用户原始完整 GET JSON 的 state 严格比较成功（包含所有 title/name、全部未知字段和值，不仅脱敏投影）。规范化全 state SHA-256 两侧均为99aa0d597aa89363847448d837d12b71f08bad730c4dad36a420bb53c2903418。timeSignatureChanges 为原1元素 array，字段 beatsPerSubdivision/startBeats/subdivisionsPerBar，相等；maskedStatePaths=[]、losslessState=true、verified=true。
 
 该 version GET 的 **VERIFIED** 现在包括本次真实 state 的无损 transport 读回。不是 JSON 字节/对象key顺序比较，也不是所有未来 state 的普遍无损保证；认证过滤仍保留。没有第二次 GET、versions/revision 请求、Studio POST、权限变更或 bundle 搜索。所有 write 仍 FOUND_STATICALLY / High / 默认拒绝。新证据见 [STUDIO_METER_LIVE_VERIFICATION_REPORT.md](../reports/STUDIO_METER_LIVE_VERIFICATION_REPORT.md)；原 fixture 与旧报告/证据包不重写。
+
+## Clip workflow：API 与 state mutation 分离（2026-10-05）
+
+**ADD_CLIP = CLIENT_STATE_MUTATION / FOUND_STATICALLY / High**。官方已有 clip metadata → UUID audio arrangement / asset.id → native clip entity + track clipIds → project projection tracks[].clips[] → 整体 serialize/save 的链路已恢复。当前 loaded-client 17 个 method/path 模板没有独立 arrangement 插入 API；不新增猜测 endpoint。POST create-or-load-project-for-clip 是工程定位/初始化 helper，不等同于已打开工程内插入 clip。
+
+新增纯本地 clip-pipeline 独立于 StudioClient HTTP 层：draft / processed clip / editor snapshot / save-serialized 的 handles 不混用；builder、顺序 placement、显式处理和 save preview 没有网络 dispatch。legacy StudioClient.add_clip 等业务写 stub 仍禁用，不把它改为未经验证的 HTTP 请求。
+
+READ 状态不变；四个 POST 候选继续 FOUND_STATICALLY / High。本轮不重跑 live read / privacy 实验。pitch +8/import flag 与 transposition=-8 仍仅 OBSERVED CORRELATION；gain repair 的 Studio 映射未确认。详细 source offsets、markers 编码、serializer 边界和未来 A-create 至 H-export 单动作计划见 [STUDIO_CLIP_PIPELINE.md](STUDIO_CLIP_PIPELINE.md)，交付见 [报告](../reports/STUDIO_CLIP_PIPELINE_REPORT.md)。

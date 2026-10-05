@@ -190,7 +190,7 @@ const project = await studio.get_project(observedOwnedProjectId);
 
 ## State 边界与版本只读实验
 
-`rawWireState → deserializeEditorState(显式 adapter) → editor-memory → serializeProjectState(显式 adapter) → save-serialized → buildSaveProjectRequest`。render 使用独立 `prepareRenderTransformedState(editor, transform, serializeRender)` 和 render-transformed handle。这里仅提供接口，不移植、执行或冒充已验证的官方 serializer；GET state 不会自动经过 serializer。输入和输出以隔离快照保存，完整未知字段由 adapter 保留，adapter 的真实语义仍待官方动作验证。
+`rawWireState → deserializeEditorState(显式 adapter) → editor-memory → serializeProjectState(显式 adapter) → save-serialized → buildSaveProjectRequest`。render 使用独立 `prepareRenderTransformedState(editor, transform, serializeRender)` 和 render-transformed handle。GET state 不会自动经过 serializer。输入和输出以隔离快照保存，完整未知字段由 adapter 保留。新增 audio clip pipeline 提供静态重建的显式 project adapters；它们经过本地往返测试，仍未获得服务器写入 VERIFIED，render adapter 未移植。
 
 **隐私修复 v1.3.16：** shared/privacy.cjs 对精确 JSON key `timeSignatureChanges` 递归保留内容，header/query/signed URL 规则不放行该名称，相似字段名也不放行；内部 token 等仍掩码。v1.3.15 的误掩码是历史限制，不修改旧日志。升级时须更新 Tampermonkey、本地页（刷新）和 controller（正常重启或新进程），避免旧过滤器仍在执行。所有带掩码/omitted 的 state 仍被拒绝进入 save/render 准备；完整 source fixture 不变。修复与严格无损读回证据见 [STUDIO_METER_PRIVACY_REPORT.md](reports/STUDIO_METER_PRIVACY_REPORT.md)，读取成功不放行写方法。
 
@@ -219,3 +219,30 @@ npm test
 ```
 
 工具只解析已经取得的公共代码，验证 SHA-256 后输出语法引用/有限 import 调用图，不下载、不求值、不调用 API。sourceMappingURL 检查的 5 个关键 URL 均 404；源码枚举仅限当前实际下发范围。静态结果不能证明写权限或保存/导出成功。本阶段完成后停在证据报告，不自动重播未知写接口。
+
+## Clip builder 与本地拼接预览
+
+[STUDIO_CLIP_PIPELINE.md](docs/STUDIO_CLIP_PIPELINE.md) 记录官方 source → arrangement → 本地 store → save 的链路、时间单位、warp、pitch/gain/fade 证据和未来 A–H 单动作验证计划。`suno/studio/clip-pipeline.mjs` 是纯本地模块，没有 bridge/HTTP 调用：
+
+```js
+const source = sourceClipMetadata(observedSourceMetadata);
+const draft = buildAnalyzedAudioClipDraft(source, {
+  fallbackBPS: 1.95, markers: observedResolvedMarkers, name: '素材'
+});
+const processed = postprocessClip(draft, { transposition: -8 }); // 显式值，非自动 pitch restoration
+const placed = placeClip(processed, observedTimelineEndBeats);
+const editor = deserializeEditorState(rawWireState(project.state), deserializeAudioProjectState);
+const next = appendClipToEditor(editor, observedAudioTrackId, placed);
+const saveState = serializeProjectState(next, serializeAudioProjectState);
+const preview = buildSaveProjectRequest({ project_id: project.id, state: saveState, title: project.title });
+// preview.dispatchAllowed === false；StudioClient save/render 入口仍拒绝。
+```
+
+这不是已完成的真实账户合并 MVP。普通 draft 尚待 analysis；resolved draft 要求已确认 source duration 和 markers。时间 helper 只处理 manual 无 automation；特殊 source 内容窗口、重叠替换、自动 inverse pitch、响度修复、完整 track factory 与 render transform 尚未移植。不要把 wire state 的 markersHash 与 editor 的 inline markers 混用。当前官方 save hash 为 MD5，真实历史 fixture hash 拼法不同；原 fixture 不改，新保存输出的服务器兼容性待验证。
+
+```powershell
+node scripts/collect-studio-clip-evidence.mjs captures/official-write/20261005/manifest.json fixtures/studio_project_get.json captures/reference-static/20261005/code-manifest.json captures/clip-pipeline/20261005/evidence.json
+node --test tests/studio-clips.test.mjs
+```
+
+收集器只验证已有快照哈希并按固定 seeds 提取片段。所有当前写候选仍 FOUND_STATICALLY，Add Clip 恢复为 CLIENT_STATE_MUTATION，不增加虚构 API。
