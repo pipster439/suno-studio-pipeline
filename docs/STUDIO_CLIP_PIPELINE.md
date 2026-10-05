@@ -148,7 +148,7 @@ render-transformed 仍需要独立 transform 和 render serializer，**不能**�
 | project structural template | OBSERVED | 克隆完整 fixture，生成新 track/draft UUID，清理 selection/focus/UI 中旧身份，重置新工程 convenience state；未知 history-keyed UI 或剩余旧身份拒绝 |
 | existing project modification | FOUND_STATICALLY / 本地验证 | modifyExistingProject copy-on-write；默认保留已有 hash、未知 clip/track/state/registry 字段；变更 whitelist 检测意外丢失 |
 | save request | FOUND_STATICALLY / High | 只返回 POST save-project `{project_id,state,title}`，strict validation 与不可变 preview；dispatchAllowed=false |
-| render request | FOUND_STATICALLY / High | 独立 render-transformed handle；只接受明确 V2 engine/mode/其他参数与 bindings。实现已知 manual timing/metronome overlay，两个官方 normalization transform 尚未完整移植 |
+| render request | FOUND_STATICALLY / High | 独立 render-transformed handle；明确 V2 inputs/bindings；manual audio MVP 已移植 audible-track/17660/950155/timing/metronome/downbeats/current registry serializer |
 
 SDK 使用显式的 save_project_id / render project_id / studio_project_id / studio_project_version_id bindings，禁止把本地 draft UUID 推断成服务器 ID。示例均为 LOCAL_PLACEHOLDER。create/save 返回的真实 ID 必须在未来合法验证后绑定。preview 拒绝缺失或未观察 engine/mode；没有自动 enum 猜测。
 
@@ -156,6 +156,17 @@ SDK 使用显式的 save_project_id / render project_id / studio_project_id / st
 
 历史 semantic diff 逐字段比较 decode 后 state：MATCH 563、EXPECTED_DYNAMIC 69、UNKNOWN_DIFFERENCE 0、BLOCKER 0。预期差异为新 UUID/中性标签/UI reset/静态 constructor formantCorrection 默认值与显式 hash 策略；asset/source、marker 数值、timeline 和 processing 不允许被这些类别掩盖。另有 no-op 测试保持 wire state 精确等价，包括额外未知字段及未引用 registry entries。这只证明本地转换没有损坏样本，save serializer 仍非 VERIFIED。
 
-输出 summary、每个 wire leaf 的 provenance、validation、historical diff、draft 与 request previews。renderTransformComplete=false / serverSubmissionReady=false 明确暴露未移植 normalization、未恢复的官方 downbeats 与 placeholder bindings；生成 preview 不代表可向服务器提交。未来单动作计划见 [STUDIO_WRITE_VALIDATION_PLAN.md](STUDIO_WRITE_VALIDATION_PLAN.md)。
+输出 summary、每个 wire leaf 的 provenance、validation、historical diff、draft 与 request previews。renderTransformComplete=true 仅表示 manual audio MVP state chain 已静态移植；serverSubmissionReady=false 继续暴露 placeholders/服务器验证缺失。非空 aligned lyrics、follow-track/automation/take preview 不包含在该完成声明中；生成 preview 不代表可提交。未来单动作计划见 [STUDIO_WRITE_VALIDATION_PLAN.md](STUDIO_WRITE_VALIDATION_PLAN.md)。
 
 **写入物理边界**：本地 SDK 无 dispatch 能力；StudioClient 写方法拒绝；当前 shared transport validator 对 `/api/studio` 非 GET 全部拒绝，四个写候选即使去掉 dispatchAllowed、改 flag、编码 path 或改为 GET 也无法发送。旧 controller 进程需正常重启加载新代码。本轮不修改 Tampermonkey、不重新运行已完成 read/privacy/lossless live 实验、不发送 Suno 请求。
+
+## Live-validation preparation update
+
+- **FOUND_STATICALLY**：predictAddClipDiff 只进行 state mutation，生成独立 arrangement ID；无独立 add endpoint。predictMoveClipDiff 只改 start/end，source/read/warp 保留；transposition 只改对应字段并 clamp [-24,24]；fade 只 overlay 明确指定字段。所有 predictor copy-on-write。
+- **OBSERVED**：20 段历史数据的 SOURCE_DURATION 来自 marker extents，不是完整 metadata。已有 236 个真实 archived response 中没有恢复到 source 的完整 duration；exact ADD constructor 动态比对需要未来真实素材 metadata/明确 profile。尾段仍按实际输入范围而非 normal chunk 长度计算。
+- **FOUND_STATICALLY**：PRESERVE_EXISTING no-op state 完全等价；current official serializer 24 条 hash/registry diff 逐条报告，decode 后语义等价，UNKNOWN/BLOCKER=0。Render 使用 referenced-only fresh registry，不能让编辑 preservation policy 混入 render。
+- **CORRELATED**：UploaderCompatibilityProfile 保留 +8/restore flag→-8 的历史关联，默认不自动应用；gainReference/repairLoudness/silence/source trim 的效果 UNKNOWN，opaque metadata 不污染 Studio wire schema。
+- **FOUND_STATICALLY**：模板 required state 与 editor convenience state 分开；sanitization 报告 preserved/regenerated/removed/reset paths，新工程没有历史 track/clip/selection/focus/warp leftovers。无法理解的历史 identity reference 明确拒绝而非静默丢失。
+- **OBSERVED (offline only)**：A–H replay 演练成功，不升级 live VERIFIED。B/D/F 未保存编辑通过后续 C/E/G persisted state 自动关联，条件预测与独立预测在报告中分开。
+
+详见 render/capture/status 文档和 `suno/studio/uploader-compatibility.json`。原 fixture、旧报告及旧证据包原样保留。

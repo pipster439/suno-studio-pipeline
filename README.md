@@ -261,7 +261,7 @@ node examples/studio-20-clip-dry-run.mjs captures/my-local-preview
 
 `buildMergeDryRun()` 接受 SourceClip[]、manual timing、完整结构 template、processing profiles、显式 request bindings/render 参数。使用 `buildStudioClipDraft()` / `buildSequentialTimeline()` / `modifyExistingProject()` 可分别构造 arrangement、顺序 placement 和保留未知字段的已有工程 overlay。typed 接口见 `suno/studio/dry-run-sdk.d.mts`，可运行输入见 `fixtures/studio_20_clip_dry_run.json`。
 
-explicit pitch/amplitude/read/fade 与明确 markers 可执行；自动 uploader inverse pitch 必须严格 opt-in、始终 CORRELATED；自动响度修复和完整 trim 拒绝。修改已有工程默认 PRESERVE_EXISTING，新 draft 的 CURRENT_STATIC_ALGORITHM 仅 FOUND_STATICALLY。render 独立 state domain 只复现限制范围内的 timing/metronome overlay；两个 normalization transform 和官方 downbeat derivation 尚未完整恢复，preview 明确 `renderTransformComplete=false`，不是可直接提交的完整官方 payload。
+explicit pitch/amplitude/read/fade 与明确 markers 可执行；自动 uploader inverse pitch 必须严格 opt-in、始终 CORRELATED；自动响度修复和完整 trim 拒绝。修改已有工程默认 PRESERVE_EXISTING，新 draft 的 CURRENT_STATIC_ALGORITHM 仅 FOUND_STATICALLY。render 独立 state domain 现已移植 audible-track filter、两段 normalization、manual timing/metronome、downbeats 和 referenced-only marker serializer；`renderTransformComplete=true` 仅指 manual constant-BPS audio MVP 的静态 state port。非空歌词 alignment/range、tempo automation/take lanes、真实 bindings 和服务器写验证仍未完成，preview 不可提交。
 
 本轮所有 Studio 写请求在 shared transport boundary 强制拒绝，覆盖 raw-call、SunoBridge 和 BridgeHub；去掉 preview 标记或启用 integration 环境变量都不能放行。Studio Dry-Run SDK 自身没有网络 transport，dispatch() 也抛 NotVerifiedError。运行中的旧 controller 没有热重载，需正常重启加载这个 guard；本轮没有替换旧进程或改 userscript。
 
@@ -273,3 +273,31 @@ Remove-Item Env:RUN_SUNO_INTEGRATION_TESTS
 ```
 
 未来正常具备 Studio 写权限后，按 [STUDIO_WRITE_VALIDATION_PLAN.md](docs/STUDIO_WRITE_VALIDATION_PLAN.md) 逐动作 capture，再验证静态候选。读取 VERIFIED 不推导任何写权限。实现/证据边界见 [STUDIO_DRY_RUN_SDK_REPORT.md](reports/STUDIO_DRY_RUN_SDK_REPORT.md)。
+
+## Live validation 工具与离线演练
+
+```powershell
+npm run build:studio-harness
+npm run offline-validation-rehearsal
+node scripts/studio-ready-artifacts.mjs
+npm test
+```
+
+完整 A–H 演练只用 fixture transport，明确标 SIMULATED_OFFLINE；生成 `captures/live-ready/20261005/offline_validation_rehearsal.json`，八步均可 start/capture/diff/compare/finish，网络请求为零。历史 20 段 dry-run 和 save no-op audit 同时输出摘要与 provenance；真实 fixture 不改写。`studio-ready-artifacts` 要先有该目录中的本轮测试日志，属于证据生成工具，不是普通 SDK 调用的前置条件。
+
+正常具备写权限后，启动 controller，用输出的配对 URL 打开 `/studio-validation`（保留 # 后本地配对码），安装独立“被动 Capture Harness”v1.0.0 并刷新一个官方 Suno 标签页；保留已配对的原 Auth Bridge 标签页。新 harness 不替换 v1.3.16 transport。每项 Begin → 等待 armed → 只做一个官方 UI 动作 → End；工具自动归档、GET 已知 project/version、生成 diff/compare/report，不需 DevTools 或复制 JSON。
+
+```powershell
+# SUNO_CONTROLLER_KEY 为本地 controller 配对码，绝不是 Suno JWT
+npm run studio-validation -- status
+npm run studio-validation -- begin B_ADD --run-id RUN --project-id REAL_PROJECT_ID
+npm run studio-validation -- end
+npm run studio-validation -- report B_ADD --run-id RUN
+npm run studio-validation -- export B_ADD --run-id RUN
+```
+
+私有 captures 保留业务 UUID，但认证值在 browser/backend 两侧都过滤。Evidence Export 会进一步 alias UUID、隐藏展示文字；不要打包私有 raw captures。可运行 `node scripts/studio-ready-artifacts.mjs` 查看 privacy/write audit，交付工具还会扫描最终 ZIP 的实际值并核对 fixture 原始哈希。Authorization/Cookie 字段名或单测标签不是凭据；完整 JWT、Bearer 值、真实 email、signed-query signature 都不得出现在日志/包中。
+
+GET 不保证暴露未保存 editor memory，因此工具自动将 B/D/F 关联到下一次 C/E/G，不伪造内存快照。capture 的 pending/queued/dropped/omitted 与停录 ack 都有完整性检查；binary/大 body/beacon 无响应会明确暴露缺口。新 harness 本轮尚未真实浏览器安装验证。Registry 可审核单 endpoint 未来 eligibility，但生产写入口仍物理锁定，不能因配置或 read 成功而发送写请求。
+
+状态总表：[STUDIO_SDK_STATUS.md](docs/STUDIO_SDK_STATUS.md)；操作细节：[STUDIO_CAPTURE_HARNESS.md](docs/STUDIO_CAPTURE_HARNESS.md)；render 证据：[STUDIO_RENDER_PIPELINE.md](docs/STUDIO_RENDER_PIPELINE.md)；本轮报告：[STUDIO_LIVE_VALIDATION_READY_REPORT.md](reports/STUDIO_LIVE_VALIDATION_READY_REPORT.md)。

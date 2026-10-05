@@ -230,4 +230,25 @@ Add Clip 已恢复为 **CLIENT_STATE_MUTATION / FOUND_STATICALLY**，不是一�
 
 原四个 POST method/path/body schema、NotVerifiedError 入口及 dispatchAllowed=false preview 不变；render-state 的生成/clip 流程与 multitrack download_url 模型继续分开。通用 raw-call 能力未修改，本轮未调用。
 
+## 当前静态/离线收敛结果（2026-10-05）
+
+本节更新当前状态，前面的pending描述与旧报告保留为历史。已有116个asset快照做固定目标AST追踪，无新下载，无真实Suno读写。GET三个状态不变；所有写继续FOUND_STATICALLY / High / dispatchAllowed=false。
+
+| Candidate | Exact recovered request | Partial response use | Current implementation |
+|---|---|---|---|
+| POST create-project | query title；不同callsite的major_version/trigger/extract_mode/num_stems_sent/entry_source；无body | id/title；完整schema UNKNOWN | Pure preview；production throws |
+| POST save-project | `{project_id,state,title}`，serializer634782；无已观察base_version/If-Match | version_id；完整schema UNKNOWN | Save handle + strict validation；production throws |
+| POST render-state | V2 title/lyrics/tags/negative_tags/style_summary/caption/project_id/studio_project_id/optional studio_project_version_id/web_client_pathname/state/start_beats/end_beats/downbeats/render_engine/export_mode | moderation error / id/title；open schema | Scoped state chain + preview；production throws |
+| POST render-state-multitrack | Distinct V2 body incl from_studio_project_id/format=wav/export_surface=studio_v2；no single-track export_mode | download_url；open schema | Separate preview/transform；production throws |
+
+上表来自真实callsite，不代表同一路径所有分支都只有这些字段。完整表达式/source offset见inventory。create-or-load-project-for-clip POST无body、消费id，是素材关联工程初始化/加载；clips/projects GET消费data.projects；project_revision GET消费project_id/is_owner，不把revision ID等同version ID；它们未动态VERIFIED，也未调用。
+
+Save边界：raw-wire显式decode inline markers→EditorMemoryState→SaveSerializer→SaveSerializedState，只包装一次。PRESERVE_EXISTING用于已有工程编辑，unknown/orphan registry保留；current official serializer重建registry/hash，24条路径变化单独报告，decode语义等价，UNKNOWN/BLOCKER=0。selection/UI/runtime/clipCreationIntents/signalChain/automation/timing/routing由spread保留，没发现额外删除；SDK拒绝undefined/Map/Set/non-JSON及redacted/omitted状态，null保留。No-op仅证明本地安全，不升级服务器VERIFIED。
+
+Render边界：effectively muted track filter→17660 supported assets→950155 main clip mute→derived manual timing/metronome→current serializer重建referenced registry；downbeats/range已移植。Editing PRESERVE_EXISTING不能流入render。非空歌词alignment/crop/merge未全port，tempo automation/follow-track/take lanes超出MVP显式拒绝。详见render pipeline。
+
+Registry准备逐endpoint eligibility：VERIFIED AND显式allow_verified_studio_writes=true AND human review/schema/evidence。它不提供当前生产激活能力，StudioClient/shared guard物理拒绝。合法观察/受控复现后仍需单独审查activation adapter，不全局解锁其他写。ExpectedProjectVersion仅本地检查latest_version_id，wireFieldsAdded=[]，不编造并发字段。
+
+Capture/比对/回放工具自动A–H归档和deferred save配对，不修改文档/registry状态。新被动harness尚未真实浏览器验证；合法权限出现后先做官方UI动作，不能以read或离线演练代替权限。真实write=0。[状态](STUDIO_SDK_STATUS.md)、[Harness](STUDIO_CAPTURE_HARNESS.md)、[计划](STUDIO_WRITE_VALIDATION_PLAN.md)。
+
 后续有正常写权限时，验证动作扩展为 **A create → B add one existing clip → C save → D move → E save → F change one processing property → G save → H single-track export**，各动作独立 capture/marker，通过 before/after state 和 version_id diff 对应；遇到 autosave 明确记录其实际时序。只有捕获、单独重播及读回验证后升级 VERIFIED。详细证据和已实现/未实现边界见 [STUDIO_CLIP_PIPELINE.md](STUDIO_CLIP_PIPELINE.md)。本轮停止在本地 preview。

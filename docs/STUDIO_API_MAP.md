@@ -286,3 +286,13 @@ shared/privacy.cjs 已对精确 JSON key timeSignatureChanges 递归保留值，
 新增纯本地 clip-pipeline 独立于 StudioClient HTTP 层：draft / processed clip / editor snapshot / save-serialized 的 handles 不混用；builder、顺序 placement、显式处理和 save preview 没有网络 dispatch。legacy StudioClient.add_clip 等业务写 stub 仍禁用，不把它改为未经验证的 HTTP 请求。
 
 READ 状态不变；四个 POST 候选继续 FOUND_STATICALLY / High。本轮不重跑 live read / privacy 实验。pitch +8/import flag 与 transposition=-8 仍仅 OBSERVED CORRELATION；gain repair 的 Studio 映射未确认。详细 source offsets、markers 编码、serializer 边界和未来 A-create 至 H-export 单动作计划见 [STUDIO_CLIP_PIPELINE.md](STUDIO_CLIP_PIPELINE.md)，交付见 [报告](../reports/STUDIO_CLIP_PIPELINE_REPORT.md)。
+
+## Live-validation readiness（2026-10-05，本地收尾）
+
+本轮没有新动态 Suno 请求。已 VERIFIED 的 project / specific version（LOSSLESS）/ versions?return_days_only=false 保持原证据；create/save/render/multitrack 保持 FOUND_STATICALLY / High。固定旧快照 inventory 为25个 literal callsites、17个 path模板，没有独立 Add Clip 或 createVersion route；未知读、revision read 与 source-linked create-or-load 没有被自动升级。完整 method/body/schema消费/source/offset/policy 见 [STUDIO_ENDPOINT_INVENTORY.md](STUDIO_ENDPOINT_INVENTORY.md) 和 `suno/studio/endpoint-inventory.json`。
+
+Render audible filter、17660/950155、derived manual timing、metronome、current marker serializer 和 downbeats 已完成 FOUND_STATICALLY 本地移植，范围为 constant-BPS main audio MVP；非空歌词 alignment/range 仍有未移植分支。Save current hash往返24条明确差异，语义等价，UNKNOWN/BLOCKER=0不代表服务器验证。渲染返回id用于song link，不猜polling endpoint。详见 [STUDIO_RENDER_PIPELINE.md](STUDIO_RENDER_PIPELINE.md)。
+
+Harness、diff/predictor、ReplayTransport、A–H演练与本地UI/CLI已就绪。新recorder本轮未实际安装到浏览器；正常安装一次后只需官方UI单动作Begin/End，不需DevTools。GET看不到未保存编辑时自动关联到下一次save，不伪造内存快照。推荐永远human-review-required，不自动升级registry/docs。
+
+Registry准备按endpoint的VERIFIED/config/schema/evidence双重eligibility，但当前所有生产写dispatch继续物理禁止，future activation仍需独立审查。真实Studio POST/PUT/PATCH/DELETE均0。LIVE_VALIDATION_READY=true仅表明工具离线完成；实际权限和create/add/save/postprocess/export效果等待合法动态验证。[SDK状态](STUDIO_SDK_STATUS.md)列出剩余边界。
