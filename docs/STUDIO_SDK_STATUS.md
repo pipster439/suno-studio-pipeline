@@ -1,5 +1,7 @@
 # Studio SDK status — 2026-10-05
 
+> 2026-10-06 correction: actual v1.3.17 data-plane run is LIVE_CAPTURE and passed all read/digest/reload/SPA/lease checks. Only stop ACK was missing; original end-to-end completeness remains INCOMPLETE. Controller 0.2.1/script 1.3.18/harness 1.1.1/protocol 3 fixes the control plane, with explicit flush/ACK/tombstone/receipt tests. New full live pass remains pending. See reports/STUDIO_STOP_ACK_FIX_REPORT.md; earlier tables are historical, not a reclassification of the real capture.
+
 ## Current Free availability and browser-only task
 
 Account is **FREE**, confirmed by user. All real Studio CREATE/ADD/SAVE/MOVE/TRANSPOSE/EXPORT are **BLOCKED_BY_PRODUCT_ENTITLEMENT**. This is independent of unchanged endpoint evidence levels. Current A–H live wizard/controller Begin is blocked; offline rehearsal/report/export remains available.

@@ -1,5 +1,9 @@
 # Browser read-only validation harness
 
+## 2026-10-06 stop ACK update
+
+Actual v1.3.17 evidence is **LIVE_CAPTURE / realBrowser=true**, with lossless/correlated 200 fetch/XHR/resumed-fetch, matching digest, empty masks, reload/SPA/lease passed. Only stop acknowledgment failed. It is retained as real evidence. New controller 0.2.1 / script 1.3.18 / harness 1.1.1 / protocol 3 adds explicit durable stop/ACK/result and Panel receipt; see [STUDIO_STOP_ACK_PROTOCOL.md](STUDIO_STOP_ACK_PROTOCOL.md). Four actions: update script/controller, refresh Suno, Run Read-Only Self Test, Export Evidence. New ACK still needs this live retest; no Studio writes are enabled. Remaining protocol-2 description below is historical.
+
 Current account: **FREE**, user-confirmed. Studio write validation is **BLOCKED_BY_PRODUCT_ENTITLEMENT**. Endpoint evidence levels stay unchanged; all Studio writes remain physically locked.
 
 Combined transport **v1.3.17** includes passive harness **v1.1.0**, native read adapter and default-collapsed panel. Controller **0.2.0** / capture protocol **2** are required. Local tests include the one-click panel flow; **the new harness is NOT VERIFIED in the real browser yet**. Prior v1.3.16 lossless read evidence does not prove these new hooks.

@@ -1,5 +1,11 @@
 # 本地 Suno Controller / API Recorder
 
+## 2026-10-06：真实数据面通过，修复停录 ACK
+
+真实 v1.3.17 LIVE_CAPTURE 的三次 GET、完整 digest、隐私、reload/SPA/lease 均通过；唯一缺口是 stop acknowledgment。此证据原样保留，不改成 offline。新版本：controller **0.2.1** / userscript **1.3.18** / harness **1.1.1** / protocol **3**，显式持久化 stop/flush/ACK、结果查询、幂等 tombstone 和 Panel receipt。full live ACK 需更新后复测，写请求继续 LOCKED / BLOCKED_BY_PRODUCT_ENTITLEMENT。
+
+只需：**更新脚本/controller → 刷新 Suno → Run Read-Only Self Test → Export Evidence**。新 panel 有 Export Evidence 按钮；不用 DevTools/Console/复制 JSON。兼容 controller 自动发现 3000–3002；更新源码后正常重启或使用兼容实例，旧 protocol-2 不会伪装兼容。详见 [停录协议](docs/STUDIO_STOP_ACK_PROTOCOL.md)、[修复报告](reports/STUDIO_STOP_ACK_FIX_REPORT.md)。下面的版本/未验证表述属于前一阶段历史。
+
 ## 当前操作入口：Free 账号只读 Browser Self Test
 
 **FREE / STUDIO WRITE BLOCKED**。当前 A–H 实际写验证全部为 BLOCKED_BY_PRODUCT_ENTITLEMENT。三条既有 GET VERIFIED 保留；写候选仍 FOUND_STATICALLY / dispatch=false。
