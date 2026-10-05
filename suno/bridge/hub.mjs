@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BridgeError, apiError, validateCall } from './errors.mjs';
 export class BridgeHub {
+  constructor({allow_verified_studio_writes=false}={}){this.policy=Object.freeze({allow_verified_studio_writes:allow_verified_studio_writes===true});}
   pending = new Map();
   peer = null;
   auth = { ready: false, state: 'unknown' };
@@ -29,7 +30,7 @@ export class BridgeHub {
   }
   call(options, { signal } = {}) {
     if (options?.dispatchAllowed === false) throw new BridgeError('not_verified', 'request preview forbids dispatch');
-    const valid = validateCall(options);
+    const valid = validateCall(options,this.policy);
     const id = options.requestId || randomUUID();
     if (!/^[\w-]{1,100}$/.test(id) || this.pending.has(id)) throw new BridgeError('validation_error', 'invalid or duplicate requestId');
     if (!this.peer) throw new BridgeError('network_error', 'browser bridge offline');

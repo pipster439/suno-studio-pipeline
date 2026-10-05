@@ -6,6 +6,7 @@ export const ExportMode=Object.freeze({FULL_SONG:'fullsong_export',SELECTION:'se
 export const RenderEngine=Object.freeze({V2:'v2'});
 export function getPlaintextLyrics(tokens){validateJsonData(tokens);if(!Array.isArray(tokens)||tokens.some(t=>typeof t?.text!=='string'))throw new Error('explicit aligned lyric token text required');return tokens.map(t=>t.text).join('');} // module 402294 @1216663
 export const RENDER_EVIDENCE=Object.freeze({status:'FOUND_STATICALLY',confidence:'High',
+  acceptedProfile:{status:'VERIFIED',verification:{kind:'request_acceptance',scope:'manual bps=1.95; single unmuted audio track; range 0..32; v2/fullsong_export; queued only'},source:'reports/STUDIO_FREE_WRITE_VALIDATION_SANITIZED.md'},
   stage1:{module:17660,file:'0kfolb-xhy_j4.js',offset:73412},stage2:{module:950155,file:'0kfolb-xhy_j4.js',offset:103608},
   downbeat:{module:714981,file:'0kfolb-xhy_j4.js',offset:1216430},derivedTiming:{module:265449,file:'0kfolb-xhy_j4.js',offset:101050},
   caller:{module:748387,file:'3g9-3c-u44c0o.js',offset:825347},serverVerified:false});

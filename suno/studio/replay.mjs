@@ -7,11 +7,11 @@ export class ReplayTransport{
     this.index++;if(record.response.error)throw new BridgeError(record.response.error.kind??'unknown_error',record.response.error.message??'recorded failure',record.response.status);
     if(record.response.status>=400)throw new BridgeError('suno_api_error','recorded HTTP failure',record.response.status);
     return {ok:true,status:record.response.status,result:structuredClone(record.response.body),origin:this.origin};}
-  client(){return new StudioClient(this);}
+  client(options){return new StudioClient(this,options);}
   assertConsumed(){if(this.index!==this.records.length)throw Error('unconsumed replay records');return true;}
 }
 export class RenderJob{
-  constructor(response){this.response=structuredClone(response);this.clipId=typeof response?.id==='string'?response.id:null;this.state=this.clipId?'CLIP_REFERENCE_RECEIVED':'UNKNOWN_RESPONSE';this.networkPollingAllowed=false;}
+  constructor(response){this.response=structuredClone(response);this.clipId=typeof response?.id==='string'?response.id:null;this.state=this.clipId?(response.status==='queued'?'QUEUED':'CLIP_REFERENCE_RECEIVED'):'UNKNOWN_RESPONSE';this.networkPollingAllowed=false;}
   observeClip(metadata){if(!this.clipId||metadata?.id!==this.clipId)throw Error('rendered clip identity mismatch');this.metadata=structuredClone(metadata);this.state='METADATA_OBSERVED';return this;}
   poll(){throw new BridgeError('not_verified','render polling endpoint has no live READ verification');}
 }

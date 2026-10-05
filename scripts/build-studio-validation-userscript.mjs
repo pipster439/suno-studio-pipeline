@@ -19,5 +19,5 @@ const header=`// ==UserScript==
 // @connect 127.0.0.1
 // ==/UserScript==
 `;
-const source=header+(await readFile('shared/privacy.cjs','utf8'))+'\n'+(await readFile('shared/studio-privacy.cjs','utf8'))+'\n'+(await readFile('shared/studio-protocol.cjs','utf8'))+'\n'+(await readFile('userscripts/studio-read-panel.js','utf8'))+'\n'+(await readFile('userscripts/studio-validation-hooks.js','utf8'));
+const source=header+(await readFile('shared/privacy.cjs','utf8'))+'\n'+(await readFile('shared/studio-privacy.cjs','utf8'))+'\n'+(await readFile('shared/studio-protocol.cjs','utf8')).replace('/* WRITE_POLICY_SNAPSHOT */ []',JSON.stringify(JSON.parse(await readFile('suno/studio/endpoint-inventory.json','utf8')).endpoints.filter(e=>e.method==='POST'&&e.status==='VERIFIED').map(e=>e.path)))+'\n'+(await readFile('userscripts/studio-read-panel.js','utf8'))+'\n'+(await readFile('userscripts/studio-validation-hooks.js','utf8'));
 await writeFile('userscripts/studio-validation.user.js',source);console.log('Built passive document-start Studio validation harness; no Suno dispatch.');

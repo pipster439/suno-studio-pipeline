@@ -26,7 +26,7 @@ test('adapted real userscript keeps auth out of workbench, returns status and ca
   async function call(detail) { const done = new Promise((r) => w.addEventListener('suno-console-upload-response', (e) => r(e.detail), { once: true })); w.dispatchEvent(new CE('suno-console-upload-request', { detail })); return done; }
   const response = await call({ requestId: 'test1', path: '/api/session/', method: 'GET' });
   assert.equal(response.ok, true); assert.equal(response.status, 200);
-  assert.match(source, /const VERSION = '1\.3\.18'/);
+  assert.match(source, /const VERSION = '1\.3\.19'/);
   assert.deepEqual(JSON.parse(JSON.stringify(response.result.state.timeSignatureChanges)), { '0': { numerator: 7, denominator: 8 } });
   assert.equal(gmCalls[0].headers.authorization, credential); assert.equal(backendCalls.length, 0);
   assert.equal((await call({ requestId: 'bad', path: '//evil.example/' })).kind, 'validation_error');

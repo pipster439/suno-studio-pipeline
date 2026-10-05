@@ -121,7 +121,7 @@ function safeRenderMemory(memory) {
 export function buildSaveProjectRequestPreview(input,{provenance={},validation={}}={}) {
   validateJsonData(provenance);validateJsonData(validation);
   const preview=buildSaveProjectRequest(input),checked=validateProjectForSave(preview.body.state);
-  return deepFreeze({...preview,endpointStatus:'FOUND_STATICALLY',provenance:{...provenance,endpointStatus:'FOUND_STATICALLY',serverWriteVerified:false},validation:{...validation,...checked}});
+  return deepFreeze({...preview,endpointStatus:preview.status,provenance:{...provenance,endpointStatus:preview.status,serverWriteVerified:preview.status==='VERIFIED',currentDraftLiveVerified:false},validation:{...validation,...checked}});
 }
 export function buildRenderStateRequestPreview(input,{provenance={},validation={}}={}) {
   if(input.render_engine!=='v2')throw new NotVerifiedError('explicit observed V2 render_engine required');
@@ -129,7 +129,7 @@ export function buildRenderStateRequestPreview(input,{provenance={},validation={
   validateJsonData(input.downbeats);
   validateJsonData(provenance);validateJsonData(validation);
   const preview=buildRenderProjectRequest(input),checked=validateProjectForSave(preview.body.state);
-  return deepFreeze({...preview,endpointStatus:'FOUND_STATICALLY',provenance:{...provenance,endpointStatus:'FOUND_STATICALLY',serverWriteVerified:false},validation:{...validation,...checked}});
+  return deepFreeze({...preview,endpointStatus:preview.status,provenance:{...provenance,endpointStatus:preview.status,serverWriteVerified:preview.status==='VERIFIED',currentDraftLiveVerified:false},validation:{...validation,...checked}});
 }
 function leaves(value,path='',out=[]) {if(value&&typeof value==='object'&&Object.keys(value).length)for(const[k,v]of Object.entries(value))leaves(v,path+'/'+k.replaceAll('~','~0').replaceAll('/','~1'),out);else out.push(path);return out;}
 function provenanceForState(state,clips,hashProvenance){
@@ -180,22 +180,22 @@ export function buildMergeDryRun({sources,timing,profile={},perClipProfiles=[],t
   // Editing preservation policy must not leak dropped clips' registry entries here.
   const renderHandle=prepareRenderTransformedState(editor,safeRenderMemory,serializeAudioProjectState);
   const renderWire=inspectRenderTransformedState(renderHandle);validateProjectForSave(renderWire);
-  const provenanceReport={schemaVersion:1,status:'LOCAL_ONLY',endpointStatus:'FOUND_STATICALLY',serverWriteVerified:false,
+  const provenanceReport={schemaVersion:1,status:'LOCAL_ONLY',endpointStatus:'VERIFIED',serverWriteVerified:true,currentDraftLiveVerified:false,
     fields:provenanceForState(wire,clips,storage.provenance),
     sourceInputs:clips.map((c,i)=>({clipIndex:i,clip_id:{status:'USER_SUPPLIED',source:'existing source resource reference'},
       duration_seconds:{status:'USER_SUPPLIED',units:'underlying source range seconds',basis:c.source.duration_basis??'caller supplied; metadata not fetched'},
       uploader_metadata:{status:'USER_SUPPLIED',appliedToWire:false,retained:true}})),
     bindings:Object.fromEntries(Object.entries(requestContext).map(([k])=>[k,{status:'USER_SUPPLIED',bindingStatus:requestContext.binding_status??'UNVERIFIED_BINDING',noIdentityInference:true}])),
     aliases:{'/saveRequestPreview/body/state':'/state','/projectDraft/state':'/state','/editorState/payload':'explicit decode of /state'},
-    render:{endpointStatus:'FOUND_STATICALLY',render_engine:{status:'USER_SUPPLIED',staticValue:'v2'},export_mode:{status:'USER_SUPPLIED'},
+    render:{endpointStatus:'VERIFIED',render_engine:{status:'USER_SUPPLIED',staticValue:'v2'},export_mode:{status:'USER_SUPPLIED'},
       statePolicy:'manual audio MVP: audible tracks / supported assets / unmuted clips',timingAndMetronome:'FOUND_STATICALLY',markerStorage:'rebuild referenced-only registry; FOUND_STATICALLY',
       hashStrategy:{strategy:WarpHashStrategy.CURRENT_STATIC_ALGORITHM,status:'FOUND_STATICALLY',serverVerified:false},
       normalizationTransforms:'17660 then 950155; FOUND_STATICALLY',downbeats:render.downbeats===undefined?'FOUND_STATICALLY derived':'USER_SUPPLIED override',serverVerified:false},
     hashStrategy:{strategy:hashStrategy,status:hashStrategy===WarpHashStrategy.CURRENT_STATIC_ALGORITHM?'FOUND_STATICALLY':'OBSERVED',serverVerified:false},
     uploaderMetadataAppliedOnlyByOptIn:true,placementMode,sourceDurationUnits:'underlying source seconds',timelineDurationUnits:'project playback seconds',
     rules:clips.flatMap((c,i)=>c.provenance.map(p=>({clipIndex:i,...p}))),
-    readiness:{readyForLocalValidation:true,serverSubmissionReady:false,requires:['normal Studio write access','real create/save response bindings','official render-state transform comparison']}};
-  const saveRequestPreview=buildSaveProjectRequestPreview({project_id:requestContext.save_project_id,title:draft.title,state:save},{validation,provenance:{state:'/state',endpointStatus:'FOUND_STATICALLY',binding:'explicit save_project_id; no render/workspace ID substitution'}});
+    readiness:{readyForLocalValidation:true,serverSubmissionReady:false,requires:['explicit local write policy','real create/save response bindings','supported tested profile']}};
+  const saveRequestPreview=buildSaveProjectRequestPreview({project_id:requestContext.save_project_id,title:draft.title,state:save},{validation,provenance:{state:'/state',endpointStatus:'VERIFIED',binding:'explicit save_project_id; no render/workspace ID substitution'}});
   const renderRequestPreview=buildRenderStateRequestPreview({...render,downbeats:render.downbeats??deriveDownbeats({type:'manual',...deriveManualRenderTiming(timing)},timeline.startBeats,timeline.endBeats),...requestContext,title:draft.title,state:renderHandle,start_beats:timeline.startBeats,end_beats:timeline.endBeats},
     {validation,provenance:provenanceReport.render});
   draft.state=wire;

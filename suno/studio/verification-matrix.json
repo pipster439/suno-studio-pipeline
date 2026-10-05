@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "evidenceStatuses": [
+    "UNKNOWN",
+    "OBSERVED",
+    "CORRELATED",
+    "FOUND_STATICALLY",
+    "VERIFIED"
+  ],
+  "capabilities": [
+    {
+      "capability": "read_project",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "lossless_read",
+        "scope": "complete project response"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": true
+    },
+    {
+      "capability": "read_version",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "lossless_read",
+        "scope": "maskedStatePaths=[]; full state"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": true
+    },
+    {
+      "capability": "list_versions",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "read_schema",
+        "scope": "return_days_only=false"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": true
+    },
+    {
+      "capability": "create_project",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "create_readback",
+        "scope": "major_version=2"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "add_existing_clip",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "save_readback",
+        "scope": "client mutation; one source clip"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "save_project",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "save_readback",
+        "scope": "one audio track; full state"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "explicit_transposition",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "save_readback",
+        "scope": "explicit -5"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "warp_serialization",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "save_readback",
+        "scope": "CURRENT_STATIC_ALGORITHM; MD5; markers 0:0,1:1.95 only"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "render_submission",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "request_acceptance",
+        "scope": "V2 fullsong_export; range 0..32; queued"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "render_completion",
+      "status": "OBSERVED",
+      "verification": {
+        "kind": "third_party_historical",
+        "scope": "not current SDK completion verification"
+      },
+      "implemented": false,
+      "tested": true,
+      "liveVerified": false,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "multitrack_render",
+      "status": "FOUND_STATICALLY",
+      "verification": {
+        "kind": "static_client",
+        "scope": "not dynamically verified"
+      },
+      "implemented": false,
+      "tested": true,
+      "liveVerified": false,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "uploader_inverse_pitch",
+      "status": "CORRELATED",
+      "verification": {
+        "kind": "historical_correlation",
+        "scope": "opt-in; not upgraded"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": false,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "automatic_loudness",
+      "status": "UNKNOWN",
+      "verification": {
+        "kind": "none",
+        "scope": "no algorithm implemented"
+      },
+      "implemented": false,
+      "tested": true,
+      "liveVerified": false,
+      "dispatchAllowedByDefault": false
+    },
+    {
+      "capability": "browser_harness",
+      "status": "VERIFIED",
+      "verification": {
+        "kind": "browser_live",
+        "scope": "fetch/XHR/reload/scoped SPA/lease/privacy/stop ACK COMPLETE"
+      },
+      "implemented": true,
+      "tested": true,
+      "liveVerified": true,
+      "dispatchAllowedByDefault": false
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 // Pure previews from already observed constructions. No bridge, fetch, or dispatch.
-import { STATIC_WRITE_CANDIDATES } from './api.mjs';
+import { WRITE_REQUEST_DESCRIPTORS } from './api.mjs';
 import { BridgeError } from '../bridge/errors.mjs';
 import { inspectSaveSerializedState, inspectRenderTransformedState } from './state-boundaries.mjs';
+import {findEndpoint} from './endpoint-registry.mjs';
 const invalid = message => { throw new BridgeError('validation_error', message); };
 export function pathIdentifier(v, name = 'identifier') {
   if (typeof v !== 'string' || !/^[A-Za-z0-9_-]+$/.test(v)) invalid(name + ' must be a nonempty single path identifier');
@@ -9,8 +10,8 @@ export function pathIdentifier(v, name = 'identifier') {
 }
 function text(v, name) { if (typeof v !== 'string') invalid(name + ' must be a string'); return v; }
 function plan(operation, body, query) {
-  const api = STATIC_WRITE_CANDIDATES[operation];
-  return Object.freeze({ operation, status: 'FOUND_STATICALLY', dispatchAllowed: false,
+  const api = WRITE_REQUEST_DESCRIPTORS[operation];
+  return Object.freeze({ operation, status: findEndpoint(api.method,api.path)?.status??'UNKNOWN', dispatchAllowed: false,
     method: api.method, path: api.path + (query ? '?' + query : ''), ...(body === undefined ? {} : { body }) });
 }
 export function buildCreateProjectRequest({ title, major_version, trigger, extract_mode, num_stems_sent, entry_source }) {

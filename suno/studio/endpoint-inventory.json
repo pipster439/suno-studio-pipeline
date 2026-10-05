@@ -68,7 +68,7 @@
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
       "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "liveValidationBlockedReason": "NO_DYNAMIC_VERIFICATION"
     },
     {
       "method": "GET",
@@ -182,7 +182,7 @@
       "method": "POST",
       "path": "/api/studio/render-state",
       "category": "RENDER",
-      "status": "FOUND_STATICALLY",
+      "status": "VERIFIED",
       "confidence": "High",
       "request": [
         {
@@ -215,15 +215,23 @@
           "call": "c.POST(\"/api/studio/render-state\",{body:{title:e,lyrics:(0,y.getPlaintextLyrics)((0,v.default)(u,w,{trackIds:u.tracks.map(e=>e.id),startBeats:x,endBeats:k})),tags:\"\",negative_tags:\"\",style_summary:\"\",caption:\"\",state:(0,a.serializeProjectState)({...(0,i.default)((0,n.default)(u)),timing:{type:\"manual\",...(0,o.getDerivedTiming)(s)},metronome:{enabled:!1,amplitude:1}}),start_beats:x,end_beats:k,project_id:N.currentProjectId,studio_project_id:m,studio_project_version_id:g??void 0,web_client_pathname:window.location.pathname,downbeats:(0,b.getDownbeatsFromTiming)((0,o.getDerivedTiming)(s),x,k),export_mode:t?\"fullsong_export\":\"selected_time_range_export\",render_engine:\"v2\"}})"
         }
       ],
-      "currentSupport": "inventory/preview only",
+      "currentSupport": "StudioClient + default-deny explicit per-endpoint policy",
       "dispatchAllowed": false,
       "evidenceRefs": [
-        "docs/STUDIO_WRITE_API.md"
+        "reports/STUDIO_FREE_WRITE_VALIDATION_SANITIZED.md",
+        "fixtures/write-validation/PROVENANCE.json"
       ],
-      "verifiedRequestSchema": null,
-      "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "verifiedRequestSchema": "tested V2 fullsong_export request; docs/STUDIO_RENDER_PIPELINE.md",
+      "verifiedResponseSchema": "queued song_schema with id and metadata Studio project/version/range relation",
+      "lastVerifiedAgainst": "2026-10-05 tested Free account / authenticated bridge",
+      "liveValidationBlockedReason": null,
+      "humanReview": true,
+      "verification": {
+        "kind": "request_acceptance",
+        "scope": "tested single audio track / manual timing",
+        "origin": "LIVE_CAPTURE",
+        "renderCompletionVerified": false
+      }
     },
     {
       "method": "GET",
@@ -298,7 +306,7 @@
       "method": "POST",
       "path": "/api/studio/create-project",
       "category": "PROJECT",
-      "status": "FOUND_STATICALLY",
+      "status": "VERIFIED",
       "confidence": "High",
       "request": [
         {
@@ -318,21 +326,29 @@
           "call": "e.POST(\"/api/studio/create-project\",{params:{query:{title:t,...void 0!==n&&{major_version:n},...a?.trigger!==void 0&&{trigger:a.trigger},...a?.extract_mode!==void 0&&{extract_mode:a.extract_mode},...a?.num_stems_sent!==void 0&&{num_stems_sent:a.num_stems_sent},...a?.entry_source!==void 0&&{entry_source:a.entry_source}}}})"
         }
       ],
-      "currentSupport": "inventory/preview only",
+      "currentSupport": "StudioClient + default-deny explicit per-endpoint policy",
       "dispatchAllowed": false,
       "evidenceRefs": [
-        "docs/STUDIO_WRITE_API.md"
+        "reports/STUDIO_FREE_WRITE_VALIDATION_SANITIZED.md",
+        "fixtures/write-validation/PROVENANCE.json"
       ],
-      "verifiedRequestSchema": null,
-      "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "verifiedRequestSchema": "query title:string,major_version:integer; tested major_version=2",
+      "verifiedResponseSchema": "id,title,created_at,updated_at,archived,major_version",
+      "lastVerifiedAgainst": "2026-10-05 tested Free account / authenticated bridge",
+      "liveValidationBlockedReason": null,
+      "humanReview": true,
+      "verification": {
+        "kind": "create_readback",
+        "scope": "major_version=2",
+        "origin": "LIVE_CAPTURE",
+        "renderCompletionVerified": false
+      }
     },
     {
       "method": "POST",
       "path": "/api/studio/save-project",
       "category": "SAVE",
-      "status": "FOUND_STATICALLY",
+      "status": "VERIFIED",
       "confidence": "High",
       "request": [
         {
@@ -352,15 +368,23 @@
           "call": "e.POST(\"/api/studio/save-project\",{body:{project_id:t,state:a,title:n}})"
         }
       ],
-      "currentSupport": "inventory/preview only",
+      "currentSupport": "StudioClient + default-deny explicit per-endpoint policy",
       "dispatchAllowed": false,
       "evidenceRefs": [
-        "docs/STUDIO_WRITE_API.md"
+        "reports/STUDIO_FREE_WRITE_VALIDATION_SANITIZED.md",
+        "fixtures/write-validation/PROVENANCE.json"
       ],
-      "verifiedRequestSchema": null,
-      "verifiedResponseSchema": null,
-      "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "verifiedRequestSchema": "project_id:string,state:SaveSerializedState,title:string",
+      "verifiedResponseSchema": "id,version_id,title,created_at,updated_at,archived,major_version",
+      "lastVerifiedAgainst": "2026-10-05 tested Free account / authenticated bridge",
+      "liveValidationBlockedReason": null,
+      "humanReview": true,
+      "verification": {
+        "kind": "save_readback",
+        "scope": "tested single audio track / manual timing",
+        "origin": "LIVE_CAPTURE",
+        "renderCompletionVerified": false
+      }
     },
     {
       "method": "POST",
@@ -394,7 +418,7 @@
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
       "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "liveValidationBlockedReason": "NO_DYNAMIC_VERIFICATION"
     },
     {
       "method": "POST",
@@ -428,7 +452,7 @@
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
       "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "liveValidationBlockedReason": "NO_DYNAMIC_VERIFICATION"
     },
     {
       "method": "POST",
@@ -462,7 +486,7 @@
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
       "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "liveValidationBlockedReason": "NO_DYNAMIC_VERIFICATION"
     },
     {
       "method": "GET",
@@ -543,7 +567,7 @@
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
       "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "liveValidationBlockedReason": "NO_DYNAMIC_VERIFICATION"
     },
     {
       "method": "POST",
@@ -603,7 +627,7 @@
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
       "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "liveValidationBlockedReason": "NO_DYNAMIC_VERIFICATION"
     },
     {
       "method": "POST",
@@ -637,7 +661,7 @@
       "verifiedRequestSchema": null,
       "verifiedResponseSchema": null,
       "lastVerifiedAgainst": null,
-      "liveValidationBlockedReason": "PRODUCT_ENTITLEMENT"
+      "liveValidationBlockedReason": "NO_DYNAMIC_VERIFICATION"
     },
     {
       "method": "GET",
@@ -687,5 +711,6 @@
       "lastVerifiedAgainst": "2026-10-05 owned project/version evidence",
       "liveValidationBlockedReason": null
     }
-  ]
+  ],
+  "finalStatus": "FINAL_RC"
 }

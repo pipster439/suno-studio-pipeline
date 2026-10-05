@@ -21,7 +21,7 @@ test('20 clip merge runs every local stage with zero network calls and immutable
     assert.equal(result.summary.writeDispatches,0);assert.equal(network,0);
     assert.equal(result.saveRequestPreview.path,'/api/studio/save-project');assert.equal(result.renderRequestPreview.path,'/api/studio/render-state');
     assert.equal(result.renderRequestPreview.body.render_engine,'v2');assert.equal(result.renderRequestPreview.body.export_mode,'fullsong_export');
-    for(const preview of [result.saveRequestPreview,result.renderRequestPreview]){assert.equal(preview.dispatchAllowed,false);assert.equal(preview.endpointStatus,'FOUND_STATICALLY');assert.throws(()=>{preview.dispatchAllowed=true},TypeError);}
+    for(const preview of [result.saveRequestPreview,result.renderRequestPreview]){assert.equal(preview.dispatchAllowed,false);assert.equal(preview.endpointStatus,'VERIFIED');assert.throws(()=>{preview.dispatchAllowed=true},TypeError);}
     assert.throws(()=>new sdk.StudioDryRunSDK().dispatch(),NotVerifiedError);
     assert.equal(result.summary.renderTransformComplete,true);assert.equal(result.validationReport.serverSubmissionReady,false);
     assert.equal(result.saveRequestPreview.body.project_id,input().requestContext.save_project_id);

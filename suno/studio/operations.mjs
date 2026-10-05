@@ -1,11 +1,13 @@
 import { VERIFIED_ENDPOINTS } from './api.mjs';
 import { BridgeError } from '../bridge/errors.mjs';
 import { fullProject, projectVersion, projectVersions } from './models.mjs';
-import { pathIdentifier } from './request-builders.mjs';
+import { pathIdentifier,buildCreateProjectRequest,buildSaveProjectRequest,buildRenderProjectRequest } from './request-builders.mjs';
+import { endpointGate } from './endpoint-registry.mjs';
+import { savedProject,queuedRender } from './write-models.mjs';
 import { studioError } from './errors.mjs';
 export class NotImplementedError extends Error {}
 export class NotVerifiedError extends NotImplementedError {
-  constructor(operation) { super(operation + ': default write dispatch is disabled; current write flow is not VERIFIED'); this.name = 'NotVerifiedError'; this.kind = 'not_verified'; }
+  constructor(operation) { super(operation + ': operation unavailable or explicit local write policy is locked; see endpoint evidence'); this.name = 'NotVerifiedError'; this.kind = 'not_verified'; }
 }
 function metadata(response, expectedId) {
   const value = response?.result;
@@ -18,12 +20,16 @@ function metadata(response, expectedId) {
   return value; // Preserve unknown fields; this is not a timeline model.
 }
 export class StudioClient {
-  constructor(bridge) { this.bridge = bridge; }
+  constructor(bridge,{allow_verified_studio_writes=false}={}) { this.bridge = bridge;this.policy=Object.freeze({allow_verified_studio_writes:allow_verified_studio_writes===true}); }
+  #permit(path){const gate=endpointGate('POST',path,this.policy);if(!gate.dispatchAllowed)throw new NotVerifiedError(gate.reason);}
+  async #write(preview,{timeoutMs=30000,requestId,signal}={},parse){
+    return this.#read({method:preview.method,path:preview.path,...(preview.body===undefined?{}:{body:preview.body}),timeoutMs,requestId},signal,parse);
+  }
   async #read(call,signal,parse) {
     try { return parse(await this.bridge.call(call,{signal})); }
     catch(error) { if(error instanceof BridgeError||error?.kind)throw studioError(error);throw error; }
   }
-  async create_project() { throw new NotVerifiedError('create_project'); }
+  async create_project(input,options={}) { this.#permit('/api/studio/create-project');return this.#write(buildCreateProjectRequest(input),options,r=>metadata(r)); }
   async get_project_metadata(project_id, { timeoutMs = 30000, requestId, signal } = {}) {
     if (typeof project_id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(project_id)) throw new BridgeError('validation_error', 'project_id must be a nonempty single path identifier');
     const api = VERIFIED_ENDPOINTS.get_project_metadata;
@@ -52,9 +58,9 @@ export class StudioClient {
   trim_clip() { throw new NotImplementedError('UNKNOWN'); }
   update_clip() { throw new NotImplementedError('UNKNOWN'); }
   set_timeline() { throw new NotImplementedError('UNKNOWN'); }
-  save_project() { throw new NotVerifiedError('save_project'); }
+  async save_project(input,options={}) { this.#permit('/api/studio/save-project');return this.#write(buildSaveProjectRequest(input),options,r=>savedProject(r,input.project_id)); }
   save_version() { throw new NotVerifiedError('save_version'); }
-  render_project() { throw new NotVerifiedError('render_project'); }
+  async render_project(input,options={}) { this.#permit('/api/studio/render-state');return this.#write(buildRenderProjectRequest(input),options,r=>queuedRender(r,input)); }
   render_multitrack() { throw new NotVerifiedError('render_multitrack'); }
   export_project() { throw new NotVerifiedError('export_project'); }
   export_multitrack() { throw new NotVerifiedError('export_multitrack'); }

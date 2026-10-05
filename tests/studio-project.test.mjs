@@ -26,8 +26,9 @@ test('full project reader rejects metadata-only/wrong-id state instead of constr
   let calls=0;const studio=new StudioClient({call:async()=>{calls++;throw Error('unreachable');}});
   await assert.rejects(studio.get_project('../project'),e=>e.kind==='validation_error');assert.equal(calls,0);
 });
-test('static save/version/render skeletons never dispatch or mutate supplied timeline',()=>{
+test('static save/version/render default policy never dispatches or mutates supplied timeline',async()=>{
   let calls=0;const studio=new StudioClient({call:()=>{calls++;}}),state=structuredClone(fixture.state),before=structuredClone(state);
-  for(const method of ['save_project','save_version','export_project','export_multitrack'])assert.throws(()=>studio[method](fixture.id,state),NotImplementedError);
+  await assert.rejects(studio.save_project(fixture.id,state),NotImplementedError);
+  for(const method of ['save_version','export_project','export_multitrack'])assert.throws(()=>studio[method](fixture.id,state),NotImplementedError);
   assert.equal(calls,0);assert.deepEqual(state,before);
 });

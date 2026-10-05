@@ -35,7 +35,7 @@ function connect() {
       inflight.set(m.id, setTimeout(() => {
         cancel(m.id); send({ type: 'suno_api_response', requestId: m.id, ok: false, kind: 'timeout', error: 'browser timeout' });
       }, m.timeoutMs));
-      dispatch('suno-console-upload-request', { requestId: m.id, path: m.path, method: m.method, bodyJson: m.body === undefined ? undefined : JSON.stringify(m.body) });
+      dispatch('suno-console-upload-request', { requestId: m.id, path: m.path, method: m.method, bodyJson: m.body === undefined ? undefined : JSON.stringify(m.body), verifiedStudioWrite: m.verifiedStudioWrite === true });
     } else if (m.type === 'suno_api_cancel') cancel(m.id);
   };
   socket.onclose = (e) => {

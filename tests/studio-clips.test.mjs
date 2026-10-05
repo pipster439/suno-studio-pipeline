@@ -147,7 +147,8 @@ test('save serializer rejects incomplete, masked, unresolved or double-serialize
 test('all Studio write entry points still refuse dispatch with the new local pipeline', async () => {
   let dispatches = 0; const client = new StudioClient({ call() { dispatches++; throw Error('unexpected network'); } });
   await assert.rejects(client.create_project(), NotVerifiedError);
-  for (const method of ['save_project', 'save_version', 'render_project', 'render_multitrack', 'export_project', 'export_multitrack']) assert.throws(() => client[method](), NotVerifiedError);
+  for (const method of ['save_project', 'render_project']) await assert.rejects(client[method](), NotVerifiedError);
+  for (const method of ['save_version', 'render_multitrack', 'export_project', 'export_multitrack']) assert.throws(() => client[method](), NotVerifiedError);
   assert.equal(dispatches, 0);
 });
 

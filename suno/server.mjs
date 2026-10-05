@@ -15,8 +15,8 @@ import { analyzeValidationRun } from './studio/run-analysis.mjs';
 import protocol from '../shared/studio-protocol.cjs';
 import { BrowserReadSmoke } from './recorder/browser-read-smoke.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export async function createController({ port = 3000, captureRoot = resolve(root, 'captures'), key = randomBytes(32).toString('hex'), baseline, evidenceOutput=resolve(root,'deliverables/browser-read'), validationOrigin='LIVE_CAPTURE' } = {}) {
-  const hub = new BridgeHub(); const captures = new CaptureStore(captureRoot);
+export async function createController({ port = 3000, captureRoot = resolve(root, 'captures'), key = process.env.SUNO_CONTROLLER_KEY || randomBytes(32).toString('hex'), baseline, evidenceOutput=resolve(root,'deliverables/browser-read'), validationOrigin='LIVE_CAPTURE', allow_verified_studio_writes=false } = {}) {
+  const hub = new BridgeHub({allow_verified_studio_writes}); const captures = new CaptureStore(captureRoot);
   const reference = new ReferenceStore(resolve(captureRoot, 'reference'));
   const studioValidation = await new StudioValidationHarness(resolve(captureRoot,'live'),{reader:new StudioClient(hub),origin:validationOrigin}).init();
   if(baseline===undefined){try{baseline=JSON.parse(await readFile(resolve(root,'captures/studio_project_'+protocol.projectId+'.json'),'utf8'));}catch{baseline=null;}}

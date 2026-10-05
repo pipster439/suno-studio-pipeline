@@ -4,7 +4,7 @@ const source=(await readFile(new URL('../shared/privacy.cjs',import.meta.url),'u
 const marker='HARNESS_PRIVACY_FIXTURE';
 function browser({values=new Map(),offline=false,requestFailure=false}={}){
   const intervals=[],delivered=[],nativeCalls=[],storage=new Map([['studio-validation-page','page-one']]);
-  const control={controllerVersion:'0.2.1',captureProtocolVersion:3,userscriptVersion:'1.3.18',harnessVersion:'1.1.1',pageId:'page-one',controlVersion:1,active:{captureId:'capture-one',scenario:'B_ADD',acceptNew:true}};
+  const control={controllerVersion:'0.3.0-rc.1',captureProtocolVersion:3,userscriptVersion:'1.3.19',harnessVersion:'1.1.1',pageId:'page-one',controlVersion:1,active:{captureId:'capture-one',scenario:'B_ADD',acceptNew:true}};
   if(!values.has('studioValidation:pair'))values.set('studioValidation:pair',{base:'http://127.0.0.1:3000',key:'unit-capability'});
   values.set('studioValidation:control',control);
   class XHR extends EventTarget{open(){}setRequestHeader(){}send(){this.status=200;this.responseType='json';this.response={id:'clip',cookie:marker};queueMicrotask(()=>this.dispatchEvent(new Event('loadend')));return 'xhr-native';}}

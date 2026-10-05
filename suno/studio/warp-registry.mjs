@@ -2,6 +2,7 @@ import { hashWarpMarkers, warpBeatsFromSeconds } from './clip-pipeline.mjs';
 import { NotVerifiedError } from './operations.mjs';
 import { BridgeError } from '../bridge/errors.mjs';
 export const WarpHashStrategy = Object.freeze({ PRESERVE_EXISTING: 'PRESERVE_EXISTING', CURRENT_STATIC_ALGORITHM: 'CURRENT_STATIC_ALGORITHM' });
+export const WARP_SERIALIZATION_EVIDENCE=Object.freeze({status:'VERIFIED',verification:{kind:'save_readback',strategy:WarpHashStrategy.CURRENT_STATIC_ALGORITHM,markerSignature:'0:0,1:1.95',hash:'MD5'},otherMarkerMapsStatus:'FOUND_STATICALLY',preserveExistingServerVerified:false});
 const fail = m => { throw new BridgeError('validation_error', m); };
 export function markersSignature(markers) {
   warpBeatsFromSeconds(markers, 0); // Finite numbers, record and duplicate numeric keys checked.

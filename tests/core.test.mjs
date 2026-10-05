@@ -62,7 +62,7 @@ test('redaction handles nested secrets, headers, JWT, signed URL query, non-JSON
 });
 test('unverified Studio operations remain unimplemented', () => {
   const client = new StudioClient({});
-  for (const key of Object.getOwnPropertyNames(StudioClient.prototype).filter((k) => !['constructor', 'create_project', 'get_project_metadata', 'get_project', 'get_project_version', 'get_project_versions'].includes(k))) assert.throws(() => client[key](), NotImplementedError);
+  for (const key of Object.getOwnPropertyNames(StudioClient.prototype).filter((k) => !['constructor', 'create_project', 'get_project_metadata', 'get_project', 'get_project_version', 'get_project_versions', 'save_project', 'render_project'].includes(k))) assert.throws(() => client[key](), NotImplementedError);
 });
 
 test('StudioClient blocks all creation variants and rejects unsafe ids before transport; read failures are never retried', async () => {

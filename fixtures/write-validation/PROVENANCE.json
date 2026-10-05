@@ -1,0 +1,12 @@
+{
+  "origin": "LIVE_CAPTURE_DERIVED",
+  "recordedAt": "2026-10-05T18:08:17.486Z",
+  "source": "private local captures/live-write/result.json and archived report",
+  "rawSourceSha256": "964f87ee6589ca645cc566b7c2c9cf5bc62a9f81c9a3ec110d8238f1a1dfa651",
+  "responseShapesPreserved": true,
+  "businessIdentifiersReplaced": true,
+  "accountsRemoved": true,
+  "readbackRawPayloadAvailable": false,
+  "readbackEvidence": "user-confirmed save/readback and supplied validation report",
+  "renderCompletionVerified": false
+}
