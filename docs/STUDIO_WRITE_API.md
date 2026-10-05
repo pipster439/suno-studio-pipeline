@@ -215,3 +215,9 @@ render-state 对应生成/render clip；局部消费 data.id/title/moderation_er
 源码中的 timeSignatureChanges 误掩码已通过精确 JSON key 例外修复，生成 v1.3.16；值仍递归过滤凭据，header/query/signed URL 和相似名称不放宽。49 项单测通过，真实 source fixture 的全部业务值经浏览器/后端双重过滤相等，原 fixture 不改写。
 
 当前浏览器仍为 v1.3.15/waiting；本轮暂未发送新的 version GET，也不能宣称修复已在真实浏览器端到端验证。新只读实验要求匹配 installed version/build，strict 模式必须提供原真实 JSON 并比较所有 state 值（包括展示标签），无掩码才能成功；只存 schema、摘要和业务 IDs，不存原值/认证。本轮保留3001 controller/bridge 页面待用户安装更新，原3000不动。真实读验证完成后仍不放行任何写方法；save/render serializer 仍只提供显式 adapter，不能自动再次序列化 GET。报告：[STUDIO_METER_PRIVACY_REPORT.md](../reports/STUDIO_METER_PRIVACY_REPORT.md)。
+
+## v1.3.16 动态只读收尾（2026-10-05）
+
+交接后用户已安装1.3.16，后端实际确认 ready 与目标 build。指定 project/version 只执行一次 authenticated GET，HTTP 200；响应资源关系正确，全 state 与 Downloads 原真实 JSON 规范化严格比较相等（含 title/name 和所有未知字段），timeSignatureChanges 相等，无掩码，losslessState=true。此次无损 wire 验证通过，不再处于 pending；详细 schema/摘要/原输入哈希见 [STUDIO_METER_LIVE_VERIFICATION_REPORT.md](../reports/STUDIO_METER_LIVE_VERIFICATION_REPORT.md)。旧 pending 日志/包保留为历史证据，未覆盖。
+
+没有 Studio 写请求，write endpoint 仍 FOUND_STATICALLY / High，所有写方法及 preview guard 保持拒绝。无损 GET 不验证 in-memory deserializer、save serializer 或 render transformation，也不意味着取得写权限或服务器持久化效果。接下来只有账号正常具有写权限时，才逐一 capture create/save/export 三个官方动作；本轮到只读验证完成为止。

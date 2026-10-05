@@ -211,6 +211,8 @@ controller 没有热重载；更新源码后须正常重启，才能启用 hub �
 
 严格无损读验证还需显式设置 `SUNO_PROJECT_RAW_BASELINE` 为真实原 JSON 路径、`SUNO_REQUIRE_LOSSLESS_STATE=1` 和 `SUNO_REQUIRE_USERSCRIPT_VERSION=1.3.16`（可加 `SUNO_REQUIRE_USERSCRIPT_BUILD_ID`）。脚本先检查 auth/version/build；不符合时零 Suno dispatch。strict 模式包括所有 state 展示标签和未知字段，并要求与原 JSON 精确比较成功、无掩码；日志只保存 schema、业务 ID 与摘要，原始响应/原始 JSON 内容不另行落盘。原文件只读且哈希复核。
 
+2026-10-05 已完成 v1.3.16 的最后一次显式 version GET：HTTP 200，响应 id/project_id 正确，全 state（包括展示标签和未知字段）与原真实 JSON 的规范化 SHA-256 相同，timeSignatureChanges 相等、无掩码，1 track/20 clips。原 fixture 不变。详见 [STUDIO_METER_LIVE_VERIFICATION_REPORT.md](reports/STUDIO_METER_LIVE_VERIFICATION_REPORT.md)；这是当前真实工程/版本的无损读取验证，不推导写权限或 serializer 正确性，写入口继续拒绝。
+
 ```powershell
 node scripts/analyze-studio-write.mjs captures/official-write/20261005/manifest.json captures/official-write/20261005/write-analysis.json
 npm test

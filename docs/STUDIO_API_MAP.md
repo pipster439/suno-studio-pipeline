@@ -270,3 +270,11 @@ Only this body/query is VERIFIED；其他 filters、cursor、limit、workspace f
 shared/privacy.cjs 已对精确 JSON key timeSignatureChanges 递归保留值，生成 userscript v1.3.16；相似名称、header/query、JWT/cookie/token 和 signed URL 仍过滤。49 项单测通过，包括真实完整 fixture/browser/backend 双重过滤；旧 masked-state 写准备拒绝仍保留。
 
 本轮浏览器仍报告 v1.3.15/waiting，因此**尚未发出新 version GET**，也尚未获得修复后的真实无损 wire 证据。原有版本/列表 VERIFIED 关联证据不变，不把单测提升为动态完整 state 验证。更新脚本并确认 ready/version/build 后，用原真实 JSON（只读）对同一 version 全 state 比较，包括 display labels 和全部未知字段；只保存 schema/hash/result。详情见 [STUDIO_METER_PRIVACY_REPORT.md](../reports/STUDIO_METER_PRIVACY_REPORT.md)。写 API 继续 FOUND_STATICALLY / High；没有 Studio 写 dispatch，也不继续扫描 bundle。
+
+## v1.3.16 最后一次只读 live verification（2026-10-05）
+
+上述 pending 是修复交接阶段的历史状态。用户安装更新后，本轮 localhost 3001 后端确认 bridgeOnline=true/auth ready/version=1.3.16/buildId=83bff4080144256f30f44d26a3b50bc8eabc698c8b0fda1c1c3748ef5d1c9ab8，capture 关闭。
+
+仅派发一次 GET `/api/studio/3ebbb451-08a7-4599-9885-788f0b8f5def/version/e491cbde-9266-4884-997c-3a9789877a56`，requestId=version-read-1791193822559，HTTP 200。返回 id=version ID、project_id=project ID；state 为1 track/20 clips，与用户原始完整 GET JSON 的 state 严格比较成功（包含所有 title/name、全部未知字段和值，不仅脱敏投影）。规范化全 state SHA-256 两侧均为99aa0d597aa89363847448d837d12b71f08bad730c4dad36a420bb53c2903418。timeSignatureChanges 为原1元素 array，字段 beatsPerSubdivision/startBeats/subdivisionsPerBar，相等；maskedStatePaths=[]、losslessState=true、verified=true。
+
+该 version GET 的 **VERIFIED** 现在包括本次真实 state 的无损 transport 读回。不是 JSON 字节/对象key顺序比较，也不是所有未来 state 的普遍无损保证；认证过滤仍保留。没有第二次 GET、versions/revision 请求、Studio POST、权限变更或 bundle 搜索。所有 write 仍 FOUND_STATICALLY / High / 默认拒绝。新证据见 [STUDIO_METER_LIVE_VERIFICATION_REPORT.md](../reports/STUDIO_METER_LIVE_VERIFICATION_REPORT.md)；原 fixture 与旧报告/证据包不重写。
