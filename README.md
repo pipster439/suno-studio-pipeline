@@ -109,14 +109,24 @@ create → add existing clip → save → explicit transposition → save → re
 node scripts/studio-pipeline.mjs song.mp3
 ```
 
-The command automatically selects a challenging local PCM region, calibrates seam
+The command reads the Studio target profile, derives the supported local inverse
+once, then automatically selects a challenging local PCM region, calibrates seam
 handling, slices sample-accurate WAV, uploads with four bounded workers, creates and
-saves a Studio timeline, renders and checks every internal boundary. The result
+saves and reads back every clip post-processing/warp/trim field, renders and checks
+every internal boundary. The result
 stays on Suno by default: no final full-song file is saved locally.
+
+Observed formant is neutral (0%) and volume is 0 dB. The half/double speed buttons
+are actions; default retains verified identity timing. `--studio-speed 0.5` applies
+half speed with a local pitch-preserving tempo inverse. UI before/after mapping is
+NOT VERIFIED because official edits were subscription-blocked; Quantize is not
+faked as a persistent audio scalar. See [post-processing evidence and limitations](docs/STUDIO_POST_PROCESSING.md).
 
 Node 22+, ffmpeg with Rubber Band and ffprobe are required on PATH (or FFMPEG /
 FFPROBE). Keep the existing authenticated Tampermonkey Browser Bridge connected.
-The command starts the existing loopback controller and prints a local pairing URL.
+The command starts the existing loopback controller and displays pairing credentials
+only on an interactive stderr terminal. Redirected logs omit the key; use the
+existing controller environment or pair interactively once.
 It uses the existing verified write guard and does not change authentication or
 permissions. Use only audio you have permission to upload.
 
@@ -211,7 +221,8 @@ Do not concurrently resume a run. Remove a stale lock only after checking its PI
 
 ### Advanced parameters and existing experiments
 
---chunk-seconds 6, --pitch-up 8, --studio-transpose -8, --upload-concurrency 4,
+--chunk-seconds 6, --studio-pitch -8, --studio-speed 1, --studio-stretch on,
+--studio-formant 0, --studio-volume 1, --upload-concurrency 4,
 --strategy auto|exact|preroll, --preroll-ms N, --postroll-ms N and --bps 1.95
 are supported. Source sample rate and channels are retained through WAV processing.
 There is no MP3 intermediate, normalization, auto gain, limiter, compression or EQ.
@@ -265,3 +276,8 @@ from this experiment. This correlation has not been promoted to a playback algor
 The results support a source-edge processing artifact; the exact server encoding/
 playback stage and hidden DSP pre-roll remain unproven. Automated candidate scores
 and alignment checks do not establish absolute listening perfection or a universal fix.
+
+`--local-pitch` overrides the derived local semitone value.
+`--validate-transform` adds temporary full reference comparison; only `--download`
+saves a final delivery. `--postprocess-test` runs the short synthetic API/render
+matrix (and accepts `--resume`); non-neutral formant inversion stays unsupported.

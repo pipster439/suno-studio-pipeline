@@ -1,0 +1,549 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "projectId": "3ebbb451-08a7-4599-9885-788f0b8f5def",
+    "versionId": "e491cbde-9266-4884-997c-3a9789877a56",
+    "verificationKind": "live_get",
+    "uiMapping": "NOT VERIFIED",
+    "listeningAcceptance": "historical user observation, not new listening verification"
+  },
+  "timing": {
+    "firstBeatSeconds": 0,
+    "bpsAutomation": [],
+    "lockBPS": true,
+    "bps": 1.95,
+    "type": "manual"
+  },
+  "markersRegistry": {
+    "warp_MDowLDY6MTguNTcyNTkyMzA4": {
+      "0": 0,
+      "6": 18.572592308027932
+    },
+    "warp_MDowLDEuMTEwOTc5MTY2NjY2": {
+      "0": 0,
+      "1.1109791666666666": 3.4389605208687692
+    }
+  },
+  "clips": [
+    {
+      "asset": {
+        "id": "24b34204-d2a9-4496-971b-b2de949aa3c5",
+        "type": "clip"
+      },
+      "clipId": "24b34204-d2a9-4496-971b-b2de949aa3c5",
+      "startBeats": 0,
+      "endBeats": 18.572592308027932,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "endBeats": 18.572592308027932,
+        "enabled": false,
+        "startBeats": 0
+      },
+      "reversed": false,
+      "warp": {
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "awaitingAnalysis": false,
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "3aaaf64b-2832-4b92-8991-82cae0b4bcc9"
+      },
+      "clipId": "3aaaf64b-2832-4b92-8991-82cae0b4bcc9",
+      "startBeats": 18.572592308027932,
+      "endBeats": 37.145184616055865,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "endBeats": 18.572592308027932,
+        "enabled": false,
+        "startBeats": 0
+      },
+      "reversed": false,
+      "warp": {
+        "enabled": true,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "awaitingAnalysis": false
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "id": "73d52402-8637-47e8-86e1-98d8601e8de5",
+        "type": "clip"
+      },
+      "clipId": "73d52402-8637-47e8-86e1-98d8601e8de5",
+      "startBeats": 37.145184616055865,
+      "endBeats": 55.71777692408379,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "startBeats": 0,
+        "endBeats": 18.572592308027932,
+        "enabled": false
+      },
+      "reversed": false,
+      "warp": {
+        "awaitingAnalysis": false,
+        "enabled": true,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "6d8c3190-7883-4e06-8ef7-63b54d859f2e"
+      },
+      "clipId": "6d8c3190-7883-4e06-8ef7-63b54d859f2e",
+      "startBeats": 55.7177769240838,
+      "endBeats": 74.29036923211173,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "startBeats": 0,
+        "endBeats": 18.572592308027932,
+        "enabled": false
+      },
+      "reversed": false,
+      "warp": {
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "awaitingAnalysis": false,
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "1bc31a3b-7d4d-46d7-a023-afde3ccc62f0"
+      },
+      "clipId": "1bc31a3b-7d4d-46d7-a023-afde3ccc62f0",
+      "startBeats": 74.29036923211173,
+      "endBeats": 92.86296154013966,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "startBeats": 0,
+        "enabled": false,
+        "endBeats": 18.572592308027932
+      },
+      "reversed": false,
+      "warp": {
+        "awaitingAnalysis": false,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "a410a779-982f-4a9e-baf4-4254074843b2"
+      },
+      "clipId": "a410a779-982f-4a9e-baf4-4254074843b2",
+      "startBeats": 92.86296154013966,
+      "endBeats": 111.4355538481676,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "startBeats": 0,
+        "enabled": false,
+        "endBeats": 18.572592308027932
+      },
+      "reversed": false,
+      "warp": {
+        "enabled": true,
+        "awaitingAnalysis": false,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "id": "48168d2a-83c4-44cc-be84-9e1e955728e2",
+        "type": "clip"
+      },
+      "clipId": "48168d2a-83c4-44cc-be84-9e1e955728e2",
+      "startBeats": 111.4355538481676,
+      "endBeats": 130.00814615619552,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "enabled": false,
+        "startBeats": 0,
+        "endBeats": 18.572592308027932
+      },
+      "reversed": false,
+      "warp": {
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "awaitingAnalysis": false,
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "id": "925f1b1c-709a-4a13-8223-7466b26ec588",
+        "type": "clip"
+      },
+      "clipId": "925f1b1c-709a-4a13-8223-7466b26ec588",
+      "startBeats": 130.00814615619552,
+      "endBeats": 148.58073846422346,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "startBeats": 0,
+        "endBeats": 18.572592308027932,
+        "enabled": false
+      },
+      "reversed": false,
+      "warp": {
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "awaitingAnalysis": false,
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "873941d7-acd8-486f-946f-147c96ca86e3"
+      },
+      "clipId": "873941d7-acd8-486f-946f-147c96ca86e3",
+      "startBeats": 148.58073846422346,
+      "endBeats": 167.1533307722514,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "endBeats": 18.572592308027932,
+        "enabled": false,
+        "startBeats": 0
+      },
+      "reversed": false,
+      "warp": {
+        "awaitingAnalysis": false,
+        "enabled": true,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "id": "a1c2180c-159d-4e4a-82a4-57b0b30889c5",
+        "type": "clip"
+      },
+      "clipId": "a1c2180c-159d-4e4a-82a4-57b0b30889c5",
+      "startBeats": 167.1533307722514,
+      "endBeats": 185.72592308027933,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "endBeats": 18.572592308027932,
+        "enabled": false,
+        "startBeats": 0
+      },
+      "reversed": false,
+      "warp": {
+        "awaitingAnalysis": false,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "id": "6a807861-3b91-42a8-b929-836ce0dd8eeb",
+        "type": "clip"
+      },
+      "clipId": "6a807861-3b91-42a8-b929-836ce0dd8eeb",
+      "startBeats": 185.72592308027933,
+      "endBeats": 204.29851538830727,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "endBeats": 18.572592308027932,
+        "startBeats": 0,
+        "enabled": false
+      },
+      "reversed": false,
+      "warp": {
+        "awaitingAnalysis": false,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "90c7b147-2960-45e4-b2f0-6551530d9f9f"
+      },
+      "clipId": "90c7b147-2960-45e4-b2f0-6551530d9f9f",
+      "startBeats": 204.29851538830727,
+      "endBeats": 222.8711076963352,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "endBeats": 18.572592308027932,
+        "enabled": false,
+        "startBeats": 0
+      },
+      "reversed": false,
+      "warp": {
+        "enabled": true,
+        "awaitingAnalysis": false,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "54f7d3d0-b297-4b55-a13a-f3c3a9b3dc4c"
+      },
+      "clipId": "54f7d3d0-b297-4b55-a13a-f3c3a9b3dc4c",
+      "startBeats": 222.8711076963352,
+      "endBeats": 241.44370000436314,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "enabled": false,
+        "startBeats": 0,
+        "endBeats": 18.572592308027932
+      },
+      "reversed": false,
+      "warp": {
+        "awaitingAnalysis": false,
+        "enabled": true,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "62b1ace5-591c-48fd-9568-0be25bede111"
+      },
+      "clipId": "62b1ace5-591c-48fd-9568-0be25bede111",
+      "startBeats": 241.44370000436314,
+      "endBeats": 260.01629231239104,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "startBeats": 0,
+        "enabled": false,
+        "endBeats": 18.572592308027932
+      },
+      "reversed": false,
+      "warp": {
+        "awaitingAnalysis": false,
+        "enabled": true,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "9a8d9b29-0296-47be-9fb0-be0b379445e6"
+      },
+      "clipId": "9a8d9b29-0296-47be-9fb0-be0b379445e6",
+      "startBeats": 260.01629231239104,
+      "endBeats": 278.588884620419,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "enabled": false,
+        "endBeats": 18.572592308027932,
+        "startBeats": 0
+      },
+      "reversed": false,
+      "warp": {
+        "enabled": true,
+        "awaitingAnalysis": false,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4"
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "id": "61c75b2d-8a22-4495-ae17-1b9736a3ba5d",
+        "type": "clip"
+      },
+      "clipId": "61c75b2d-8a22-4495-ae17-1b9736a3ba5d",
+      "startBeats": 278.588884620419,
+      "endBeats": 297.1614769284469,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "enabled": false,
+        "endBeats": 18.572592308027932,
+        "startBeats": 0
+      },
+      "reversed": false,
+      "warp": {
+        "enabled": true,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "awaitingAnalysis": false
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "id": "8b583d8d-b5ca-4264-b0dd-c6d6ea7b38b9",
+        "type": "clip"
+      },
+      "clipId": "8b583d8d-b5ca-4264-b0dd-c6d6ea7b38b9",
+      "startBeats": 297.1614769284469,
+      "endBeats": 315.73406923647485,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "enabled": false,
+        "endBeats": 18.572592308027932,
+        "startBeats": 0
+      },
+      "reversed": false,
+      "warp": {
+        "awaitingAnalysis": false,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "id": "dfd75444-912e-444f-9e29-c9ab41319f7f",
+        "type": "clip"
+      },
+      "clipId": "dfd75444-912e-444f-9e29-c9ab41319f7f",
+      "startBeats": 315.73406923647485,
+      "endBeats": 334.3066615445028,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "startBeats": 0,
+        "endBeats": 18.572592308027932,
+        "enabled": false
+      },
+      "reversed": false,
+      "warp": {
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "awaitingAnalysis": false,
+        "enabled": true
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "03796b77-3017-4c3d-a98d-1d454e37ffe4"
+      },
+      "clipId": "03796b77-3017-4c3d-a98d-1d454e37ffe4",
+      "startBeats": 334.3066615445028,
+      "endBeats": 352.8792538525307,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "enabled": false,
+        "startBeats": 0,
+        "endBeats": 18.572592308027932
+      },
+      "reversed": false,
+      "warp": {
+        "enabled": true,
+        "markersHash": "warp_MDowLDY6MTguNTcyNTkyMzA4",
+        "awaitingAnalysis": false
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    },
+    {
+      "asset": {
+        "type": "clip",
+        "id": "5877bce4-6386-482a-8aa1-9047152b9388"
+      },
+      "clipId": "5877bce4-6386-482a-8aa1-9047152b9388",
+      "startBeats": 352.8792538525307,
+      "endBeats": 356.3182143733995,
+      "readStartBeats": 0,
+      "transposition": -8,
+      "formantCorrection": null,
+      "amplitude": 1,
+      "loop": {
+        "startBeats": 0,
+        "enabled": false,
+        "endBeats": 3.4389605208687692
+      },
+      "reversed": false,
+      "warp": {
+        "markersHash": "warp_MDowLDEuMTEwOTc5MTY2NjY2",
+        "enabled": true,
+        "awaitingAnalysis": false
+      },
+      "fadeInBeats": 0,
+      "fadeOutBeats": 0
+    }
+  ]
+}

@@ -30,7 +30,7 @@ function groupsFor(times,duration) {
   const groups=[];for(const t of [...times].sort((a,b)=>a-b)){const a=Math.max(0,t-.75),z=Math.min(duration,t+.75),last=groups.at(-1);if(last&&a<=last.end){last.end=Math.max(z,last.end);last.times.push(t);}else groups.push({start:a,end:z,times:[t]});}return groups;
 }
 function globalMeasure(window,timestamp) {const p=cropProbe(window,timestamp),m=measureBoundary(p.pcm,p.centerSec),offset=Math.round(p.originSeconds*p.pcm.sampleRate);m.timestamp=timestamp;m.sample=Math.round(timestamp*p.pcm.sampleRate);for(const w of Object.values(m.windows)){w.startSample+=offset;w.endSample+=offset;}return m;}
-export async function qualityFromDelivery({url,directory,times,expectedDuration,metadataDuration,sourcePCM,sourceOffsetSeconds=0,timelineGapSamples=0,keep=false,diagnose=false,localAnalysis=false},deps={}) {
+export async function qualityFromDelivery({url,directory,times,expectedDuration,metadataDuration,sourcePCM,sourceOffsetSeconds=0,sourceTimeRatio=1,timelineGapSamples=0,keep=false,diagnose=false,localAnalysis=false},deps={}) {
   const started=performance.now(),qaDir=join(directory,'qa');await mkdir(qaDir,{recursive:true});
   await mkdir(join(directory,'diagnostics'),{recursive:true});
   trustedDeliveryURL(url);let info=null,duration=expectedDuration;
@@ -58,7 +58,7 @@ export async function qualityFromDelivery({url,directory,times,expectedDuration,
     deliveryFile=join(qaDir,'delivery.m4a');decodedFile=join(qaDir,'decoded.wav');
     await(deps.download??downloadDelivery)(url,deliveryFile,{fetchImpl,log:deps.log});pcm=await(deps.decode??decode)(deliveryFile,decodedFile);info??=await(deps.probe??probe)(deliveryFile);analysis=analyzeBoundaries(pcm,times,{baselineCount:QUALITY_THRESHOLDS.baselineCount});
   }
-  analysis.responseValidated=true;const gate=qualityGate(analysis,expectedDuration,metadataDuration,{codecTailToleranceMs:QUALITY_THRESHOLDS.codecTailToleranceMs}),sourceRmsAt=g=>{if(!sourcePCM)return 0;const center=Math.round(((g.start+g.end)/2+sourceOffsetSeconds)*sourcePCM.sampleRate),radius=Math.max(1,Math.round((g.end-g.start)/2*sourcePCM.sampleRate));return Math.max(...windowMetrics(sourcePCM,center,radius).channels.map(c=>c.rms));};
+  analysis.responseValidated=true;const gate=qualityGate(analysis,expectedDuration,metadataDuration,{codecTailToleranceMs:QUALITY_THRESHOLDS.codecTailToleranceMs}),sourceRmsAt=g=>{if(!sourcePCM)return 0;const center=Math.round(((g.start+g.end)/2*sourceTimeRatio+sourceOffsetSeconds)*sourcePCM.sampleRate),radius=Math.max(1,Math.round((g.end-g.start)/2*sourceTimeRatio*sourcePCM.sampleRate));return Math.max(...windowMetrics(sourcePCM,center,radius).channels.map(c=>c.rms));};
   const gaps=classifyGaps(pcm?silentGaps(pcm):capabilities.sampledGaps??[],analysis.duration,sourceRmsAt);gate.silentGaps=gaps;
   for(const g of gaps.filter(g=>g.kind==='INTERNAL'&&g.unexpected&&g.end-g.start>.05))gate.warnings.push({metric:'unexpected_silent_gap',timestamp:g.start,severity:'warning',duration:g.end-g.start});
   if(times.length&&analysis.baselineCount<QUALITY_THRESHOLDS.minimumActiveBaseline)gate.warnings.push({metric:'insufficient_active_controls',severity:'warning'});

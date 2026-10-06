@@ -1,8 +1,8 @@
 import { resolve, extname } from 'node:path';
-const numbers = { 'chunk-seconds': [6, .001, 3600], 'pitch-up': [8, -24, 24], 'studio-transpose': [-8, -24, 24], 'upload-concurrency': [4, 1, 16],
+const numbers = { 'studio-pitch':[-8,-24,24], 'local-pitch':[8,-24,24], 'studio-speed':[1,.25,4], 'studio-formant':[0,0,1], 'studio-volume':[1,.001,10], 'chunk-seconds': [6, .001, 3600], 'pitch-up': [8, -24, 24], 'studio-transpose': [-8, -24, 24], 'upload-concurrency': [4, 1, 16],
   'minimum-slice-seconds': [6,0,600], 'handle-clip-count':[4,2,10], 'preroll-ms': [50, 0, 2000], 'postroll-ms': [200, 0, 2000], 'crossfade-ms': [10, 1, 30], 'bps': [1.95, .1, 20], 'bridge-timeout-seconds': [90, 1, 600], 'abc-seconds': [0, 0, 600] };
-const bools = new Set(['download','recalibrate','skip-calibration','allow-quality-warning','diagnose','abc-test','abc-test-only','dry-run','keep-workdir','verbose','json-log','handle-test','gain-test','help']);
-const strings = new Set(['output','resume','strategy','strategy-evidence','good-project','good-version','bad-project','bad-version','reuse-uploads','preprocessed']);
+const bools = new Set(['postprocess-test','validate-transform','synthetic-reference','download','recalibrate','skip-calibration','allow-quality-warning','diagnose','abc-test','abc-test-only','dry-run','keep-workdir','verbose','json-log','handle-test','gain-test','help']);
+const strings = new Set(['studio-profile','studio-stretch','studio-quantize','output','resume','strategy','strategy-evidence','good-project','good-version','bad-project','bad-version','reuse-uploads','preprocessed']);
 export function parseConfig(args) {
   const values = Object.fromEntries(Object.entries(numbers).map(([k, [v]]) => [k, v])); values.strategy = 'auto';
   let input; const provided = [];
@@ -17,7 +17,7 @@ export function parseConfig(args) {
     if (numbers[key]) { const n = Number(v), [, min, max] = numbers[key]; if (!Number.isFinite(n) || n < min || n > max || ['upload-concurrency','handle-clip-count'].includes(key) && !Number.isInteger(n)) throw Error(`Invalid --${key}`); values[key] = n; }
     else values[key] = v;
   }
-  if (!values.help && !input && !values.resume) throw Error('Audio input or --resume is required');
+  if (!values.help && !input && !values.resume && !values['postprocess-test']) throw Error('Audio input or --resume is required');
   if (!['auto','exact','preroll','crossfade'].includes(values.strategy)) throw Error('Invalid strategy');
   if(values['strategy-evidence']&&values.strategy!=='auto')throw Error('--strategy-evidence requires --strategy auto');
   if (values['chunk-seconds'] < values['minimum-slice-seconds']) throw Error('--chunk-seconds must reach --minimum-slice-seconds');

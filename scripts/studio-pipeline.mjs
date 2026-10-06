@@ -21,6 +21,11 @@ import { boundedMap, uploadSlice, resumableSlice, retry429 } from '../suno/audio
 import { rawWireState, deserializeEditorState, serializeProjectState, prepareRenderTransformedState, inspectEditorState } from '../suno/studio/state-boundaries.mjs';
 import { serializeAudioProjectState, deserializeAudioProjectState } from '../suno/studio/clip-pipeline.mjs';
 import { transformRenderState, deriveDownbeats } from '../suno/studio/render-pipeline.mjs';
+import { resolveStudioProfile, compareProfileReadback } from '../suno/audio/postprocessing-profile.mjs';
+import { deriveLocalInverse, preprocessInverse } from '../suno/audio/inverse-profile.mjs';
+import { verifyTransformFile } from '../suno/audio/transform-verification.mjs';
+import { reconcileCachedRender } from '../suno/audio/render-reconciliation.mjs';
+import { runPostprocessMatrix } from '../suno/audio/postprocess-matrix.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pause = ms => new Promise(r => setTimeout(r, ms));
 const readJson = async (file, fallback) => { try { return JSON.parse(await readFile(file, 'utf8')); } catch (e) { if (e.code === 'ENOENT' && fallback !== undefined) return fallback; throw e; } };
@@ -28,12 +33,17 @@ const help = `Usage: node scripts/studio-pipeline.mjs song.mp3 [options]
 Default: automatic short-region calibration, Studio render and remote QA;
 the final asset stays on Suno. Only --download saves the delivery locally.
 --download [--output PATH] --recalibrate --skip-calibration --allow-quality-warning
---chunk-seconds 6 --pitch-up 8 --studio-transpose -8
+--studio-profile default --studio-pitch -8 --studio-speed 1 --studio-stretch on
+--studio-volume 1 --studio-formant 0 --studio-quantize 1/2 --local-pitch N
+Speed 0.5 applies the half-speed ACTION; default preserves verified identity timing.
+--chunk-seconds 6 (legacy --pitch-up / --studio-transpose aliases are explicit overrides)
 --minimum-slice-seconds 6 (merge a shorter final slice into its predecessor)
 --upload-concurrency 4 --strategy auto|exact|preroll|crossfade
 --preroll-ms 50 --postroll-ms 200 --crossfade-ms 10
 --dry-run --keep-workdir --verbose --json-log --resume runs/RUN
 Advanced research compatibility:
+--postprocess-test (synthetic API/render matrix; UI mapping remains NOT VERIFIED)
+--validate-transform (temporary full QA comparison; no final download)
 --diagnose --abc-test [--abc-seconds 18] [--abc-test-only] --handle-test --gain-test
 --handle-clip-count 4 (2..10; choose a prefix including measured problem seams)
 --strategy-evidence runs/CALIBRATION (legacy measured-handle evidence profile)
@@ -43,6 +53,27 @@ Crossfade fails explicitly until an equal-power Studio model is verified.
 Use SUNO_CONTROLLER_BASE + SUNO_CONTROLLER_KEY for an existing controller;
 otherwise this command starts the existing controller on SUNO_PORT (3000).
 `;
+export function announcePairing(app, stderr=process.stderr) {
+  if(stderr.isTTY){stderr.write(`Connect the existing browser bridge at ${app.origin}/#${app.key}\n`);return true;}
+  stderr.write('Browser bridge pairing required: run in an interactive terminal or use the existing controller environment. Pairing credentials are omitted from redirected logs.\n');return false;
+}
+async function connectPipelineBridge(config, log) {
+  let bridge, app;
+  try {
+      if (process.env.SUNO_CONTROLLER_BASE) bridge = new SunoBridge({ base: process.env.SUNO_CONTROLLER_BASE, allow_verified_studio_writes: true });
+      else {
+        app = await createController({ port: Number(process.env.SUNO_PORT || 3000), allow_verified_studio_writes: true });
+        // Pairing secret goes only to the interactive terminal, never the run log/config.
+        announcePairing(app);
+        await log({ event: 'bridge_wait', message: 'Waiting for existing authenticated browser transport' });
+        for (let i = 0; i < config['bridge-timeout-seconds']; i++) { if (app.hub.peer && app.hub.auth.ready) break; await pause(1000); }
+        if (!app.hub.peer || !app.hub.auth.ready) throw Error('Browser bridge/auth not ready; workspace retained. Resume after pairing the browser.');
+        bridge = new SunoBridge({ base: app.origin, key: app.key, allow_verified_studio_writes: true });
+      }
+    
+  return {bridge,app};
+  } catch(e){await app?.close();throw e;}
+}
 export async function collectProjectDiff(client, config, directory) {
   if (!config['good-project'] || !config['bad-project']) return null;
   const fetchState = (p, v) => v ? client.get_project_version(p, v) : client.get_project(p);
@@ -59,6 +90,15 @@ export async function collectProjectDiff(client, config, directory) {
   return diff;
 }
 export async function runPipeline(requested, deps = {}) {
+  if(requested['postprocess-test']) {
+    const directory=requested.resume?resolve(requested.resume):resolve(root,'runs',new Date().toISOString().replace(/[:.]/g,'-')+'-postprocess-matrix');
+    let sharedApp, sharedBridge=deps.bridge;
+    try {
+      if(!requested['dry-run']&&!sharedBridge){const connected=await connectPipelineBridge(requested,async e=>console.log(requested['json-log']?JSON.stringify(privacy.sanitize(e)):`[${e.event}] ${e.message??''}`));sharedApp=connected.app;sharedBridge=connected.bridge;}
+      return await runPostprocessMatrix(directory,c=>runPipeline(c,{...deps,...(sharedBridge?{bridge:sharedBridge}:{}),sharedUploadCache:!!sharedBridge}),{keep:!!requested['keep-workdir'],diagnose:!!requested.diagnose,dryRun:!!requested['dry-run'],jsonLog:!!requested['json-log'],bridge:sharedBridge});
+    } finally {await sharedApp?.close();}
+  }
+
   const totalStarted=performance.now(),timings={};let candidatesTestedThisRun=0;
   const work = requested.resume ? resolve(requested.resume) : resolve(root, 'runs', new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomUUID().slice(0, 8));
   await mkdir(work, { recursive: true });
@@ -72,18 +112,25 @@ export async function runPipeline(requested, deps = {}) {
   };
   try {
     const old = requested.resume ? await readJson(join(work, 'config.json')) : null;
-    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','download','recalibrate','skip-calibration','allow-quality-warning','gain-test','handle-test',...(requested.provided?.includes('handle-clip-count')?['handle-clip-count']:[])].filter(k => requested[k] !== undefined).map(k => [k, requested[k]])) } : requested;
+    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','download','recalibrate','skip-calibration','allow-quality-warning','validate-transform','synthetic-reference','gain-test','handle-test',...(requested.provided?.includes('handle-clip-count')?['handle-clip-count']:[])].filter(k => requested[k] !== undefined).map(k => [k, requested[k]])) } : requested;
     if (requested['dry-run']) config['dry-run'] = true;
     if(requested.provided?.includes('output')&&!config.download)throw Error('--output requires explicit --download');
-    config.pipelineSchemaVersion=2;
+    config.pipelineSchemaVersion=3;
     // Legacy runs with saved projects must retain their original experiment cuts.
     // Upload-only legacy checkpoints can safely adopt the observed service minimum.
     const legacyBoundJobs = old && old['minimum-slice-seconds'] === undefined ? await readJson(join(work,'jobs.json'),{}) : {};
     config['minimum-slice-seconds'] ??= Object.keys(legacyBoundJobs).length ? 0 : 6;
     if (old && requested.input && requested.input !== old.input) throw Error('Resume input does not match original run');
-    for (const k of ['chunk-seconds','minimum-slice-seconds','pitch-up','studio-transpose','strategy','strategy-evidence','preroll-ms','postroll-ms','bps','abc-seconds','preprocessed','reuse-uploads']) if (old && requested.provided?.includes(k) && requested[k] !== config[k]) throw Error(`Resume cannot change --${k}`);
+    for (const k of ['chunk-seconds','minimum-slice-seconds','pitch-up','studio-transpose','strategy','strategy-evidence','preroll-ms','postroll-ms','bps','abc-seconds','preprocessed','reuse-uploads','studio-profile','studio-pitch','studio-speed','studio-stretch','studio-quantize','studio-formant','studio-volume','local-pitch']) if (old && requested.provided?.includes(k) && requested[k] !== config[k]) throw Error(`Resume cannot change --${k}`);
     if (!old) await durableJson(join(work, 'config.json'), privacy.sanitize(config));
     await log({ event: 'run_start', message: work });
+    const studioProfile = config.studioProfile ?? resolveStudioProfile(config);
+    const localInverse = config.localInverse ?? deriveLocalInverse(studioProfile,config);
+    config.studioProfile=studioProfile;config.localInverse=localInverse;
+    for(const message of localInverse.warnings??[])await log({event:'QUALITY WARNING',metric:'inverse_unsupported',message});
+    config['studio-transpose']=studioProfile.pitchSemitones;config['pitch-up']=localInverse.pitchShiftSemitones;
+    await durableJson(join(work,'postprocessing-profile.json'),privacy.sanitize({studio:studioProfile,localInverse}));
+    await log({event:'STUDIO PROFILE',message:`pitch=${studioProfile.pitchSemitones} speed action=${studioProfile.speedRatio} stretch=${studioProfile.stretch} formant=${studioProfile.formant} gain=${studioProfile.volume}; UI NOT VERIFIED`,...studioProfile});await log({event:'LOCAL INVERSE PROFILE',message:`pitch=${localInverse.pitchShiftSemitones} tempo=${localInverse.tempoMultiplier} gain=${localInverse.requestedGain}; ${localInverse.confidence}`,...localInverse});
     const preprocessStarted = performance.now();
     const inputBytes = await readFile(config.input), inputHash = sha256(inputBytes), oldSource = await readJson(join(work, 'source-info.json'), {});
     if (oldSource.inputHash && oldSource.inputHash !== inputHash) throw Error('Source changed since checkpoint');
@@ -96,8 +143,10 @@ export async function runPipeline(requested, deps = {}) {
     } else {
       const reusable = await readFile(processed).catch(e => { if (e.code !== 'ENOENT') throw e; return null; });
       if (reusable) { if (sha256(reusable) !== oldSource.preprocessedHash) throw Error('Preprocessed hash mismatch'); pcm = readPCM(reusable); sourceInfo = oldSource.sourceInfo; conversion = oldSource.conversion; }
-      else ({ pcm, sourceInfo, conversion } = await preprocess(config.input, processed, config['pitch-up']));
+      else ({ pcm, sourceInfo, conversion } = await preprocessInverse(config.input, processed, localInverse));
     }
+    if(localInverse.headroomLimited)await log({event:'QUALITY WARNING',metric:'inverse_gain_headroom',restorationLimitDb:localInverse.restorationLimitDb});
+    await durableJson(join(work,'postprocessing-profile.json'),privacy.sanitize({studio:studioProfile,localInverse}));
     const preprocessedHash = sha256(await readFile(processed));
     if(oldSource.preprocessedHash&&preprocessedHash!==oldSource.preprocessedHash)throw Error('Regenerated PCM changed since checkpoint; start a new run instead of reusing bound sources');
     await durableJson(join(work, 'source-info.json'), { inputHash, preprocessedHash, sourceInfo, conversion, frames: pcm.frames, duration: pcm.frames / pcm.sampleRate });
@@ -140,7 +189,7 @@ export async function runPipeline(requested, deps = {}) {
     const commonPlan = slicePlan(pcm, planOptions);
     await durableJson(join(work,'slice-plan.json'),commonPlan);
     const previewPlan = strategy === 'preroll' ? slicePlan(pcm, { ...planOptions, prerollMs: config['preroll-ms'], postrollMs: config['postroll-ms'] }) : commonPlan;
-    const dryState = buildTimeline(template, previewPlan.map(s => ({ ...s, clipId: `offline-slice-${s.index}` })), { transpose: config['studio-transpose'], title: 'Dry run', bps: config.bps });
+    const dryState = buildTimeline(template, previewPlan.map(s => ({ ...s, clipId: `offline-slice-${s.index}` })), { transpose: config['studio-transpose'], title: 'Dry run', bps: config.bps, profile:studioProfile });
     await durableJson(join(work, 'diagnostics-local-timeline.json'), privacy.sanitize(timelineReport(dryState, commonPlan, pcm.sampleRate)));
     if (config['dry-run']) {
       await writeAnalysis(join(work, 'diagnostics'), analyzeBoundaries(pcm, commonPlan.slice(1).map(s => s.startSec)), pcm, false);
@@ -148,18 +197,7 @@ export async function runPipeline(requested, deps = {}) {
       return { work, dryRun: true, networkWrites: 0 };
     }
     let bridge = deps.bridge, client = deps.client;
-    if (!bridge) {
-      if (process.env.SUNO_CONTROLLER_BASE) bridge = new SunoBridge({ base: process.env.SUNO_CONTROLLER_BASE, allow_verified_studio_writes: true });
-      else {
-        app = await createController({ port: Number(process.env.SUNO_PORT || 3000), allow_verified_studio_writes: true });
-        // Pairing secret goes only to the interactive terminal, never the run log/config.
-        console.log(`Connect the existing browser bridge at ${app.origin}/#${app.key}`);
-        await log({ event: 'bridge_wait', message: 'Waiting for existing authenticated browser transport' });
-        for (let i = 0; i < config['bridge-timeout-seconds']; i++) { if (app.hub.peer && app.hub.auth.ready) break; await pause(1000); }
-        if (!app.hub.peer || !app.hub.auth.ready) throw Error('Browser bridge/auth not ready; workspace retained. Resume after pairing the browser.');
-        bridge = new SunoBridge({ base: app.origin, key: app.key, allow_verified_studio_writes: true });
-      }
-    }
+    if(!bridge){const connected=await connectPipelineBridge(config,log);bridge=connected.bridge;app=connected.app;}
     const observedBridge = { call: async (...args) => {
       const response = await bridge.call(...args);
       if(args[0]?.method === 'POST' && args[0]?.path === '/api/studio/render-state') await durableJson(join(work,'last-render-transport-response.json'),privacy.sanitize({requestBinding:{projectId:args[0].body?.studio_project_id,versionId:args[0].body?.studio_project_version_id,startBeats:args[0].body?.start_beats,endBeats:args[0].body?.end_beats},response}));
@@ -167,6 +205,9 @@ export async function runPipeline(requested, deps = {}) {
     }};
     client ??= new StudioClient(observedBridge, { allow_verified_studio_writes: true });
     await collectProjectDiff(client, config, join(work, 'diagnostics'));
+    const sharedUploadDir=join(root,'runs','cache','uploads');
+    const sharedUploadsEnabled=deps.sharedUploadCache??(!deps.bridge||deps.bridge instanceof SunoBridge);
+    if(sharedUploadsEnabled)await mkdir(sharedUploadDir,{recursive:true});
     const cachedUploads = config['reuse-uploads'] ? await readJson(resolve(config['reuse-uploads'])) : [];
     async function uploads(group, plan) {
       const dir = join(work, 'slices', group); await mkdir(dir, { recursive: true });
@@ -175,6 +216,8 @@ export async function runPipeline(requested, deps = {}) {
         let record = uploadStore[group]?.[s.index];
         if (resumableSlice(record, s) && record.status === 'complete') { await log({ event: 'upload_reused', index: s.index, mode: group }); return record; }
         if (record && !resumableSlice(record,s)) await log({event:'slice_mapping_changed',mode:group,index:s.index,oldHash:record.localHash,newHash:s.localHash,oldClipId:record.clipId ?? null});
+        const shared=sharedUploadsEnabled?await readJson(join(sharedUploadDir,s.localHash+'.json'),null):null;
+        if(shared?.localHash===s.localHash&&shared.status==='complete'&&shared.clipId){record={...s,clipId:shared.clipId,uploadId:shared.uploadId,status:'complete',stages:{},reusedFromContentHash:true};await checkpoint(group,record);return record;}
         const identical=Object.values(uploadStore).flatMap(g=>Object.values(g)).find(r=>r.status==='complete'&&r.clipId&&r.localHash===s.localHash);
         if(identical){record={...s,clipId:identical.clipId,uploadId:identical.uploadId,status:'complete',stages:{},reusedFromContentHash:true};await checkpoint(group,record);return record;}
         const cache = cachedUploads.find(c => c.clipId && (c.localHash === undefined || c.localHash === s.localHash) && (resumableSlice(c,s) || c.index === s.index && c.startSec === s.startSec && c.durSec === s.durSec && s.readOffsetSeconds === 0));
@@ -183,7 +226,9 @@ export async function runPipeline(requested, deps = {}) {
           if (bytes && sha256(bytes) === s.localHash) { record = { ...s, clipId: cache.clipId, uploadId: cache.uploadId, status: 'complete', reusedFromHashVerifiedEvidence: true, stages: {} }; await checkpoint(group, record); await log({ event: 'upload_reused', index: s.index, mode: group }); return record; }
         }
         const file = join(dir, `slice_${String(s.index).padStart(3, '0')}.wav`); await writeSlice(pcm, s, file);
-        return uploadSlice(bridge, s, file, record, r => checkpoint(group, r), log);
+        const uploaded=await uploadSlice(bridge, s, file, record, r => checkpoint(group, r), log);
+        if(sharedUploadsEnabled)await durableJson(join(sharedUploadDir,s.localHash+'.json'),{localHash:s.localHash,clipId:uploaded.clipId,uploadId:uploaded.uploadId,status:'complete',createdAt:new Date().toISOString()});
+        return uploaded;
       });
       const ms=performance.now()-uploadStarted;timings.uploadsMs=(timings.uploadsMs??0)+ms;await log({event:'phase_timing',mode:group,message:'uploads',milliseconds:ms});return results;
     }
@@ -191,8 +236,8 @@ export async function runPipeline(requested, deps = {}) {
       const dir = join(work, mode); await mkdir(dir, { recursive: true }); jobs[mode] ??= {};
       const job = jobs[mode];job.calibration=!!options.calibration;job.timings??={};const phaseTimings={},createSaveStarted=performance.now();
       const title = `${options.calibration?'Calibration':'Studio'} ${mode} ${work.split(/[\\/]/).pop()}`;
-      if (['create_submitting','save_submitting','render_submitting'].includes(job.phase)) throw Error(`${mode}: remote outcome unknown at ${job.phase}; reconcile jobs.json binding before resume`);
-      const plannedWire=buildTimeline(template,slices,{transpose,title,bps:config.bps,strategy});
+      if (['create_submitting','save_submitting'].includes(job.phase)) throw Error(`${mode}: remote outcome unknown at ${job.phase}; reconcile jobs.json binding before resume`);
+      const plannedWire=buildTimeline(template,slices,{transpose,title,bps:config.bps,strategy,profile:studioProfile});
       if(job.wire && (semanticDiff(job.wire,plannedWire).changes.length || JSON.stringify(job.wire.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id)))!==JSON.stringify(plannedWire.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id))))) throw Error(`${mode}: checkpoint playback/source mapping differs from requested arrangement`);
       let wire = job.wire ?? plannedWire;
       const timeline = timelineReport(wire, slices, pcm.sampleRate);
@@ -206,6 +251,9 @@ export async function runPipeline(requested, deps = {}) {
       if (!job.versionId) { const saved = await submit(job, 'save_submitting', 'created', () => client.save_project({ project_id: job.projectId, title, state: serializeProjectState(editor, serializeAudioProjectState) })); job.versionId = saved.version_id; job.phase = 'saved'; await persistJobs(); }
       const readback = await client.get_project_version(job.projectId, job.versionId);
       await durableJson(join(dir, 'studio-state-readback.json'), privacy.sanitize(readback));
+      const profileReadback=compareProfileReadback(wire,readback.state);
+      await durableJson(join(dir,'diagnostics-profile-readback.json'),privacy.sanitize(profileReadback));
+      if(!profileReadback.passed)throw Error('Post-processing readback mismatch; render stopped');
       const readbackDiff = semanticDiff(wire, readback.state);
       await durableJson(join(dir, 'diagnostics-readback-diff.json'), privacy.sanitize(readbackDiff));
       const sourceIds=w=>w.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id ?? c.clipId));
@@ -214,12 +262,21 @@ export async function runPipeline(requested, deps = {}) {
       const renderWaitStarted=performance.now();
       const endBeats = timeline.expectedTimelineSeconds * config.bps; // Never ceil: that adds an audible tail.
       const renderTiming = transformRenderState(inspectEditorState(editor)).timing;
+      async function reconcile(){
+        const captured=await readJson(join(work,'last-render-transport-response.json'),null);
+        const proven=await reconcileCachedRender(client,bridge,wire,{projectId:job.projectId,versionId:job.versionId,startBeats:0,endBeats},captured);
+        job.renderBinding=proven;job.renderClipId=proven.renderClipId;job.phase='render_queued';await persistJobs();
+        await durableJson(join(dir,'diagnostics-cached-render-reconciliation.json'),privacy.sanitize(proven));
+        await durableJson(join(dir,'render-response.json'),privacy.sanitize(captured.response.result));
+        await log({event:'cached_render_reconciled',mode,...proven});
+      }
+      if(job.phase==='render_submitting'&&!job.renderClipId){const captured=await readJson(join(work,'last-render-transport-response.json'),null);if(captured?.response?.status!==200||captured.response.result?.status!=='complete')throw Error(`${mode}: remote outcome unknown at render_submitting; reconcile jobs.json binding before resume`);await reconcile();}
       if (!job.renderClipId) {
-        const submitted = await submit(job, 'render_submitting', 'saved', () => client.render_project({ title, project_id: job.projectId, studio_project_id: job.projectId, studio_project_version_id: job.versionId,
+        let submitted;try{submitted = await submit(job, 'render_submitting', 'saved', () => client.render_project({ title, project_id: job.projectId, studio_project_id: job.projectId, studio_project_version_id: job.versionId,
           web_client_pathname: '/studio', lyrics: '', state: prepareRenderTransformedState(editor, transformRenderState, serializeAudioProjectState),
-          start_beats: 0, end_beats: endBeats, downbeats: deriveDownbeats(renderTiming, 0, endBeats), export_mode: 'fullsong_export' }));
+          start_beats: 0, end_beats: endBeats, downbeats: deriveDownbeats(renderTiming, 0, endBeats), export_mode: 'fullsong_export' }));}catch(e){if(e.status===200&&/queued render response\/range\/project\/version relation mismatch/.test(e.message)){await reconcile();submitted={id:job.renderClipId,reconciled:true};}else throw e;}
         job.renderClipId = submitted.id; job.phase = 'render_queued'; await persistJobs();
-        await durableJson(join(dir, 'render-response.json'), privacy.sanitize(submitted));
+        if(!submitted.reconciled)await durableJson(join(dir, 'render-response.json'), privacy.sanitize(submitted));
       }
       let complete, consecutiveNotFound=0;
       for (let i = 0; i < 180; i++) {
@@ -254,7 +311,7 @@ export async function runPipeline(requested, deps = {}) {
       if (!complete) throw Error('Render still processing; resume uses existing render id');
       phaseTimings.renderWaitMs=performance.now()-renderWaitStarted;job.timings.renderWaitMs=(job.timings.renderWaitMs??0)+phaseTimings.renderWaitMs;
       const metadata = complete.metadata;
-      if (metadata?.studio_project_id !== job.projectId || metadata.studio_project_version_id !== job.versionId || metadata.studio_project_start_beats !== 0 || metadata.studio_project_end_beats !== endBeats) throw Error('Completed render binding/range mismatch');
+      if (metadata?.studio_project_id !== (job.renderBinding?.renderProjectId??job.projectId) || metadata.studio_project_version_id !== (job.renderBinding?.renderVersionId??job.versionId) || metadata.studio_project_start_beats !== 0 || metadata.studio_project_end_beats !== endBeats) throw Error('Completed render binding/range mismatch');
       await durableJson(join(dir, 'render-complete.json'), privacy.sanitize(complete));
       job.phase='qa_pending';await persistJobs();
       let deliveryURL;
@@ -268,18 +325,35 @@ export async function runPipeline(requested, deps = {}) {
       if(!deliveryURL)throw Error('Official delivery still processing; resume retains render id');
       const previousQuality=await readJson(join(dir,'quality-summary.json'),null);
       let qa;const qualityStarted=performance.now();let qualityReused=false;
-      if(previousQuality?.renderClipId===job.renderClipId&&previousQuality.qualityThresholdVersion===QUALITY_THRESHOLDS.version&&previousQuality.detectorVersion===QUALITY_THRESHOLDS.detectorVersion&&!config['gain-test']&&!config['handle-test']){
+      if(previousQuality?.renderClipId===job.renderClipId&&previousQuality.qualityThresholdVersion===QUALITY_THRESHOLDS.version&&previousQuality.detectorVersion===QUALITY_THRESHOLDS.detectorVersion&&!config['gain-test']&&!config['handle-test']&&!config['validate-transform']){
         qa={analysis:await readJson(join(dir,'diagnostics','boundaries.json')),gate:await readJson(join(dir,'diagnostics','quality-gate.json')),qualitySummary:previousQuality};
         qualityReused=true;
         await log({event:'quality_reused',mode});
       }else{
-        qa=await(deps.qa??qualityFromDelivery)({url:deliveryURL,directory:dir,times:probeTimes??timeline.boundariesSeconds,expectedDuration:timeline.expectedTimelineSeconds,metadataDuration:metadata.duration,sourcePCM:pcm,sourceOffsetSeconds:options.sourceOffsetSeconds??0,timelineGapSamples:Math.max(0,...timeline.gaps.map(g=>Math.abs(g.estimatedSourceSamples))),keep:!!config['keep-workdir'],diagnose:!!config.diagnose,localAnalysis:!!config['gain-test']||!!config['handle-test']},{log});
+        qa=await(deps.qa??qualityFromDelivery)({url:deliveryURL,directory:dir,times:probeTimes??timeline.boundariesSeconds,expectedDuration:timeline.expectedTimelineSeconds,metadataDuration:metadata.duration,sourcePCM:pcm,sourceOffsetSeconds:options.sourceOffsetSeconds??0,sourceTimeRatio:studioProfile.speedRatio,timelineGapSamples:Math.max(0,...timeline.gaps.map(g=>Math.abs(g.estimatedSourceSamples))),keep:!!config['keep-workdir'],diagnose:!!config.diagnose,localAnalysis:!!config['gain-test']||!!config['handle-test']||!!config['validate-transform']},{log});
         qa.qualitySummary.renderClipId=job.renderClipId;
         await durableJson(join(dir,'quality-summary.json'),privacy.sanitize(qa.qualitySummary));await durableJson(join(dir,'diagnostics','quality-gate.json'),qa.gate);
       }
+      let transformVerification=null;
+      if(config['validate-transform']&&!options.calibration){
+        if(!qa.pcm)throw Error('Transform validation requires temporary decoded delivery PCM');
+        transformVerification=await verifyTransformFile(config.input,qa.pcm,join(dir,'qa','reference.wav'),{synthetic:!!config['synthetic-reference']});
+        await durableJson(join(dir,'diagnostics','transform-verification.json'),transformVerification);
+        if(transformVerification.classification!=='PASS'){qa.gate.status='QUALITY WARNING';for(const metric of transformVerification.warnings)qa.gate.warnings.push({metric:'transform_'+metric,severity:'warning'});}
+
+      }
+      if(!options.calibration&&mode.startsWith('PRODUCTION')){
+        const inverseDurationErrorMs=(timeline.expectedTimelineSeconds-sourceInfo.duration)*1000;
+        qa.qualitySummary.inverseDurationErrorMs=inverseDurationErrorMs;
+        if(Math.abs(inverseDurationErrorMs)>50)qa.gate.warnings.push({metric:'inverse_duration',severity:'warning',durationErrorMs:inverseDurationErrorMs});
+        for(const message of localInverse.warnings??[])qa.gate.warnings.push({metric:'inverse_unsupported',severity:'warning',message});
+        if(qa.gate.warnings.length)qa.gate.status='QUALITY WARNING';
+        qa.qualitySummary.quality=qa.gate.status;qa.qualitySummary.transformVerification=transformVerification;
+        await durableJson(join(dir,'quality-summary.json'),privacy.sanitize(qa.qualitySummary));await durableJson(join(dir,'diagnostics','quality-gate.json'),privacy.sanitize(qa.gate));
+      }
       const {analysis,gate}=qa;phaseTimings.qualityProbeMs=qualityReused?0:performance.now()-qualityStarted;phaseTimings.qualityReused=qualityReused;job.timings.qualityProbeMs=qa.qualitySummary.qualityProbeMs;
       for(const warning of gate.warnings)await log({event:'QUALITY WARNING',mode,...warning});
-      const summary={mode,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
+      const summary={mode,renderBinding:job.renderBinding??{renderProjectId:job.projectId,renderVersionId:job.versionId},studioProfileHash:studioProfile.hash,transformVerification,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
       if(config.download&&!options.calibration&&mode.startsWith('PRODUCTION')){
         const downloadStarted=performance.now();
         const output=resolve(config.output??join(work,basename(config.input,extname(config.input))+'-studio-render.m4a'));
@@ -290,6 +364,7 @@ export async function runPipeline(requested, deps = {}) {
       job.phase='complete';job.summary=summary;await persistJobs();await log({event:'render_complete',mode,message:gate.status,remoteProbeMode:summary.remoteProbeMode});
       return{summary,analysis,wire,gate,qualitySummary:qa.qualitySummary};
     }
+    await durableJson(join(work,'config.json'),privacy.sanitize(config));
     const fingerprint=sourceFingerprint(inputHash,pcm,config),cacheFile=join(root,'runs','cache','calibration',fingerprint.sourceFingerprint+'.json');
     let calibration=await readJson(join(work,'calibration.json'),null);
     const boundProduction=jobs.PRODUCTION_PREROLL??jobs.PRODUCTION;
@@ -414,7 +489,7 @@ export async function runPipeline(requested, deps = {}) {
     const matchingMode = strategy === 'exact' ? 'SLICED_NEG8_TRANSPOSE' : `HANDLE_ALIGNED_${config['preroll-ms']}`;
     const matching = jobs[matchingMode];
     if (!jobs[productionMode] && matching?.phase === 'complete') {
-      const planned = buildTimeline(template,uploaded,{transpose:config['studio-transpose'],title:'Production',bps:config.bps,strategy});
+      const planned = buildTimeline(template,uploaded,{transpose:config['studio-transpose'],title:'Production',bps:config.bps,strategy,profile:studioProfile});
       const ids = w => w.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id));
       if (JSON.stringify(ids(matching.wire)) === JSON.stringify(ids(planned)) && semanticDiff(matching.wire,planned).changes.length===0) {
         jobs[productionMode]=structuredClone(matching); await persistJobs();
@@ -428,7 +503,7 @@ export async function runPipeline(requested, deps = {}) {
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.json'), join(work, 'diagnostics', 'boundaries.json'));
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.csv'), join(work, 'diagnostics', 'boundaries.csv'));
     Object.assign(timings,{productionCreateSaveMs:production.summary.timings?.createSaveMs,productionRenderWaitMs:production.summary.timings?.renderWaitMs,productionQualityProbeMs:production.summary.timings?.qualityProbeMs,totalElapsedMs:performance.now()-totalStarted});
-    const result={work,...production.summary,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!config.download};
+    const result={work,studioProfile,localInverse,...production.summary,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!config.download};
     await durableJson(join(work,'summary.json'),privacy.sanitize(result));
     await durableJson(join(work,'studio-summary.json'),{projectId:result.projectId,versionId:result.versionId,strategy:result.strategy,preRollMs:result.preRollMs,postRollMs:result.postRollMs});
     await durableJson(join(work,'render-summary.json'),{renderedClipId:result.renderClipId,renderedAudioURL:result.renderedAudioURL,downloaded:result.downloaded,output:result.output});
@@ -444,6 +519,6 @@ export async function runPipeline(requested, deps = {}) {
   finally { await app?.close(); await logQueue; await unlink(lockPath); }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { const config = parseConfig(process.argv.slice(2)); if (config.help) console.log(help); else console.log(JSON.stringify(await runPipeline(config), null, 2)); }
+  try { const config = parseConfig(process.argv.slice(2)); if (config.help) console.log(help); else console.log(JSON.stringify(await runPipeline(config), null, config['json-log']?undefined:2)); }
   catch (e) { console.error(privacy.sanitize({ error: e.message, kind: e.kind, status: e.status })); process.exitCode = 1; }
 }

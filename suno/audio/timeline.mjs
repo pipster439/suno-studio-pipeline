@@ -1,3 +1,4 @@
+import { applyStudioProfile } from './postprocessing-profile.mjs';
 import { buildProjectDraft, buildStudioClipDraft } from '../studio/dry-run-sdk.mjs';
 import { serializeAudioProjectState, deserializeAudioProjectState, warpBeatsFromSeconds } from '../studio/clip-pipeline.mjs';
 import { validateProjectForSave } from '../studio/validation.mjs';
@@ -8,7 +9,7 @@ export function chooseHandleStrategy(baseline, tests, alignmentValidated) {
   const eligible=tests.filter(t=>Number.isFinite(t.averageBoundaryScore)&&Number.isFinite(t.maxBoundaryScore)&&t.averageBoundaryScore<baseline.averageBoundaryScore*.7&&t.maxBoundaryScore<baseline.maxBoundaryScore*.7&&t.detectedAnomalyCount<=baseline.detectedAnomalyCount&&Math.abs(t.duration-baseline.duration)<.05);
   return eligible.sort((a,b)=>a.detectedAnomalyCount-b.detectedAnomalyCount||a.prerollMs-b.prerollMs)[0]??null;
 }
-export function buildTimeline(template, slices, { transpose, title, bps = template.state.timing.bps, strategy = 'exact' }) {
+export function buildTimeline(template, slices, { transpose, title, bps = template.state.timing.bps, strategy = 'exact', profile }) {
   if (strategy === 'crossfade') throw Error('Crossfade is not verified: Studio curve=1 does not prove equal-power; no independent fades will be substituted');
   const timing = { ...template.state.timing, type: 'manual', bps, bpsAutomation: [], firstBeatSeconds: 0 };
   const draft = buildProjectDraft(template, timing, { title });
@@ -20,7 +21,7 @@ export function buildTimeline(template, slices, { transpose, title, bps = templa
     c.readStartBeats = warpBeatsFromSeconds(c.warp.markers, slice.readOffsetSeconds);
     c.fadeInBeats = 0; c.fadeOutBeats = 0; c.amplitude = slice.amplitude ?? 1;
     if(!Number.isFinite(c.amplitude)||c.amplitude<=0||c.amplitude>10)throw Error('Invalid explicit slice amplitude');
-    draft.state.tracks[0].clips.push(c);
+    draft.state.tracks[0].clips.push(profile ? applyStudioProfile(c, {...profile,pitchSemitones:transpose,volume:slice.amplitude??profile.volume}, {preservePlacement:false}) : c);
   }
   const wire = serializeAudioProjectState(draft.state); validateProjectForSave(wire);
   return wire;

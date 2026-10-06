@@ -1,0 +1,139 @@
+{
+  "projectId": "e2d3c423-90f8-407b-8f19-f8fac42c2327",
+  "uiVerification": "NOT VERIFIED",
+  "verificationKind": "save_readback",
+  "controls": [
+    {
+      "control": "Loop",
+      "versionId": "e8a91a92-bbcd-4199-bbd6-ec58359ff00b",
+      "status": "VERIFIED_SAVE_READBACK",
+      "uiVerification": "NOT VERIFIED",
+      "renderEffect": "NOT VERIFIED by this save-only experiment",
+      "changes": [
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/loop/enabled",
+          "before": false,
+          "after": true,
+          "classification": "SEMANTIC"
+        }
+      ]
+    },
+    {
+      "control": "Reverse",
+      "versionId": "d9ac339a-5495-4d02-882a-8627f03f3b37",
+      "status": "VERIFIED_SAVE_READBACK",
+      "uiVerification": "NOT VERIFIED",
+      "renderEffect": "NOT VERIFIED by this save-only experiment",
+      "changes": [
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/reversed",
+          "before": false,
+          "after": true,
+          "classification": "SEMANTIC"
+        }
+      ]
+    },
+    {
+      "control": "Stretch",
+      "versionId": "078bdd43-72c8-4c51-a343-8844aaa95fee",
+      "status": "VERIFIED_SAVE_READBACK",
+      "uiVerification": "NOT VERIFIED",
+      "renderEffect": "NOT VERIFIED by this save-only experiment",
+      "changes": [
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/warp/enabled",
+          "before": true,
+          "after": false,
+          "classification": "SEMANTIC"
+        }
+      ]
+    },
+    {
+      "control": "Pitch",
+      "versionId": "f0b9a9e9-9481-4ec4-ab37-4f8362272be7",
+      "status": "VERIFIED_SAVE_READBACK",
+      "uiVerification": "NOT VERIFIED",
+      "renderEffect": "NOT VERIFIED by this save-only experiment",
+      "changes": [
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/transposition",
+          "before": 0,
+          "after": -8,
+          "classification": "SEMANTIC"
+        }
+      ]
+    },
+    {
+      "control": "Speed",
+      "versionId": "4454b9c0-30f4-4ccf-8d05-019e91318e76",
+      "status": "VERIFIED_SAVE_READBACK",
+      "uiVerification": "NOT VERIFIED",
+      "renderEffect": "NOT VERIFIED by this save-only experiment",
+      "changes": [
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/endBeats",
+          "before": 11.7,
+          "after": 23.4,
+          "classification": "SEMANTIC"
+        },
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/loop/endBeats",
+          "before": 11.7,
+          "after": 23.4,
+          "classification": "SEMANTIC"
+        },
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/warp/markers/1",
+          "before": 1.95,
+          "after": 3.9,
+          "classification": "SEMANTIC"
+        }
+      ]
+    },
+    {
+      "control": "Formant",
+      "versionId": "5204f43c-e98c-41cc-a323-8abfc7ebf3c7",
+      "status": "VERIFIED_SAVE_READBACK",
+      "uiVerification": "NOT VERIFIED",
+      "renderEffect": "NOT VERIFIED by this save-only experiment",
+      "changes": [
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/formantCorrection",
+          "before": 0,
+          "after": 0.5,
+          "classification": "SEMANTIC"
+        }
+      ]
+    },
+    {
+      "control": "Volume",
+      "versionId": "d0a47a82-726a-4e39-a72d-be491627e4bd",
+      "status": "VERIFIED_SAVE_READBACK",
+      "uiVerification": "NOT VERIFIED",
+      "renderEffect": "NOT VERIFIED by this save-only experiment",
+      "changes": [
+        {
+          "kind": "changed",
+          "path": "/tracks/0/clips/0/amplitude",
+          "before": 1,
+          "after": 0.5,
+          "classification": "SEMANTIC"
+        }
+      ]
+    },
+    {
+      "control": "Quantize",
+      "status": "NOT VERIFIED",
+      "reason": "Transient-dependent warp action; UI edit blocked. No fabricated marker quantization or serialized quantize scalar."
+    }
+  ],
+  "baselineVersionId": "b61c18a3-3aca-4d40-9775-32f2dbd4afbd"
+}

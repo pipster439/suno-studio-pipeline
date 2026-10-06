@@ -1,3 +1,10 @@
+> Current post-processing integration: API save/readback and real synthetic/music
+> renders are recorded separately from UI mapping, which remains NOT VERIFIED.
+> See [STUDIO_POST_PROCESSING.md](STUDIO_POST_PROCESSING.md). Profile-derived local
+> inverse runs once; zero-fade handles, exact timeline continuity and default
+> no-download behavior are preserved. Historical statuses below retain their
+> original scope and are not a current completion claim.
+
 # Studio render pipeline — final RC
 
 Endpoint POST /api/studio/render-state: VERIFIED, verification.kind=request_acceptance.

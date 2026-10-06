@@ -1,8 +1,11 @@
+import {resolveStudioProfile} from './postprocessing-profile.mjs';
+import {deriveLocalInverse} from './inverse-profile.mjs';
 import {sample,sha256,slicePlan,wav}from'./pcm.mjs';
 import{QUALITY_THRESHOLDS,calibrationPass}from'./quality.mjs';
-export const CALIBRATION_SCHEMA=1;
+export const CALIBRATION_SCHEMA=2;
 export function sourceFingerprint(inputHash,pcm,config) {
-  const preprocessConfig={implementation:'ffmpeg-rubberband-quality-v1',inputHash,pcmContentHash:sha256(pcm.data),pitchUp:config['pitch-up'],studioTranspose:config['studio-transpose'],chunkSeconds:config['chunk-seconds'],minimumSliceSeconds:config['minimum-slice-seconds'],bps:config.bps,postRollMs:config['postroll-ms'],sampleFormat:{tag:pcm.tag,bits:pcm.bits,sampleRate:pcm.sampleRate,channels:pcm.channels}};
+  const profile=config.studioProfile??resolveStudioProfile(config),inverse=config.localInverse??deriveLocalInverse(profile,config);
+  const preprocessConfig={implementation:'ffmpeg-rubberband-quality-v1',studioProfileHash:profile.hash,localInverseProfileVersion:inverse.version,localTempo:inverse.tempoMultiplier,localTempoEngine:inverse.tempoEngine??'legacy_rubberband',inverseGain:inverse.requestedGain,warpStrategyVersion:profile.warpStrategyVersion,studioProfileHash:profile.hash,localInverseProfileVersion:inverse.version,localTempo:inverse.tempoMultiplier,localTempoEngine:inverse.tempoEngine??'legacy_rubberband',inverseGain:inverse.requestedGain,warpStrategyVersion:profile.warpStrategyVersion,inputHash,pcmContentHash:sha256(pcm.data),pitchUp:config['pitch-up'],studioTranspose:config['studio-transpose'],chunkSeconds:config['chunk-seconds'],minimumSliceSeconds:config['minimum-slice-seconds'],bps:config.bps,postRollMs:config['postroll-ms'],sampleFormat:{tag:pcm.tag,bits:pcm.bits,sampleRate:pcm.sampleRate,channels:pcm.channels}};
   return {sourceFingerprint:sha256(JSON.stringify(preprocessConfig)),preprocessConfig};
 }
 export function validCalibrationCache(cache,fingerprint) {
