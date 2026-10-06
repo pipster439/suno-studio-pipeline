@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // One public orchestration entry; authentication, state and render remain SDK-owned.
 import { readFile, writeFile, mkdir, rm, copyFile, open, unlink } from 'node:fs/promises';
-import { resolve, join, dirname, extname } from 'node:path';
+import { resolve, join, dirname, extname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { createController } from '../suno/server.mjs';
@@ -12,6 +12,9 @@ import { durableJson } from '../shared/durable-json.mjs';
 import { parseConfig } from '../suno/audio/config.mjs';
 import { preprocess, probe, decode, readPCM, slicePlan, writeSlice, sha256, verifyAlignment, ffmpeg } from '../suno/audio/pcm.mjs';
 import { estimateSliceGains } from '../suno/audio/gain.mjs';
+import {sourceFingerprint,validCalibrationCache,strategyOverride,progressiveCalibration,selectCalibrationRegion,calibrationPlan,CALIBRATION_SCHEMA} from '../suno/audio/calibration.mjs';
+import {QUALITY_THRESHOLDS} from '../suno/audio/quality.mjs';
+import {qualityFromDelivery,saveDeliveryAsset} from '../suno/audio/remote-qa.mjs';
 import { analyzeBoundaries, writeAnalysis, qualityGate, silentGaps, classifyABC, windowMetrics } from '../suno/audio/boundaries.mjs';
 import { buildTimeline, timelineReport, semanticDiff, chooseHandleStrategy } from '../suno/audio/timeline.mjs';
 import { boundedMap, uploadSlice, resumableSlice, retry429 } from '../suno/audio/upload.mjs';
@@ -21,15 +24,19 @@ import { transformRenderState, deriveDownbeats } from '../suno/studio/render-pip
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pause = ms => new Promise(r => setTimeout(r, ms));
 const readJson = async (file, fallback) => { try { return JSON.parse(await readFile(file, 'utf8')); } catch (e) { if (e.code === 'ENOENT' && fallback !== undefined) return fallback; throw e; } };
-const help = `Usage: node scripts/studio-pipeline.mjs input.wav [options]
---output PATH --chunk-seconds 6 --pitch-up 8 --studio-transpose -8
+const help = `Usage: node scripts/studio-pipeline.mjs song.mp3 [options]
+Default: automatic short-region calibration, Studio render and remote QA;
+the final asset stays on Suno. Only --download saves the delivery locally.
+--download [--output PATH] --recalibrate --skip-calibration --allow-quality-warning
+--chunk-seconds 6 --pitch-up 8 --studio-transpose -8
 --minimum-slice-seconds 6 (merge a shorter final slice into its predecessor)
 --upload-concurrency 4 --strategy auto|exact|preroll|crossfade
---preroll-ms 300 --postroll-ms 200 --crossfade-ms 10
+--preroll-ms 50 --postroll-ms 200 --crossfade-ms 10
+--dry-run --keep-workdir --verbose --json-log --resume runs/RUN
+Advanced research compatibility:
 --diagnose --abc-test [--abc-seconds 18] [--abc-test-only] --handle-test --gain-test
 --handle-clip-count 4 (2..10; choose a prefix including measured problem seams)
---strategy-evidence runs/CALIBRATION (auto: reuse matching-source measured handles)
---dry-run --keep-workdir --verbose --json-log --resume runs/RUN
+--strategy-evidence runs/CALIBRATION (legacy measured-handle evidence profile)
 --good-project ID [--good-version ID] --bad-project ID [--bad-version ID]
 --reuse-uploads PATH --preprocessed WAV --bridge-timeout-seconds 90 --bps 1.95
 Crossfade fails explicitly until an equal-power Studio model is verified.
@@ -52,6 +59,7 @@ export async function collectProjectDiff(client, config, directory) {
   return diff;
 }
 export async function runPipeline(requested, deps = {}) {
+  const totalStarted=performance.now(),timings={};let candidatesTestedThisRun=0;
   const work = requested.resume ? resolve(requested.resume) : resolve(root, 'runs', new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomUUID().slice(0, 8));
   await mkdir(work, { recursive: true });
   const lockPath = join(work, '.pipeline.lock'); const lock = await open(lockPath, 'wx').catch(() => { throw Error('Run is already locked; do not run two resumes concurrently. Remove a stale lock only after checking its owning process.'); });
@@ -59,12 +67,15 @@ export async function runPipeline(requested, deps = {}) {
   let app, logQueue = Promise.resolve();
   const log = async data => { const entry = privacy.sanitize({ time: new Date().toISOString(), ...data });
     logQueue = logQueue.then(() => writeFile(join(work, 'run.log'), JSON.stringify(entry) + '\n', { flag: 'a' })); await logQueue;
-    if (requested['json-log'] || ['arrangement','timeline_gap','QUALITY WARNING'].includes(entry.event)) console.log(JSON.stringify(entry)); else console.log(`[${entry.event}] ${entry.mode ?? ''} ${entry.message ?? ''}${entry.stage ? `slice=${entry.index} ${entry.stage} ${Math.round(entry.milliseconds)}ms` : ''}`);
+    if (requested['json-log'] || entry.event==='QUALITY WARNING') console.log(JSON.stringify(entry));
+    else if(requested.verbose||!['arrangement','timeline_gap','upload_stage'].includes(entry.event)) console.log(`[${entry.event}] ${entry.mode ?? ''} ${entry.message ?? ''}${entry.stage ? `slice=${entry.index} ${entry.stage} ${Math.round(entry.milliseconds)}ms` : ''}`);
   };
   try {
     const old = requested.resume ? await readJson(join(work, 'config.json')) : null;
-    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','gain-test','handle-test',...(requested.provided?.includes('handle-clip-count')?['handle-clip-count']:[])].filter(k => requested[k] !== undefined).map(k => [k, requested[k]])) } : requested;
+    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','download','recalibrate','skip-calibration','allow-quality-warning','gain-test','handle-test',...(requested.provided?.includes('handle-clip-count')?['handle-clip-count']:[])].filter(k => requested[k] !== undefined).map(k => [k, requested[k]])) } : requested;
     if (requested['dry-run']) config['dry-run'] = true;
+    if(requested.provided?.includes('output')&&!config.download)throw Error('--output requires explicit --download');
+    config.pipelineSchemaVersion=2;
     // Legacy runs with saved projects must retain their original experiment cuts.
     // Upload-only legacy checkpoints can safely adopt the observed service minimum.
     const legacyBoundJobs = old && old['minimum-slice-seconds'] === undefined ? await readJson(join(work,'jobs.json'),{}) : {};
@@ -88,8 +99,10 @@ export async function runPipeline(requested, deps = {}) {
       else ({ pcm, sourceInfo, conversion } = await preprocess(config.input, processed, config['pitch-up']));
     }
     const preprocessedHash = sha256(await readFile(processed));
+    if(oldSource.preprocessedHash&&preprocessedHash!==oldSource.preprocessedHash)throw Error('Regenerated PCM changed since checkpoint; start a new run instead of reusing bound sources');
     await durableJson(join(work, 'source-info.json'), { inputHash, preprocessedHash, sourceInfo, conversion, frames: pcm.frames, duration: pcm.frames / pcm.sampleRate });
-    await log({event:'phase_timing',message:'local preprocessing',milliseconds:performance.now()-preprocessStarted});
+    timings.localPreprocessMs=performance.now()-preprocessStarted;
+    await log({event:'phase_timing',message:'local preprocessing',milliseconds:timings.localPreprocessMs});
     const template = await readJson(join(root, 'fixtures/studio_project_get.json'));
     let uploadStore = await readJson(join(work, 'upload-results.json'), {}), jobs = await readJson(join(work, 'jobs.json'), {}), persistQueue = Promise.resolve();
     const checkpoint = (group, record) => { uploadStore[group] ??= {}; uploadStore[group][record.index] = record;
@@ -107,7 +120,9 @@ export async function runPipeline(requested, deps = {}) {
     if (config.strategy === 'crossfade') throw Error('Equal-power overlap crossfade has not been verified; no substitute fades applied');
     const planOptions = {chunkSeconds:config['chunk-seconds'],minimumSliceSeconds:config['minimum-slice-seconds']};
     let strategy = config.strategy === 'auto' ? 'exact' : config.strategy;
-    if(config['strategy-evidence']) {
+    const override=strategyOverride(config);
+    if(override){strategy=override.strategy;config['preroll-ms']=override.preRollMs;}
+    if(config['strategy-evidence']&&!override) {
       const evidenceRoot=resolve(config['strategy-evidence']);
       const evidenceSource=await readJson(join(evidenceRoot,'source-info.json'));
       const evidenceConfig=await readJson(join(evidenceRoot,'config.json'));
@@ -155,10 +170,13 @@ export async function runPipeline(requested, deps = {}) {
     const cachedUploads = config['reuse-uploads'] ? await readJson(resolve(config['reuse-uploads'])) : [];
     async function uploads(group, plan) {
       const dir = join(work, 'slices', group); await mkdir(dir, { recursive: true });
-      return boundedMap(plan, config['upload-concurrency'], async s => {
+      const uploadStarted=performance.now();
+      const results=await boundedMap(plan, config['upload-concurrency'], async s => {
         let record = uploadStore[group]?.[s.index];
         if (resumableSlice(record, s) && record.status === 'complete') { await log({ event: 'upload_reused', index: s.index, mode: group }); return record; }
         if (record && !resumableSlice(record,s)) await log({event:'slice_mapping_changed',mode:group,index:s.index,oldHash:record.localHash,newHash:s.localHash,oldClipId:record.clipId ?? null});
+        const identical=Object.values(uploadStore).flatMap(g=>Object.values(g)).find(r=>r.status==='complete'&&r.clipId&&r.localHash===s.localHash);
+        if(identical){record={...s,clipId:identical.clipId,uploadId:identical.uploadId,status:'complete',stages:{},reusedFromContentHash:true};await checkpoint(group,record);return record;}
         const cache = cachedUploads.find(c => c.clipId && (c.localHash === undefined || c.localHash === s.localHash) && (resumableSlice(c,s) || c.index === s.index && c.startSec === s.startSec && c.durSec === s.durSec && s.readOffsetSeconds === 0));
         if (cache?.file) {
           const bytes = await readFile(cache.file).catch(() => null);
@@ -167,10 +185,12 @@ export async function runPipeline(requested, deps = {}) {
         const file = join(dir, `slice_${String(s.index).padStart(3, '0')}.wav`); await writeSlice(pcm, s, file);
         return uploadSlice(bridge, s, file, record, r => checkpoint(group, r), log);
       });
+      const ms=performance.now()-uploadStarted;timings.uploadsMs=(timings.uploadsMs??0)+ms;await log({event:'phase_timing',mode:group,message:'uploads',milliseconds:ms});return results;
     }
-    async function render(mode, slices, transpose, probeTimes, strategy = 'exact') {
+    async function render(mode, slices, transpose, probeTimes, strategy = 'exact', options={}) {
       const dir = join(work, mode); await mkdir(dir, { recursive: true }); jobs[mode] ??= {};
-      const job = jobs[mode], title = `Studio ${mode} ${work.split(/[\\/]/).pop()}`;
+      const job = jobs[mode];job.calibration=!!options.calibration;job.timings??={};const phaseTimings={},createSaveStarted=performance.now();
+      const title = `${options.calibration?'Calibration':'Studio'} ${mode} ${work.split(/[\\/]/).pop()}`;
       if (['create_submitting','save_submitting','render_submitting'].includes(job.phase)) throw Error(`${mode}: remote outcome unknown at ${job.phase}; reconcile jobs.json binding before resume`);
       const plannedWire=buildTimeline(template,slices,{transpose,title,bps:config.bps,strategy});
       if(job.wire && (semanticDiff(job.wire,plannedWire).changes.length || JSON.stringify(job.wire.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id)))!==JSON.stringify(plannedWire.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id))))) throw Error(`${mode}: checkpoint playback/source mapping differs from requested arrangement`);
@@ -190,6 +210,8 @@ export async function runPipeline(requested, deps = {}) {
       await durableJson(join(dir, 'diagnostics-readback-diff.json'), privacy.sanitize(readbackDiff));
       const sourceIds=w=>w.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id ?? c.clipId));
       if (readbackDiff.changes.length || JSON.stringify(sourceIds(wire))!==JSON.stringify(sourceIds(readback.state))) throw Error('Save readback changed playback semantics/source ids; inspect readback diff');
+      phaseTimings.createSaveMs=performance.now()-createSaveStarted;job.timings.createSaveMs=(job.timings.createSaveMs??0)+phaseTimings.createSaveMs;
+      const renderWaitStarted=performance.now();
       const endBeats = timeline.expectedTimelineSeconds * config.bps; // Never ceil: that adds an audible tail.
       const renderTiming = transformRenderState(inspectEditorState(editor)).timing;
       if (!job.renderClipId) {
@@ -217,7 +239,7 @@ export async function runPipeline(requested, deps = {}) {
               await copyFile(join(dir,'render-response.json'),join(dir,'render-response-unavailable.json'));
               await log({event:'confirmed_missing_render_retry',mode,previousRenderClipId:job.renderClipId,projectId:job.projectId,versionId:job.versionId,reason:'GET 404 and official download invalid_asset; retry once using existing saved binding'});
               job.renderClipId=null;job.phase='saved';await persistJobs();
-              return render(mode,slices,transpose,probeTimes,strategy);
+              return render(mode,slices,transpose,probeTimes,strategy,options);
             }
             throw e;
           }
@@ -230,59 +252,81 @@ export async function runPipeline(requested, deps = {}) {
         if (i % 5 === 0) await log({ event: 'render_poll', mode, message: c.status }); await pause(4000);
       }
       if (!complete) throw Error('Render still processing; resume uses existing render id');
+      phaseTimings.renderWaitMs=performance.now()-renderWaitStarted;job.timings.renderWaitMs=(job.timings.renderWaitMs??0)+phaseTimings.renderWaitMs;
       const metadata = complete.metadata;
       if (metadata?.studio_project_id !== job.projectId || metadata.studio_project_version_id !== job.versionId || metadata.studio_project_start_beats !== 0 || metadata.studio_project_end_beats !== endBeats) throw Error('Completed render binding/range mismatch');
       await durableJson(join(dir, 'render-complete.json'), privacy.sanitize(complete));
-      const downloaded = join(dir, 'downloaded.audio'), final = join(dir, 'final.wav');
-      if (job.downloadHash) {
-        try { await probe(downloaded); } catch {
-          await log({ event: 'invalid_download_retired', mode, hash: job.downloadHash }); job.downloadHash = null; job.phase = 'render_queued'; await persistJobs();
-        }
+      job.phase='qa_pending';await persistJobs();
+      let deliveryURL;
+      for(let i=0;i<90;i++){
+        const response=await retry429(()=>bridge.call({method:'GET',path:`/api/download/clip/${job.renderClipId}?format=m4a`,timeoutMs:30000}),{log});
+        await durableJson(join(dir,'download-response.json'),privacy.sanitize(response));const d=response.result;
+        if(d?.status==='ready'&&d.download_url&&!d.download_url.includes('<redacted>')){deliveryURL=d.download_url;break;}
+        if(d?.status!=='processing')throw Error('Official delivery unavailable; no player stream fallback');
+        await pause(2000);
       }
-      if (!job.downloadHash) {
-        let downloadURL;
-        for (let i = 0; i < 90; i++) {
-          const response = await retry429(() => bridge.call({ method: 'GET', path: `/api/download/clip/${job.renderClipId}?format=m4a`, timeoutMs: 30000 }), { log });
-          await durableJson(join(dir, 'download-response.json'), privacy.sanitize(response));
-          const d = response.result;
-          if (d?.status === 'ready' && d.download_url && !d.download_url.includes('<redacted>')) { downloadURL = d.download_url; break; }
-          if (d?.status !== 'processing') throw Error('Official unlocked-song download unavailable or response invalid; no player stream interception fallback');
-          if (i % 5 === 0) await log({ event: 'download_preparing', mode }); await pause(2000);
-        }
-        if (!downloadURL) throw Error('Official download preparation timed out; resume retains render id');
-        let downloadedOK = false;
-        for (let attempt=0;attempt<3;attempt++) {
-          try { const u = new URL(downloadURL); if (u.protocol !== 'https:' || !/(?:\.amazonaws\.com|\.suno\.ai|\.suno\.com|\.cloudfront\.net)$/.test(u.hostname)) throw Error('Unexpected download destination');
-            const res = await retry429(async () => { const r = await fetch(u, { signal: AbortSignal.timeout(120000) }); if (!r.ok) { const e = Error(`Download HTTP ${r.status}`); e.status = r.status; e.retryAfter = r.headers.get('retry-after'); throw e; } return r; }, { log });
-            const bytes = Buffer.from(await res.arrayBuffer()); if (bytes.length < 128) throw Error('Empty render'); await writeFile(downloaded, bytes); await probe(downloaded); job.downloadHash = sha256(bytes); downloadedOK = true; break;
-          } catch (e) { await log({ event: 'download_candidate_failed', mode, attempt, message: e.message }); if ([401,403,404].includes(e.status)) break; if(attempt<2)await pause(500*2**attempt); }
-        }
-        if (!downloadedOK) throw Error('No valid render download candidate; resume will not recreate project');
-        job.phase = 'downloaded'; await persistJobs();
+      if(!deliveryURL)throw Error('Official delivery still processing; resume retains render id');
+      const previousQuality=await readJson(join(dir,'quality-summary.json'),null);
+      let qa;const qualityStarted=performance.now();let qualityReused=false;
+      if(previousQuality?.renderClipId===job.renderClipId&&previousQuality.qualityThresholdVersion===QUALITY_THRESHOLDS.version&&previousQuality.detectorVersion===QUALITY_THRESHOLDS.detectorVersion&&!config['gain-test']&&!config['handle-test']){
+        qa={analysis:await readJson(join(dir,'diagnostics','boundaries.json')),gate:await readJson(join(dir,'diagnostics','quality-gate.json')),qualitySummary:previousQuality};
+        qualityReused=true;
+        await log({event:'quality_reused',mode});
+      }else{
+        qa=await(deps.qa??qualityFromDelivery)({url:deliveryURL,directory:dir,times:probeTimes??timeline.boundariesSeconds,expectedDuration:timeline.expectedTimelineSeconds,metadataDuration:metadata.duration,sourcePCM:pcm,sourceOffsetSeconds:options.sourceOffsetSeconds??0,timelineGapSamples:Math.max(0,...timeline.gaps.map(g=>Math.abs(g.estimatedSourceSamples))),keep:!!config['keep-workdir'],diagnose:!!config.diagnose,localAnalysis:!!config['gain-test']||!!config['handle-test']},{log});
+        qa.qualitySummary.renderClipId=job.renderClipId;
+        await durableJson(join(dir,'quality-summary.json'),privacy.sanitize(qa.qualitySummary));await durableJson(join(dir,'diagnostics','quality-gate.json'),qa.gate);
       }
-      const downloadedBytes = await readFile(downloaded); if (sha256(downloadedBytes) !== job.downloadHash) throw Error('Downloaded audio changed');
-      const finalPCM = await decode(downloaded, final);
-      const analysis = analyzeBoundaries(finalPCM, probeTimes ?? timeline.boundariesSeconds); analysis.responseValidated = true;
-      const gate = qualityGate(analysis, timeline.expectedTimelineSeconds, metadata.duration);
-      gate.silentGaps = silentGaps(finalPCM);
-      // Long interior absolute silences are reported separately from music-relative dips.
-      gate.silenceCandidates = gate.silentGaps.map(g => {
-        const center = Math.round((g.start + g.end) / 2 * pcm.sampleRate);
-        const sourceRms = Math.max(...windowMetrics(pcm, center, Math.round((g.end - g.start) / 2 * pcm.sampleRate)).channels.map(c => c.rms));
-        return { ...g, sourceRms, unexpected: sourceRms >= .001 };
-      });
-      for (const gap of gate.silenceCandidates.filter(g => g.unexpected && g.start > .1 && g.end < analysis.duration - .1 && g.end - g.start > .05)) gate.warnings.push({ metric: 'unexpected_silent_gap', severity: 'warning', timestamp: gap.start, duration: gap.end - gap.start });
-      if (gate.warnings.length) gate.status = 'QUALITY WARNING';
-      await writeAnalysis(join(dir, 'diagnostics'), analysis, finalPCM, !!config.diagnose);
-      await durableJson(join(dir, 'diagnostics', 'quality-gate.json'), gate);
-      for (const warning of gate.warnings) await log({ event: 'QUALITY WARNING', mode, ...warning });
-      const summary = { mode, projectId: job.projectId, versionId: job.versionId, renderClipId: job.renderClipId, outputFile: final,
-        boundaryCount: timeline.boundariesSeconds.length, analysisProbeCount: analysis.boundaryCount, detectedAnomalyCount: analysis.detectedAnomalyCount,
-        averageBoundaryScore: analysis.averageBoundaryScore, maxBoundaryScore: analysis.maxBoundaryScore, duration: analysis.duration, expectedDuration: timeline.expectedTimelineSeconds,
-        classification: gate.status, strategy, transpose, endBeats, outputHash: sha256(await readFile(final)) };
-      job.phase = 'complete'; job.summary = summary; await persistJobs(); await log({ event: 'render_complete', mode, message: gate.status });
-      return { summary, analysis, wire, gate };
+      const {analysis,gate}=qa;phaseTimings.qualityProbeMs=qualityReused?0:performance.now()-qualityStarted;phaseTimings.qualityReused=qualityReused;job.timings.qualityProbeMs=qa.qualitySummary.qualityProbeMs;
+      for(const warning of gate.warnings)await log({event:'QUALITY WARNING',mode,...warning});
+      const summary={mode,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
+      if(config.download&&!options.calibration&&mode.startsWith('PRODUCTION')){
+        const downloadStarted=performance.now();
+        const output=resolve(config.output??join(work,basename(config.input,extname(config.input))+'-studio-render.m4a'));
+        const delivered=await saveDeliveryAsset(deliveryURL,output,qa.deliveryFile,{download:deps.downloadAsset,deliveryInfo:qa.qualitySummary.deliveryInfo});summary.output=delivered.output;summary.delivery=delivered;
+        await durableJson(join(work,'delivery-summary.json'),delivered);
+        phaseTimings.downloadMs=performance.now()-downloadStarted;
+      }
+      job.phase='complete';job.summary=summary;await persistJobs();await log({event:'render_complete',mode,message:gate.status,remoteProbeMode:summary.remoteProbeMode});
+      return{summary,analysis,wire,gate,qualitySummary:qa.qualitySummary};
     }
+    const fingerprint=sourceFingerprint(inputHash,pcm,config),cacheFile=join(root,'runs','cache','calibration',fingerprint.sourceFingerprint+'.json');
+    let calibration=await readJson(join(work,'calibration.json'),null);
+    const boundProduction=jobs.PRODUCTION_PREROLL??jobs.PRODUCTION;
+    if(boundProduction?.projectId){
+      if(requested.provided?.includes('recalibrate'))throw Error('Cannot recalibrate an already bound production run; start a new run');
+      strategy=jobs.PRODUCTION_PREROLL?'preroll':'exact';
+      calibration??={status:'BOUND_PRODUCTION_RESUME',chosenStrategy:strategy,preRollMs:config['preroll-ms'],postRollMs:strategy==='preroll'?config['postroll-ms']:0};
+    }else if(override||config['strategy-evidence']){
+      calibration={status:'OVERRIDE',chosenStrategy:strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,reason:override?.reason??'ADVANCED_EVIDENCE',testedCandidates:[]};
+    }else if(!config['abc-test']&&!config['gain-test']){
+      const calibrationStarted=performance.now();const cache=await readJson(cacheFile,null);
+      if(validCalibrationCache(calibration,fingerprint.sourceFingerprint)&&!requested.provided?.includes('recalibrate'))calibration={...calibration,resumed:true};
+      else if(validCalibrationCache(cache,fingerprint.sourceFingerprint)&&!config.recalibrate){calibration={...cache,cacheHit:true};}
+      else{
+        const continuing=['RUNNING','CALIBRATION_FAILED'].includes(calibration?.status)&&calibration.sourceFingerprint===fingerprint.sourceFingerprint&&calibration.qualityThresholdVersion===QUALITY_THRESHOLDS.version&&!requested.provided?.includes('recalibrate');
+        const region=continuing?calibration.region:selectCalibrationRegion(pcm,commonPlan);
+        calibration={schemaVersion:CALIBRATION_SCHEMA,...fingerprint,createdAt:continuing?calibration.createdAt:new Date().toISOString(),runId:continuing?calibration.runId:randomUUID(),calibration:true,region,chunkSeconds:config['chunk-seconds'],pitchUp:config['pitch-up'],studioTranspose:config['studio-transpose'],qualityThresholdVersion:QUALITY_THRESHOLDS.version,detectorVersion:QUALITY_THRESHOLDS.detectorVersion,status:'RUNNING',testedCandidates:continuing?calibration.testedCandidates:[]};
+        await durableJson(join(work,'calibration.json'),privacy.sanitize(calibration));
+        const selected=await progressiveCalibration(async candidate=>{
+          candidatesTestedThisRun++;
+          const plan=calibrationPlan(pcm,commonPlan,region,{...planOptions,prerollMs:candidate.preRollMs,postrollMs:candidate.postRollMs});
+          const mode=`CALIBRATION_${calibration.runId.slice(0,8)}_${candidate.preRollMs}`,clips=await uploads(mode,plan),result=await render(mode,clips,config['studio-transpose'],undefined,candidate.strategy,{calibration:true,sourceOffsetSeconds:region.sourceStart});
+          return{boundaryCount:result.qualitySummary.boundaryCount,anomalyCount:result.qualitySummary.anomalyCount,averageScore:result.qualitySummary.averageScore,maxScore:result.qualitySummary.maxScore,renderId:result.summary.renderClipId,projectId:result.summary.projectId,versionId:result.summary.versionId,qualitySummary:result.qualitySummary};
+        },{postRollMs:config['postroll-ms'],testedCandidates:calibration.testedCandidates,checkpoint:async tested=>{calibration.testedCandidates=tested;await durableJson(join(work,'calibration.json'),privacy.sanitize(calibration));}});
+        Object.assign(calibration,selected);
+        if(selected.status==='PASS'){await mkdir(dirname(cacheFile),{recursive:true});await durableJson(cacheFile,privacy.sanitize(calibration));}
+      }
+      timings.calibrationTotalMs=performance.now()-calibrationStarted;
+      if(calibration.status==='CALIBRATION_FAILED'){
+        await durableJson(join(work,'calibration.json'),privacy.sanitize(calibration));
+        if(!config['allow-quality-warning'])throw Error('CALIBRATION_FAILED: no progressive candidate passed; production stopped');
+        calibration.warningOverride=true;calibration.chosenStrategy='preroll';calibration.preRollMs=500;calibration.postRollMs=config['postroll-ms'];
+      }
+      strategy=calibration.chosenStrategy;config['preroll-ms']=calibration.preRollMs;
+    }
+    if(calibration)await durableJson(join(work,'calibration.json'),privacy.sanitize(calibration));
+    await durableJson(join(work,'config.json'),privacy.sanitize(config));
     let exactUploads, abc;
     if(config['gain-test']) {
       exactUploads=await uploads('exact',commonPlan);
@@ -375,7 +419,7 @@ export async function runPipeline(requested, deps = {}) {
       if (JSON.stringify(ids(matching.wire)) === JSON.stringify(ids(planned)) && semanticDiff(matching.wire,planned).changes.length===0) {
         jobs[productionMode]=structuredClone(matching); await persistJobs();
         await mkdir(join(work,productionMode),{recursive:true});
-        await copyFile(join(work,matchingMode,'downloaded.audio'),join(work,productionMode,'downloaded.audio'));
+        if(matching.summary?.qualitySummary){await copyFile(join(work,matchingMode,'quality-summary.json'),join(work,productionMode,'quality-summary.json'));await mkdir(join(work,productionMode,'diagnostics'),{recursive:true});for(const f of ['boundaries.json','boundaries.csv','quality-gate.json'])await copyFile(join(work,matchingMode,'diagnostics',f),join(work,productionMode,'diagnostics',f));}
         await log({event:'production_reused_verified_experiment',mode:matchingMode});
       }
     }
@@ -383,17 +427,19 @@ export async function runPipeline(requested, deps = {}) {
     await mkdir(join(work, 'diagnostics'), { recursive: true });
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.json'), join(work, 'diagnostics', 'boundaries.json'));
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.csv'), join(work, 'diagnostics', 'boundaries.csv'));
-    const output = resolve(config.output ?? join(work, 'final.wav'));
-    if (extname(output).toLowerCase() !== '.wav') throw Error('--output must end in .wav; final decode is PCM WAV (original delivery format remains in downloaded.audio)');
-    await mkdir(dirname(output), { recursive: true }); if (output !== production.summary.outputFile) await copyFile(production.summary.outputFile, output);
-    const result = { work, output, strategy, abc: abc?.classification ?? 'NOT_RUN', ...production.summary, quality: production.gate.status };
-    await durableJson(join(work, 'summary.json'), result);
+    Object.assign(timings,{productionCreateSaveMs:production.summary.timings?.createSaveMs,productionRenderWaitMs:production.summary.timings?.renderWaitMs,productionQualityProbeMs:production.summary.timings?.qualityProbeMs,totalElapsedMs:performance.now()-totalStarted});
+    const result={work,...production.summary,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!config.download};
+    await durableJson(join(work,'summary.json'),privacy.sanitize(result));
+    await durableJson(join(work,'studio-summary.json'),{projectId:result.projectId,versionId:result.versionId,strategy:result.strategy,preRollMs:result.preRollMs,postRollMs:result.postRollMs});
+    await durableJson(join(work,'render-summary.json'),{renderedClipId:result.renderClipId,renderedAudioURL:result.renderedAudioURL,downloaded:result.downloaded,output:result.output});
+    await durableJson(join(work,'quality-summary.json'),privacy.sanitize(production.qualitySummary));
     if (!config['keep-workdir'] && !config.diagnose) {
       // Only task-owned large intermediates; checkpoint hashes/IDs remain for resume.
       const sliceDir = resolve(work, 'slices'); if (!sliceDir.startsWith(work + '\\') && !sliceDir.startsWith(work + '/')) throw Error('Cleanup path escaped run');
       await rm(sliceDir, { recursive: true, force: true }); await unlink(processed);
+      for(const mode of Object.keys(jobs).filter(m=>/^[A-Z0-9_a-f-]+$/.test(m))){const qaDir=resolve(work,mode,'qa');if(!qaDir.startsWith(work+'\\')&&!qaDir.startsWith(work+'/'))throw Error('QA cleanup path escaped run');await rm(qaDir,{recursive:true,force:true});}
     }
-    await log({ event: 'run_complete', message: output, strategy, quality: result.quality }); return result;
+    await log({ event: 'run_complete', message: config.download?result.output:'Final asset remains on Suno; no product download', strategy, quality: result.quality }); return result;
   } catch (e) { await log({ event: 'run_failed', message: e.message, kind: e.kind, status: e.status, workspaceRetained: true }); throw e; }
   finally { await app?.close(); await logQueue; await unlink(lockPath); }
 }

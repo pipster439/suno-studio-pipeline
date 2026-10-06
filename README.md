@@ -105,110 +105,143 @@ create → add existing clip → save → explicit transposition → save → re
 
 ## Unified audio pipeline
 
-Node 22+, ffmpeg with the Rubber Band filter, and ffprobe must be on PATH
-(or set FFMPEG / FFPROBE). Keep the existing authenticated Tampermonkey browser
-transport connected. This command starts the existing loopback controller and
-prints its pairing URL; open it in that browser. It enables verified Studio writes
-locally for this explicitly requested workflow; the privileged browser write guard
-must already allow them. It never changes that guard or stores Suno authentication.
-
 ```powershell
-node scripts/studio-pipeline.mjs input.wav --output final.wav
-node scripts/studio-pipeline.mjs input.wav --abc-test --diagnose --keep-workdir
-node scripts/studio-pipeline.mjs --resume runs/<run-id>
-node scripts/studio-pipeline.mjs input.wav --dry-run
+node scripts/studio-pipeline.mjs song.mp3
 ```
 
-The single entry decodes PCM, applies Rubber Band +8 semitones, slices by source
-sample index, uploads with four bounded workers, creates/saves/reads back a Studio
-project, applies -8 transposition, renders, downloads, decodes WAV and checks quality.
-Sample rate and channel count are retained. There is no intermediate MP3, loudness
-normalization, limiter, compression, independent fade-in/out or automatic gain.
-Final delivery uses the account's official unlocked-song M4A endpoint; final.wav is
-decoded PCM from that compressed delivery, not a claim of lossless Studio export.
-An unavailable download entitlement fails explicitly. Player streams are not intercepted.
+The command automatically selects a challenging local PCM region, calibrates seam
+handling, slices sample-accurate WAV, uploads with four bounded workers, creates and
+saves a Studio timeline, renders and checks every internal boundary. The result
+stays on Suno by default: no final full-song file is saved locally.
 
-Options include `--chunk-seconds 6`, `--pitch-up 8`, `--studio-transpose -8`,
-`--upload-concurrency 4`, `--strategy auto|exact|preroll|crossfade`, `--preroll-ms 300`,
-`--postroll-ms 200`, `--crossfade-ms 10`, `--verbose`, `--json-log`,
-`--good-project ID --bad-project ID` (optional corresponding version IDs),
-`--abc-seconds 18` (explicit shortened *shared* experiment interval),
-`--abc-test-only` (requires `--abc-test`, omits the subsequent production render),
-`--preprocessed FILE.wav` and `--reuse-uploads JSON` (explicit hash-verified reuse).
-The default ABC interval is the entire preprocessed source. Rejected uploads fail
-without replacement attempts; use only audio you have permission to upload.
+Node 22+, ffmpeg with Rubber Band and ffprobe are required on PATH (or FFMPEG /
+FFPROBE). Keep the existing authenticated Tampermonkey Browser Bridge connected.
+The command starts the existing loopback controller and prints a local pairing URL.
+It uses the existing verified write guard and does not change authentication or
+permissions. Use only audio you have permission to upload.
 
-The observed upload service minimum is six seconds. `--minimum-slice-seconds 6`
-merges a shorter final remainder into its preceding slice, preserving every sample,
-the total duration and zero fades; actual boundaries come from that arrangement.
-For example 174.96s becomes 28 × 6s plus one 6.96s slice. Sources shorter than the
-minimum fail locally. Already-saved legacy runs keep their original cuts; upload-only
-legacy resumes adopt this minimum and reuse only hash/mapping-identical clips.
+```powershell
+node scripts/studio-pipeline.mjs song.mp3 --download
+node scripts/studio-pipeline.mjs song.mp3 --diagnose --keep-workdir
+node scripts/studio-pipeline.mjs song.mp3 --recalibrate
+node scripts/studio-pipeline.mjs --resume runs/<run-id>
+node scripts/studio-pipeline.mjs --resume runs/<run-id> --download
+node scripts/studio-pipeline.mjs song.mp3 --dry-run
+```
 
-`auto` starts with EXACT_CUT. A/B/C reports candidate anomaly distributions
-against deterministic random ordinary windows, never an absolute listening verdict.
-No result establishes a universal DSP reset root cause. `preroll` is experimental:
-the serializer proves read-offset math, but hidden DSP processing before audible
-start require separate evidence. When A/B/C supports per-clip reset, the tool first
-checks zero-transpose handled trim alignment against A (correlation ≥.95, lag ≤2ms).
-It measures 50/100/200/300/500 ms sequentially on a short prefix (four clips by
-default; `--handle-clip-count 2..10` can include an observed problem seam), then promotes
-only a measured ≥30% reduction in both mean and maximum scores, no extra anomalies,
-and matching duration. Among qualifying candidates it prefers fewer anomalies,
-then the shortest handle. `--abc-test --handle-test` explicitly runs these experiments.
-Without ABC or matching calibration evidence, auto retains exact cuts.
-To reuse a completed calibration on the same PCM source, pass
-`--strategy auto --strategy-evidence runs/<calibration>`; source hash, playback
-settings, alignment checks and qualifying measured improvement must match.
-It selects the recorded shortest qualifying handle and still analyzes every boundary
-of the full production output. Evidence for another source fails before network writes.
-This never claims that hidden DSP pre-roll
-has been observed. `crossfade` fails before network writes because the available curve
-model has not proved equal-power overlap. It does not substitute independent fades.
+`--download` saves the official native M4A delivery as
+`runs/<run-id>/song-studio-render.m4a`. `--output PATH` requires `--download`.
+An explicit .wav/.mp3/.flac output is a conversion; delivery-summary.json records
+both formats, transcoded=true and the file hash. Decoding compressed delivery to WAV does not
+establish a lossless source. An unavailable official delivery fails explicitly;
+there is no player-stream interception or entitlement workaround.
 
-Every run has `runs/<id>/config.json`, source format/hashes, upload checkpoints,
-`jobs.json`, `run.log`, and per-mode saved/readback states (privacy sanitized),
-render responses, decoded final.wav, downloaded.audio and diagnostics. ABC summary
-retains all completed A/B/C modes and failed-mode bindings, including when C fails.
-A failed render read does not
-prevent the independent continuous experiment. Acknowledged render IDs retry
-temporary 404 visibility three times using GET only, then obtain official download
-confirmation of the asset status.
-If the official download endpoint additionally confirms `invalid_asset`, the tool
-retries render once against the same saved project/version, retaining the missing
-clip ID. It does not retry an uncertain write, a processing asset or a permission
-denial; a second missing result remains a failed experiment.
-Full double precision timeline reports include
-sample-equivalent gaps; ±500/50/10 ms windows include peak/RMS/DC/derivative/zero
-crossing metrics and normal-window baselines. JSON/CSV are always produced;
-`--diagnose` additionally creates one-second boundary WAVs. Quality warnings identify
-candidate seams, duration errors, clipping, relative dips and unexpected source-relative
-silent gaps. Quiet source outros are retained as silence candidates without calling
-them newly introduced gaps. Successful default runs remove source/slice intermediates;
-failures and `--keep-workdir` / `--diagnose` retain them.
+### Automatic calibration
 
-Resume checks source and slice hashes plus sample mappings, reuses initialized clips,
-project/version/render IDs and valid downloads. A definite save rejection can retry
-against the same project. An interrupted write with an unknown remote outcome stops
-for binding reconciliation in jobs.json instead of duplicating a project/clip/render.
-Transient S3 byte transfers retry twice against the same signed object. That replay
-never applies to slot creation, initialization or Studio writes.
-Do not concurrently resume a run; remove a stale lock only after checking its PID.
-`--dry-run`, including on a production resume, performs zero network reads/writes.
-Use SUNO_CONTROLLER_BASE / SUNO_CONTROLLER_KEY to reuse an existing controller.
+The default progressive order is EXACT_CUT, then PRE_ROLL_HANDLE at 50, 100, 200,
+300 and finally 500ms. Stop at the **first passing** candidate; do not rank by lowest
+score. Post-roll is 200ms. A chunk-aligned region of up to 42s is selected using
+non-silence, envelope transient density and an adjacent-sample spectral-energy
+proxy; short sources use their entire duration. Selection metrics and reasons are
+recorded. This is a local activity heuristic, not instrument recognition or a
+claim that a short region can predict every seam in the song.
 
-Historical one-off pipeline scripts are archived under ignored
-`captures/seam-task-baseline/`; evidence is preserved. New experiments, uploads,
-rendering and analysis should use this entry. Offline tests never call real Suno.
+Each candidate uses the same PCM, timeline cuts, warp, transpose, gain=1 and
+fade=0. Independent calibration projects carry distinct run IDs. Unknown deletion
+endpoints are not used; their project/version/render relationships remain recorded.
+Identical slice content hashes reuse completed uploads within the run. Different
+handle bytes cannot reuse the same upload by logical slice index alone.
 
-`--gain-test` is an explicit, independent experiment (also usable on resume).
-It first renders/reuses A at gain=1, resamples the local PCM reference to the
-delivery sample rate, and measures fifteen aligned interior windows per slice.
-Compensation proceeds only if at least three active windows correlate ≥.9 and
-their RMS ratios agree within 5%. Separate zero/-8 modes set arrangement amplitude
-to the inverse median ratio, with zero fades; original A/B/C and production retain
-gain=1. Results/failures are checkpointed in `diagnostics/gain-experiment.json`.
-No default gain correction or strategy promotion follows this experiment.
+The centralized policy in suno/audio/quality.mjs has a versioned detector and
+threshold version. Passing requires zero anomaly, internal unexpected silent gap,
+clipping candidate and timeline gap; at least 16 active normal controls; mean score
+<=3, maximum <=6; and absolute duration error <=50ms. The fixed score guard is based
+on historical clean music scores below 2 versus failed scores above 30, and is not
+adjusted for an individual candidate. The existing detector still compares
+boundaries with 128 deterministic random ordinary windows; large derivatives alone
+are not classified as clicks. Results are **AUTOMATED QUALITY RESULT**, not a
+perceptual perfection claim. Full production QA can still warn after calibration.
+
+Successful profiles are cached at runs/cache/calibration/<fingerprint>.json.
+The fingerprint includes source and PCM content, processing implementation,
+pitch/transpose, chunk size, post-roll, bps, sample format and service minimum.
+Schema/detector/threshold mismatches invalidate it; --recalibrate forces new tests.
+Priority: explicit CLI handles/strategy > compatible cache > calibration.
+--skip-calibration without explicit handles selects the verified 50ms pre/200ms
+post default. --preroll-ms 100 cannot be overridden by a 50ms cache.
+If all candidates fail, CALIBRATION_FAILED stops before production. Only an explicit
+--allow-quality-warning permits proceeding with the last tested 500ms candidate,
+while retaining the failed status and diagnostics. No fade/crossfade is substituted.
+
+### Remote quality and workspaces
+
+Quality checks obtain the official delivery URL, probe metadata and test HTTP Range.
+Expanded FFmpeg windows expose original PTS and are cropped locally around the exact
+theoretical boundary. Two independent seeks must align within one sample with
+correlation >=.9999. Modes are RANGE, SEEK and FULL_TEMP_FALLBACK. Range support alone
+is insufficient: request/decode coverage is estimated including normal controls.
+If seek is unreliable or probes cost more than one temporary decode, delivery is
+downloaded into a QA workspace, decoded, analyzed and removed after successful QA.
+This temporary artifact is not a requested final download. Signed URL parameters
+are redacted in durable logs; resume obtains a fresh official URL.
+
+Every boundary has +/-500ms, +/-50ms and +/-10ms metrics: peak/RMS, RMS on each side,
+DC, derivative, adjacent jump and zero crossings, with normal-window baselines.
+Internal silence is compared against the corresponding local source; endpoint
+silence/padding is reported separately. Delivery tail tolerance is 50ms. Remote-only
+silence coverage is explicitly limited to boundary/control windows; fallback covers
+all PCM. JSON/CSV diagnostics and sanitized state snapshots are retained.
+
+Each run includes config.json, source-info.json, calibration.json,
+upload-results.json, jobs.json, studio-summary.json, render-summary.json,
+quality-summary.json, summary.json and run.log. Summary lists selected handles,
+project/version/render identifiers, a sanitized delivery URL, quality metrics,
+phase timings and candidates actually tested this run (cache history separately).
+Default success removes preprocessed WAV, slices and temporary full QA assets.
+Failure, --diagnose or --keep-workdir retains debugging artifacts; --diagnose also
+writes boundary snippets. --verbose shows individual upload stages; --json-log
+prints structured diagnostics. Logs do not retain browser credentials.
+
+Resume checks source hashes and reuses upload mappings and bound project/version/
+render IDs, including interruptions after calibration or render before QA.
+Completed QA is reused; a subsequent --download need not recreate or rerender the
+project. Uncertain writes stop for binding reconciliation rather than duplication.
+Do not concurrently resume a run. Remove a stale lock only after checking its PID.
+--dry-run, including production resume, performs zero network reads/writes.
+
+### Advanced parameters and existing experiments
+
+--chunk-seconds 6, --pitch-up 8, --studio-transpose -8, --upload-concurrency 4,
+--strategy auto|exact|preroll, --preroll-ms N, --postroll-ms N and --bps 1.95
+are supported. Source sample rate and channels are retained through WAV processing.
+There is no MP3 intermediate, normalization, auto gain, limiter, compression or EQ.
+Pre-roll changes source context/read offset; logical duration remains unchanged,
+with zero audible overlap/gap, zero fades and amplitude=1. The observed six-second
+upload minimum merges a short final remainder into its predecessor. For example,
+174.96s becomes 28 x 6s plus one 6.96s slice.
+
+Historical --abc-test / --handle-test / --gain-test, --preprocessed WAV,
+--reuse-uploads JSON and --strategy-evidence runs/<calibration> remain advanced
+research compatibility options, not requirements for ordinary use. Evidence
+profiles are source/config checked; gain-test remains an explicit independent
+experiment and never enables gain compensation in production. Crossfade is rejected
+until an equal-power Studio model is verified. --good-project / --bad-project and
+optional version IDs retain sanitized semantic diff diagnostics. Historical evidence
+and one-off archives under captures/seam-task-baseline/ are preserved. All new
+production/calibration runs use this one entry; offline tests never call real Suno.
+
+### Automatic production verification (2026-10-06)
+
+VERIFIED_BY_E2E on the supplied music: automatic selection chose 90–132s;
+EXACT had three candidates and 50ms pre/200ms post had zero, so search stopped
+after two candidates. Full production had 28 boundaries, zero candidates and
+zero timeline gap. Real CDN Range returned 206 and independent seeks aligned at
+zero samples with correlation 1. The fixed baseline-window cost rule selected
+FULL_TEMP_FALLBACK; default success left no audio or QA intermediates. A new
+--download run hit the calibration cache, tested zero new candidates and saved
+native M4A with measured Opus codec, without transcoding. Resume reused the same
+project/version/render and completed QA. Detailed evidence is in
+deliverables/SUNO_AUTO_CALIBRATION_20261006/REPORT.md.
 
 ### Music source verification (2026-10-06)
 
@@ -223,7 +256,7 @@ and full handled production are distinct evidence. Gain compensation did not fix
 the zero-transpose seams and remains an independent opt-in experiment.
 
 ```powershell
-node scripts/studio-pipeline.mjs "C:\Users\ROG\Downloads\music.mp3" --strategy-evidence runs/2026-10-06T12-46-45-307Z-d5e68650 --output runs/music-final.wav
+node scripts/studio-pipeline.mjs "C:\Users\ROG\Downloads\music.mp3"
 ```
 
 OBSERVED_IN_GOOD_PROJECT: live historical good state still has bps=1.95 and warp

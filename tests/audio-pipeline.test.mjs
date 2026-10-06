@@ -11,12 +11,17 @@ import { parseConfig } from '../suno/audio/config.mjs';
 import { runPipeline } from '../scripts/studio-pipeline.mjs';
 import privacy from '../shared/privacy.cjs';
 import { inspectSaveSerializedState } from '../suno/studio/state-boundaries.mjs';
+import {qualityFromDelivery} from '../suno/audio/remote-qa.mjs';
 import { estimateSliceGains } from '../suno/audio/gain.mjs';
 const fixture = JSON.parse(await readFile(new URL('../fixtures/studio_project_get.json', import.meta.url), 'utf8'));
 function signal(seconds = 20, channels = 2, rate = 8000) {
   const frames = Math.round(seconds * rate), data = Buffer.alloc(frames * channels * 4);
   for (let i = 0; i < frames; i++) for (let ch = 0; ch < channels; ch++) data.writeFloatLE(.2 * Math.sin(i / rate * 2 * Math.PI * (230 + ch * 70)), (i * channels + ch) * 4);
   return { frames, channels, sampleRate: rate, tag: 3, bits: 32, blockAlign: channels * 4, data };
+}
+async function offlineQA(options){
+  const p=options.sourcePCM,start=Math.round((options.sourceOffsetSeconds??0)*p.sampleRate),end=start+Math.round(options.expectedDuration*p.sampleRate),bytes=wav(p,start,Math.min(p.frames,end));
+  return qualityFromDelivery(options,{probe:async()=>({sampleRate:p.sampleRate,channels:p.channels,codec:'pcm_f32le',duration:options.expectedDuration}),fetch:async()=>new Response(bytes),window:async()=>{throw Error('offline seek fallback');},download:async(url,file)=>{await writeFile(file,bytes);return file;}});
 }
 test('sample slicing handles mono/stereo/multichannel, non-48k, short tail, RIFF padding and bit-exact reconstruction', () => {
   for (const channels of [1,2,6]) {
@@ -173,7 +178,7 @@ test('offline production resume keeps project after definite save rejection and 
   const dir=await mkdtemp(join(tmpdir(),'suno-resume-'));const previous=globalThis.fetch;
   try{
     const p=signal(12.012),input=join(dir,'input.wav');await writeFile(input,wav(p));
-    const config=parseConfig([input,'--preprocessed',input,'--keep-workdir','--output',join(dir,'output.wav')]);
+    const config=parseConfig([input,'--preprocessed',input,'--strategy','exact','--download','--keep-workdir','--output',join(dir,'output.wav')]);
     await writeFile(join(dir,'config.json'),JSON.stringify(config));
     const records=Object.fromEntries(slicePlan(p,{minimumSliceSeconds:6}).map(s=>[s.index,{...s,clipId:`cached-${s.index}`,uploadId:`upload-${s.index}`,status:'complete',stages:{}}]));
     await writeFile(join(dir,'upload-results.json'),JSON.stringify({exact:records}));
@@ -185,12 +190,12 @@ test('offline production resume keeps project after definite save rejection and 
       throw Error(`Unexpected offline request ${request.path}`);
     }};
     const resume=parseConfig(['--resume',dir]);
-    await assert.rejects(runPipeline(resume,{bridge,client}),/definite save rejection/);
+    await assert.rejects(runPipeline(resume,{bridge,client,qa:offlineQA}),/definite save rejection/);
     assert.equal(JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION.projectId,'existing-project');
-    await assert.rejects(runPipeline(resume,{bridge,client}),/download unavailable/);
+    await assert.rejects(runPipeline(resume,{bridge,client,qa:offlineQA}),/download unavailable/);
     assert.equal(JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION.renderClipId,'existing-render');
     downloadAvailable=true;globalThis.fetch=async()=>new Response(wav(p));
-    const result=await runPipeline(resume,{bridge,client});assert.equal(result.quality,'PASS');assert.equal(creates,1);assert.equal(saves,2);assert.equal(renders,1);
+    const result=await runPipeline(resume,{bridge,client,qa:offlineQA});assert.equal(result.quality,'PASS');assert.equal(creates,1);assert.equal(saves,2);assert.equal(renders,1);
     assert.equal(readPCM(await readFile(result.output)).frames,p.frames);
   }finally{globalThis.fetch=previous;await rm(dir,{recursive:true,force:true});}
 });
@@ -210,24 +215,24 @@ test('ABC retains completed A/C when B is rejected, and never runs production wi
       throw Error('Unexpected network');
     }};
     globalThis.fetch=async()=>new Response(wav(p));
-    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client}),/A\/B\/C incomplete/);
+    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA}),/A\/B\/C incomplete/);
     const report=JSON.parse(await readFile(join(dir,'diagnostics','abc-summary.json')));
     assert.deepEqual(report.experiments.map(e=>e.mode),['SLICED_ZERO_TRANSPOSE','CONTINUOUS_NEG8_TRANSPOSE']);assert.deepEqual(report.missing,['SLICED_NEG8_TRANSPOSE']);assert.equal(report.failures[0].status,403);assert.equal(creates,3);
     const jobs=JSON.parse(await readFile(join(dir,'jobs.json')));assert.equal(jobs.PRODUCTION,undefined);assert.ok(Object.values(jobs).every(j=>j.wire.tracks[0].clips.every(c=>c.amplitude===1)));
-    denyB=false;const completed=await runPipeline(parseConfig(['--resume',dir]),{bridge,client});assert.equal(completed.diagnosticOnly,true);assert.equal(completed.productionRun,false);assert.equal(creates,3);assert.equal(JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION,undefined);
+    denyB=false;const completed=await runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA});assert.equal(completed.diagnosticOnly,true);assert.equal(completed.productionRun,false);assert.equal(creates,3);assert.equal(JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION,undefined);
   }finally{globalThis.fetch=previous;await rm(dir,{recursive:true,force:true});}
 });
 test('confirmed missing render retries once on the same binding; a second missing render and subsequent resume do not submit again',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'suno-missing-'));
   try{
-    const p=signal(12),input=join(dir,'input.wav');await writeFile(input,wav(p));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--preprocessed',input,'--keep-workdir'])));
+    const p=signal(12),input=join(dir,'input.wav');await writeFile(input,wav(p));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--preprocessed',input,'--strategy','exact','--keep-workdir'])));
     await writeFile(join(dir,'upload-results.json'),JSON.stringify({exact:Object.fromEntries(slicePlan(p).map(s=>[s.index,{...s,clipId:`cached-${s.index}`,status:'complete',stages:{}}]))}));
     let creates=0,saves=0,renders=0,wire;const bindings=[];
     const client={create_project:async()=>{creates++;return{id:'same-project'};},save_project:async r=>{saves++;wire=inspectSaveSerializedState(r.state);return{version_id:'same-version'};},get_project_version:async()=>({state:wire}),render_project:async r=>{bindings.push([r.project_id,r.studio_project_version_id]);return{id:`missing-${++renders}`};}};
     const bridge={call:async r=>{if(r.path.startsWith('/api/clip/'))throw Object.assign(Error('Not found'),{status:404});if(r.path.startsWith('/api/download/clip/'))return{result:{ok:false,reason:'invalid_asset'}};throw Error('Unexpected request');}};
-    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client}),/Not found/);assert.equal(renders,2);assert.equal(creates,1);assert.equal(saves,1);assert.deepEqual(bindings,[['same-project','same-version'],['same-project','same-version']]);
+    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA}),/Not found/);assert.equal(renders,2);assert.equal(creates,1);assert.equal(saves,1);assert.deepEqual(bindings,[['same-project','same-version'],['same-project','same-version']]);
     const job=JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION;assert.equal(job.missingRenderRetryAttempted,true);assert.deepEqual(job.unavailableRenderIds,['missing-1']);assert.equal(job.renderClipId,'missing-2');
-    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client}),/Not found/);assert.equal(renders,2);assert.equal(creates,1);
+    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA}),/Not found/);assert.equal(renders,2);assert.equal(creates,1);
   }finally{await rm(dir,{recursive:true,force:true});}
 });
 test('explicit upload reuse verifies handle source hashes/mapping and uploads no duplicate sources',async()=>{
@@ -236,11 +241,11 @@ test('explicit upload reuse verifies handle source hashes/mapping and uploads no
     const p=signal(12),input=join(dir,'input.wav'),cache=join(dir,'cache.json');await writeFile(input,wav(p));
     const slices=slicePlan(p,{minimumSliceSeconds:6,prerollMs:300,postrollMs:200}),cached=[];
     for(const s of slices){const file=join(dir,`slice-${s.index}.wav`);await writeFile(file,wav(p,s.sourceStart,s.sourceEnd));cached.push({...s,file,clipId:`cached-handle-${s.index}`,status:'complete'});}
-    await writeFile(cache,JSON.stringify(cached));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--preprocessed',input,'--strategy','preroll','--reuse-uploads',cache,'--keep-workdir'])));
+    await writeFile(cache,JSON.stringify(cached));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--preprocessed',input,'--strategy','preroll','--preroll-ms','300','--reuse-uploads',cache,'--keep-workdir'])));
     let wire,request;
     const client={create_project:async()=>({id:'project'}),save_project:async r=>{wire=inspectSaveSerializedState(r.state);return{version_id:'version'};},get_project_version:async()=>({state:wire}),render_project:async r=>{request=r;return{id:'render'};}};
     const bridge={call:async r=>{assert.equal(r.method,'GET');if(r.path==='/api/clip/render')return{result:{id:'render',status:'complete',metadata:{studio_project_id:'project',studio_project_version_id:'version',studio_project_start_beats:0,studio_project_end_beats:request.end_beats,duration:12}}};if(r.path==='/api/download/clip/render?format=m4a')return{result:{status:'ready',download_url:'https://downloads.s3.amazonaws.com/test.m4a'}};throw Error(`Duplicate source request ${r.path}`);}};
-    globalThis.fetch=async()=>new Response(wav(p));const result=await runPipeline(parseConfig(['--resume',dir]),{bridge,client});assert.equal(result.strategy,'preroll');
+    globalThis.fetch=async()=>new Response(wav(p));const result=await runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA});assert.equal(result.strategy,'preroll');
     const store=JSON.parse(await readFile(join(dir,'upload-results.json')))['handles-300'];assert.ok(Object.values(store).every(s=>s.reusedFromHashVerifiedEvidence));
     assert.equal(wire.tracks[0].clips[1].readStartBeats,.3*1.95);assert.ok(wire.tracks[0].clips.every(c=>c.amplitude===1&&c.fadeInBeats===0&&c.fadeOutBeats===0));
   }finally{globalThis.fetch=previous;await rm(dir,{recursive:true,force:true});}

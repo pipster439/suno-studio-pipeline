@@ -37,7 +37,7 @@ function features(windows) {
     peak: Math.max(...small.map(c => c.peak)), nearClippedSamples: small.reduce((n, c) => n + c.nearClippedSamples, 0),
     clippedSamples: small.reduce((n, c) => n + c.clippedSamples, 0) };
 }
-function measure(pcm, seconds) {
+export function measureBoundary(pcm, seconds) {
   const center = Math.round(seconds * pcm.sampleRate), windows = Object.fromEntries([500, 50, 10].map(ms => [`ms${ms}`, windowMetrics(pcm, center, Math.round(ms * pcm.sampleRate / 1000))]));
   let narrowJump = 0, seamSalience = 0;
   const inner = Math.max(1, Math.round(.001 * pcm.sampleRate)), outer = Math.round(.01 * pcm.sampleRate);
@@ -51,20 +51,23 @@ function measure(pcm, seconds) {
   }
   return { timestamp: seconds, sample: center, windows, features: { ...features(windows), narrowJump, seamSalience } };
 }
-export function analyzeBoundaries(pcm, times, { baselineCount = 128, seed = 1977 } = {}) {
-  const duration = pcm.frames / pcm.sampleRate, normals = []; let rand = seed >>> 0;
+export function normalProbeTimes(duration,times,{baselineCount=128,seed=1977}={}) {
+  const normals=[];let rand=seed>>>0;
   for (let attempt = 0; normals.length < baselineCount && attempt < baselineCount * 100; attempt++) {
     rand = (Math.imul(rand, 1664525) + 1013904223) >>> 0;
     const t = .5 + rand / 2 ** 32 * Math.max(0, duration - 1);
     if (duration < 1 || times.some(b => Math.abs(t - b) < .55)) continue;
-    normals.push(measure(pcm, t));
+    normals.push(t);
   }
+  return normals;
+}
+export function analyzeMeasurements(measurements,normals,{duration,sampleRate,channels,seed=1977}={}) {
   const keys = ['jump', 'exactJump', 'isolation', 'rmsStepDb', 'dcStep', 'spikeDb', 'dipDb','narrowJump','seamSalience'];
   // Silent outro windows must not make the relative dip baseline hundreds of dB.
   const activeNormals = normals.filter(n => n.features.audibleRms >= .001);
   const baseline = Object.fromEntries(keys.map(k => [k, { median: quantile(activeNormals.map(x => x.features[k]), .5), p95: quantile(activeNormals.map(x => x.features[k]), .95), p99: quantile(activeNormals.map(x => x.features[k]), .99) }]));
-  const boundaries = times.map((t, index) => {
-    const m = measure(pcm, t), f = m.features, findings = [];
+  const boundaries = measurements.map((m, index) => {
+    const f = m.features, findings = [];
     const elevated = (key, floor) => activeNormals.length >= 16 && f[key] > Math.max(floor, baseline[key].p99 * 1.3);
     // A large derivative alone is NOT a click. Require isolated impulse plus unusual
     // DC/energy/adjacent seam behavior relative to deterministic non-boundary controls.
@@ -77,10 +80,14 @@ export function analyzeBoundaries(pcm, times, { baselineCount = 128, seed = 1977
     const score = activeNormals.length >= 16 ? (f.audibleRms < .001 ? 0 : Math.max(...keys.map(k => Math.max(0, (f[k] - baseline[k].median) / Math.max(.001, baseline[k].p99 - baseline[k].median))))) : null;
     return { index, ...m, score, findings, anomaly: findings.length > 0 };
   });
-  return { version: 1, detector: 'heuristic candidates; not a perceptual click verdict', duration, sampleRate: pcm.sampleRate, channels: pcm.channels,
+  return { version: 1, detector: 'heuristic candidates; not a perceptual click verdict', duration, sampleRate, channels,
     baselineCount: activeNormals.length, normalWindowCount: normals.length, baselineSeed: seed, baseline, normalWindows: normals.map(n => ({ timestamp: n.timestamp, features: n.features })),
     boundaryCount: boundaries.length, detectedAnomalyCount: boundaries.filter(b => b.anomaly).length,
     averageBoundaryScore: mean(boundaries.map(b => b.score ?? 0)), maxBoundaryScore: Math.max(0, ...boundaries.map(b => b.score ?? 0)), boundaries };
+}
+export function analyzeBoundaries(pcm,times,options={}) {
+  const duration=pcm.frames/pcm.sampleRate;
+  return analyzeMeasurements(times.map(t=>measureBoundary(pcm,t)),normalProbeTimes(duration,times,options).map(t=>measureBoundary(pcm,t)),{duration,sampleRate:pcm.sampleRate,channels:pcm.channels,seed:options.seed??1977});
 }
 export function classifyABC(a, b, c) {
   if (![a, b, c].every(x => x && x.baselineCount >= 16 && x.boundaries.length && x.responseValidated)) return 'INSUFFICIENT_EVIDENCE';
@@ -90,9 +97,9 @@ export function classifyABC(a, b, c) {
   if (flagged(b) && flagged(c)) return 'INVESTIGATE_TRANSPOSITION_PREPROCESS_RENDER';
   return flagged(a) || flagged(b) || flagged(c) ? 'INCONCLUSIVE' : 'NO_DETECTED_ANOMALY';
 }
-export function qualityGate(analysis, expectedDuration, metadataDuration) {
+export function qualityGate(analysis, expectedDuration, metadataDuration, {codecTailToleranceMs=50}={}) {
   const warnings = analysis.boundaries.flatMap(b => b.findings.map(f => ({ ...f, boundaryIndex: b.index, timestamp: b.timestamp })));
-  const tolerance = Math.max(.05, 2 / analysis.sampleRate);
+  const tolerance = Math.max(codecTailToleranceMs/1000, 2 / analysis.sampleRate);
   if (Math.abs(analysis.duration - expectedDuration) > tolerance) warnings.push({ metric: 'duration', severity: 'warning', expected: expectedDuration, actual: analysis.duration, tolerance });
   if (metadataDuration != null && Math.abs(analysis.duration - metadataDuration) > tolerance) warnings.push({ metric: 'render_duration_metadata', severity: 'warning', expected: metadataDuration, actual: analysis.duration });
   return { status: warnings.length ? 'QUALITY WARNING' : 'PASS', expectedDuration, actualDuration: analysis.duration, warnings };

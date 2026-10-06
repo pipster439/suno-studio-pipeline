@@ -6,11 +6,11 @@ const execute = promisify(execFile);
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export async function ffmpeg(args) { return execute(process.env.FFMPEG || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', ...args], { maxBuffer: 4 * 1024 * 1024 }); }
 export async function probe(file) {
-  const { stdout } = await execute(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file]);
+  const { stdout } = await execute(process.env.FFPROBE || 'ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file],{timeout:30000,maxBuffer:4*1024*1024});
   const info = JSON.parse(stdout), stream = info.streams.find(s => s.codec_type === 'audio');
   if (!stream) throw Error('Input has no audio stream');
   return { sampleRate: Number(stream.sample_rate), channels: stream.channels, channelLayout: stream.channel_layout ?? null,
-    codec: stream.codec_name, sampleFormat: stream.sample_fmt, duration: Number(stream.duration ?? info.format.duration) };
+    codec: stream.codec_name, formatName: info.format.format_name, sampleFormat: stream.sample_fmt, duration: Number(stream.duration ?? info.format.duration) };
 }
 export function readPCM(bytes) {
   if (bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WAVE') throw Error('Expected RIFF WAV PCM');
