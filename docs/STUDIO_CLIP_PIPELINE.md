@@ -196,3 +196,13 @@ SDK 使用显式的 save_project_id / render project_id / studio_project_id / st
 - **OBSERVED (offline only)**：A–H replay 演练成功，不升级 live VERIFIED。B/D/F 未保存编辑通过后续 C/E/G persisted state 自动关联，条件预测与独立预测在报告中分开。
 
 详见 render/capture/status 文档和 `suno/studio/uploader-compatibility.json`。原 fixture、旧报告及旧证据包原样保留。
+
+## AUTO_CHUNK production placement
+
+The orchestration default is `--chunk-seconds auto`. After local inverse PCM processing,
+choose the minimum feasible clip count within read-only server duration limits and known
+upload byte capacity. Balanced integer sample cuts reconstruct the entire PCM without
+rounding gaps or short tails. One clip forces zero handles/fades and skips seam calibration.
+Multiple clips default to a full EXACT render and real internal-boundary QA before any
+handle experiments. Numeric chunk duration remains an explicit legacy research option.
+Catalog, permission and unknown-outcome failures never trigger repartition retries.

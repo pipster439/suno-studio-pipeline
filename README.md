@@ -109,11 +109,12 @@ create → add existing clip → save → explicit transposition → save → re
 node scripts/studio-pipeline.mjs song.mp3
 ```
 
-The command reads the Studio target profile, derives the supported local inverse
-once, then automatically selects a challenging local PCM region, calibrates seam
-handling, slices sample-accurate WAV, uploads with four bounded workers, creates and
-saves and reads back every clip post-processing/warp/trim field, renders and checks
-every internal boundary. The result
+The command defaults to `--chunk-seconds auto`. It reads the Studio profile and
+applies the supported local inverse once. **AUTO_CHUNK minimizes clip count** from
+the resulting PCM duration, sample format, WAV upload bytes and verified upload
+constraints: one clip is preferred to two, two to three, and so on. It uploads with
+four bounded workers, saves/reads back the Studio state, renders and runs remote QA.
+The result
 stays on Suno by default: no final full-song file is saved locally.
 
 Observed formant is neutral (0%) and volume is 0 dB. The half/double speed buttons
@@ -146,15 +147,38 @@ both formats, transcoded=true and the file hash. Decoding compressed delivery to
 establish a lossless source. An unavailable official delivery fails explicitly;
 there is no player-stream interception or entitlement workaround.
 
-### Automatic calibration
+### AUTO_CHUNK and conditional seam calibration
 
-The default progressive order is EXACT_CUT, then PRE_ROLL_HANDLE at 50, 100, 200,
-300 and finally 500ms. Stop at the **first passing** candidate; do not rank by lowest
-score. Post-roll is 200ms. A chunk-aligned region of up to 42s is selected using
-non-silence, envelope transient density and an adjacent-sample spectral-energy
-proxy; short sources use their entire duration. Selection metrics and reasons are
-recorded. This is a local activity heuristic, not instrument recognition or a
-claim that a short region can predict every seam in the song.
+The observed server upload window is 6–480 seconds; actual runs refresh only
+`audio_upload_limits` from the existing read endpoint. This does not modify account
+permissions. A service file-size maximum is used only when established by a signed
+upload policy or a definite size rejection; unknown size limits are not invented.
+WAV bytes are calculated from the actual sample rate/channels/PCM format, including
+header and padding. Planning happens **after local inverse preprocessing**.
+
+One clip: EXACT_CUT, zero internal boundaries, no pre/post handles, fades or
+crossfade, and **no seam calibration**. General duration/quality checks still run.
+
+Multiple clips: approximately equal sample-accurate chunks with the minimum feasible
+count. The default first renders the full EXACT timeline and checks its real internal
+boundaries. A passing render is reused as production; it is not rendered twice.
+Only measured internal seam warnings trigger mitigation calibration. Unrelated
+endpoint codec padding or duration warnings do not trigger handle search.
+
+After an exact seam failure, test PRE_ROLL_HANDLE at 50, 100, 200, 300 and finally
+500ms, stopping at the **first passing** candidate, with 200ms post-roll. Short local
+context around a measured real cut is used; large chunks may supply only one actual
+boundary in that test. The tool does not invent six-second boundaries for calibration.
+Numeric chunk duration retains the legacy short-region calibration path for research.
+
+A definite ordinary duration/size constraint or exhausted safe S3 transfer failure
+can reduce the candidate from one clip to two, then three, always seeking the smallest
+successful count. Previously uploaded identical WAV hashes are reused. Catalog/content
+matching, permissions, authentication, exhausted rate limits, unknown processing
+errors and writes with uncertain outcomes stop; changing cuts is never used to retry
+those rejections. `chunk-selection.json` records constraints, cuts, actual upload byte
+sizes and attempts. The final summary reports PREPROCESSED DURATION, CHUNK STRATEGY,
+CLIP COUNT and INTERNAL BOUNDARY COUNT.
 
 Each candidate uses the same PCM, timeline cuts, warp, transpose, gain=1 and
 fade=0. Independent calibration projects carry distinct run IDs. Unknown deletion
@@ -174,12 +198,15 @@ perceptual perfection claim. Full production QA can still warn after calibration
 
 Successful profiles are cached at runs/cache/calibration/<fingerprint>.json.
 The fingerprint includes source and PCM content, processing implementation,
-pitch/transpose, chunk size, post-roll, bps, sample format and service minimum.
+pitch/transpose, chunk mode, actual auto cuts/count, post-roll, bps, sample format and service minimum.
 Schema/detector/threshold mismatches invalidate it; --recalibrate forces new tests.
-Priority: explicit CLI handles/strategy > compatible cache > calibration.
+For multiple clips: explicit CLI handles/strategy > compatible mitigation cache > calibration.
+The ordinary AUTO_CHUNK path always checks EXACT first, even when a mitigation cache exists.
+One clip always forces EXACT without handles, including with an explicit handle override.
 --skip-calibration without explicit handles selects the verified 50ms pre/200ms
 post default. --preroll-ms 100 cannot be overridden by a 50ms cache.
-If all candidates fail, CALIBRATION_FAILED stops before production. Only an explicit
+If all mitigation candidates fail, CALIBRATION_FAILED stops before a mitigated production render;
+the acknowledged EXACT diagnostic render remains recorded. Only an explicit
 --allow-quality-warning permits proceeding with the last tested 500ms candidate,
 while retaining the failed status and diagnostics. No fade/crossfade is substituted.
 
@@ -202,7 +229,7 @@ silence/padding is reported separately. Delivery tail tolerance is 50ms. Remote-
 silence coverage is explicitly limited to boundary/control windows; fallback covers
 all PCM. JSON/CSV diagnostics and sanitized state snapshots are retained.
 
-Each run includes config.json, source-info.json, calibration.json,
+Each run includes config.json, source-info.json, calibration.json, chunk-selection.json (auto),
 upload-results.json, jobs.json, studio-summary.json, render-summary.json,
 quality-summary.json, summary.json and run.log. Summary lists selected handles,
 project/version/render identifiers, a sanitized delivery URL, quality metrics,
@@ -221,15 +248,17 @@ Do not concurrently resume a run. Remove a stale lock only after checking its PI
 
 ### Advanced parameters and existing experiments
 
---chunk-seconds 6, --studio-pitch -8, --studio-speed 1, --studio-stretch on,
+--chunk-seconds auto, --studio-pitch -8, --studio-speed 1, --studio-stretch on,
 --studio-formant 0, --studio-volume 1, --upload-concurrency 4,
 --strategy auto|exact|preroll, --preroll-ms N, --postroll-ms N and --bps 1.95
 are supported. Source sample rate and channels are retained through WAV processing.
 There is no MP3 intermediate, normalization, auto gain, limiter, compression or EQ.
 Pre-roll changes source context/read offset; logical duration remains unchanged,
 with zero audible overlap/gap, zero fades and amplitude=1. The observed six-second
-upload minimum merges a short final remainder into its predecessor. For example,
-174.96s becomes 28 x 6s plus one 6.96s slice.
+upload minimum is a lower compatibility bound, not the normal chunk size. Explicit
+`--chunk-seconds 6` remains for diagnosis/legacy research only; its short tail is merged
+into the preceding slice. Historical `--abc-test`, `--gain-test` and
+`--strategy-evidence` require an explicit numeric chunk size.
 
 Historical --abc-test / --handle-test / --gain-test, --preprocessed WAV,
 --reuse-uploads JSON and --strategy-evidence runs/<calibration> remain advanced
@@ -241,7 +270,7 @@ optional version IDs retain sanitized semantic diff diagnostics. Historical evid
 and one-off archives under captures/seam-task-baseline/ are preserved. All new
 production/calibration runs use this one entry; offline tests never call real Suno.
 
-### Automatic production verification (2026-10-06)
+### Historical six-second production verification (2026-10-06)
 
 VERIFIED_BY_E2E on the supplied music: automatic selection chose 90–132s;
 EXACT had three candidates and 50ms pre/200ms post had zero, so search stopped

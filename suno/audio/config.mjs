@@ -14,13 +14,15 @@ export function parseConfig(args) {
     if (bools.has(key)) { if (inline !== undefined) throw Error(`Boolean --${key} takes no value`); values[key] = true; continue; }
     if (!numbers[key] && !strings.has(key)) throw Error(`Unknown option: --${key}`);
     const v = inline ?? args[++i]; if (v === undefined || v.startsWith('--')) throw Error(`Missing value for --${key}`);
-    if (numbers[key]) { const n = Number(v), [, min, max] = numbers[key]; if (!Number.isFinite(n) || n < min || n > max || ['upload-concurrency','handle-clip-count'].includes(key) && !Number.isInteger(n)) throw Error(`Invalid --${key}`); values[key] = n; }
+    if (key === 'chunk-seconds' && v === 'auto') values[key] = 'auto';
+    else if (numbers[key]) { const n = Number(v), [, min, max] = numbers[key]; if (!Number.isFinite(n) || n < min || n > max || ['upload-concurrency','handle-clip-count'].includes(key) && !Number.isInteger(n)) throw Error(`Invalid --${key}`); values[key] = n; }
     else values[key] = v;
   }
   if (!values.help && !input && !values.resume && !values['postprocess-test']) throw Error('Audio input or --resume is required');
   if (!['auto','exact','preroll','crossfade'].includes(values.strategy)) throw Error('Invalid strategy');
   if(values['strategy-evidence']&&values.strategy!=='auto')throw Error('--strategy-evidence requires --strategy auto');
-  if (values['chunk-seconds'] < values['minimum-slice-seconds']) throw Error('--chunk-seconds must reach --minimum-slice-seconds');
+  if (!provided.includes('chunk-seconds')) values['chunk-seconds'] = 'auto';
+  if (values['chunk-seconds'] !== 'auto' && values['chunk-seconds'] < values['minimum-slice-seconds']) throw Error('--chunk-seconds must reach --minimum-slice-seconds');
   if (values.output && !['.m4a','.mp4','.wav','.mp3','.flac'].includes(extname(values.output).toLowerCase())) throw Error('--output supports .m4a/.mp4/.wav/.mp3/.flac');
   if(values.output&&!values.download&&!values.resume)throw Error('--output requires explicit --download');
   if(values['recalibrate']&&values['skip-calibration'])throw Error('--recalibrate conflicts with --skip-calibration');

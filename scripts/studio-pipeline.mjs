@@ -14,6 +14,7 @@ import { preprocess, probe, decode, readPCM, slicePlan, writeSlice, sha256, veri
 import { estimateSliceGains } from '../suno/audio/gain.mjs';
 import {sourceFingerprint,validCalibrationCache,strategyOverride,progressiveCalibration,selectCalibrationRegion,calibrationPlan,CALIBRATION_SCHEMA} from '../suno/audio/calibration.mjs';
 import {QUALITY_THRESHOLDS} from '../suno/audio/quality.mjs';
+import {AUTO_CHUNK_VERSION,normalizeUploadConstraints,autoChunkPlan,planForCuts,chunkSummary,assertUploadPlan,technicalChunkFailure,needsSeamMitigation,actualBoundaryRegion} from '../suno/audio/chunk-strategy.mjs';
 import {qualityFromDelivery,saveDeliveryAsset} from '../suno/audio/remote-qa.mjs';
 import { analyzeBoundaries, writeAnalysis, qualityGate, silentGaps, classifyABC, windowMetrics } from '../suno/audio/boundaries.mjs';
 import { buildTimeline, timelineReport, semanticDiff, chooseHandleStrategy } from '../suno/audio/timeline.mjs';
@@ -30,13 +31,15 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pause = ms => new Promise(r => setTimeout(r, ms));
 const readJson = async (file, fallback) => { try { return JSON.parse(await readFile(file, 'utf8')); } catch (e) { if (e.code === 'ENOENT' && fallback !== undefined) return fallback; throw e; } };
 const help = `Usage: node scripts/studio-pipeline.mjs song.mp3 [options]
-Default: automatic short-region calibration, Studio render and remote QA;
+Default: AUTO_CHUNK minimizes clip count within verified upload constraints;
+EXACT render first, seam mitigation only if actual internal boundary QA fails;
 the final asset stays on Suno. Only --download saves the delivery locally.
 --download [--output PATH] --recalibrate --skip-calibration --allow-quality-warning
 --studio-profile default --studio-pitch -8 --studio-speed 1 --studio-stretch on
 --studio-volume 1 --studio-formant 0 --studio-quantize 1/2 --local-pitch N
 Speed 0.5 applies the half-speed ACTION; default preserves verified identity timing.
---chunk-seconds 6 (legacy --pitch-up / --studio-transpose aliases are explicit overrides)
+--chunk-seconds auto (default); numeric seconds are diagnostic/legacy fixed cuts
+(legacy --pitch-up / --studio-transpose aliases are explicit overrides)
 --minimum-slice-seconds 6 (merge a shorter final slice into its predecessor)
 --upload-concurrency 4 --strategy auto|exact|preroll|crossfade
 --preroll-ms 50 --postroll-ms 200 --crossfade-ms 10
@@ -167,6 +170,11 @@ export async function runPipeline(requested, deps = {}) {
       }
     }
     if (config.strategy === 'crossfade') throw Error('Equal-power overlap crossfade has not been verified; no substitute fades applied');
+    const autoChunk=config['chunk-seconds']==='auto';
+    if(autoChunk&&(config['abc-test']||config['gain-test']||config['strategy-evidence']))throw Error('Legacy seam experiments require explicit numeric --chunk-seconds (e.g. 6)');
+    const observedLimits=await readJson(join(root,'fixtures/audio_upload_constraints.json'));
+    let uploadLimits=normalizeUploadConstraints(deps.uploadConstraints??observedLimits,config['minimum-slice-seconds']);
+    let chunkSelection=autoChunk?await readJson(join(work,'chunk-selection.json'),null):null;
     const planOptions = {chunkSeconds:config['chunk-seconds'],minimumSliceSeconds:config['minimum-slice-seconds']};
     let strategy = config.strategy === 'auto' ? 'exact' : config.strategy;
     const override=strategyOverride(config);
@@ -186,15 +194,19 @@ export async function runPipeline(requested, deps = {}) {
       await durableJson(join(work,'config.json'),privacy.sanitize(config));
       await durableJson(join(work,'diagnostics-strategy-selection.json'),{strategy,prerollMs:selected.prerollMs,postrollMs:config['postroll-ms'],sourceHash:preprocessedHash,evidenceRun:evidenceRoot,calibrationDuration:handles.baseline.duration,scope:'matching source and playback settings; full output still requires quality gate'});
     }
-    const commonPlan = slicePlan(pcm, planOptions);
+    let commonPlan=autoChunk?(chunkSelection?.cuts?planForCuts(pcm,chunkSelection.cuts):autoChunkPlan(pcm,uploadLimits)):slicePlan(pcm,planOptions);
+    if(autoChunk&&(commonPlan[0].start!==0||commonPlan.at(-1).end!==pcm.frames))throw Error('Auto chunk checkpoint does not cover the complete preprocessed source');
+    if(autoChunk){strategy=commonPlan.length===1?'exact':strategy;chunkSelection=chunkSummary(pcm,commonPlan,uploadLimits,chunkSelection?.attempts??[]);config.chunkSelection=chunkSelection;await durableJson(join(work,'chunk-selection.json'),chunkSelection);}
+    const productionPlan=options=>autoChunk?planForCuts(pcm,[commonPlan[0].start,...commonPlan.map(c=>c.end)],commonPlan.length===1?{}:options):slicePlan(pcm,{...planOptions,...options});
     await durableJson(join(work,'slice-plan.json'),commonPlan);
-    const previewPlan = strategy === 'preroll' ? slicePlan(pcm, { ...planOptions, prerollMs: config['preroll-ms'], postrollMs: config['postroll-ms'] }) : commonPlan;
+    const previewPlan = strategy === 'preroll' ? productionPlan({prerollMs:config['preroll-ms'],postrollMs:config['postroll-ms']}) : commonPlan;
     const dryState = buildTimeline(template, previewPlan.map(s => ({ ...s, clipId: `offline-slice-${s.index}` })), { transpose: config['studio-transpose'], title: 'Dry run', bps: config.bps, profile:studioProfile });
     await durableJson(join(work, 'diagnostics-local-timeline.json'), privacy.sanitize(timelineReport(dryState, commonPlan, pcm.sampleRate)));
     if (config['dry-run']) {
       await writeAnalysis(join(work, 'diagnostics'), analyzeBoundaries(pcm, commonPlan.slice(1).map(s => s.startSec)), pcm, false);
       await log({ event: 'dry_run_complete', message: 'zero network reads/writes; sample plan and timeline validated', slices: commonPlan.length });
-      return { work, dryRun: true, networkWrites: 0 };
+      if(autoChunk)await log({event:'AUTO_CHUNK',...chunkSelection});
+      return {work,dryRun:true,networkWrites:0,preprocessedDuration:pcm.frames/pcm.sampleRate,chunkStrategy:autoChunk?'AUTO_CHUNK':'FIXED_SECONDS',clipCount:commonPlan.length,internalBoundaryCount:commonPlan.length-1,strategy:commonPlan.length===1?'exact':strategy};
     }
     let bridge = deps.bridge, client = deps.client;
     if(!bridge){const connected=await connectPipelineBridge(config,log);bridge=connected.bridge;app=connected.app;}
@@ -205,6 +217,15 @@ export async function runPipeline(requested, deps = {}) {
     }};
     client ??= new StudioClient(observedBridge, { allow_verified_studio_writes: true });
     await collectProjectDiff(client, config, join(work, 'diagnostics'));
+    if(autoChunk&&bridge instanceof SunoBridge&&!deps.uploadConstraints){
+      const response=await retry429(()=>bridge.call({method:'GET',path:'/api/billing/info/',timeoutMs:30000}),{log});
+      uploadLimits=normalizeUploadConstraints({audio_upload_limits:response.result?.audio_upload_limits,evidence:{status:'LIVE_SERVER_RESPONSE',path:'audio_upload_limits',fetchedAt:new Date().toISOString()}},config['minimum-slice-seconds']);
+      if(chunkSelection.constraints?.maxUploadBytes)uploadLimits.maxUploadBytes=chunkSelection.constraints.maxUploadBytes;
+      const triedMinimum=Math.max(1,...chunkSelection.attempts.filter(a=>a.status==='TECHNICAL_FAILURE').map(a=>a.clipCount+1));
+      if(!Object.values(jobs).some(j=>j.projectId))commonPlan=autoChunkPlan(pcm,uploadLimits,{minimumClipCount:triedMinimum});
+      else assertUploadPlan(pcm,commonPlan,uploadLimits);
+      chunkSelection=chunkSummary(pcm,commonPlan,uploadLimits,chunkSelection.attempts);config.chunkSelection=chunkSelection;await durableJson(join(work,'chunk-selection.json'),chunkSelection);
+    }
     const sharedUploadDir=join(root,'runs','cache','uploads');
     const sharedUploadsEnabled=deps.sharedUploadCache??(!deps.bridge||deps.bridge instanceof SunoBridge);
     if(sharedUploadsEnabled)await mkdir(sharedUploadDir,{recursive:true});
@@ -212,7 +233,8 @@ export async function runPipeline(requested, deps = {}) {
     async function uploads(group, plan) {
       const dir = join(work, 'slices', group); await mkdir(dir, { recursive: true });
       const uploadStarted=performance.now();
-      const results=await boundedMap(plan, config['upload-concurrency'], async s => {
+      const failures=[];
+      const results=await boundedMap(plan, config['upload-concurrency'], async s => {try {
         let record = uploadStore[group]?.[s.index];
         if (resumableSlice(record, s) && record.status === 'complete') { await log({ event: 'upload_reused', index: s.index, mode: group }); return record; }
         if (record && !resumableSlice(record,s)) await log({event:'slice_mapping_changed',mode:group,index:s.index,oldHash:record.localHash,newHash:s.localHash,oldClipId:record.clipId ?? null});
@@ -226,10 +248,10 @@ export async function runPipeline(requested, deps = {}) {
           if (bytes && sha256(bytes) === s.localHash) { record = { ...s, clipId: cache.clipId, uploadId: cache.uploadId, status: 'complete', reusedFromHashVerifiedEvidence: true, stages: {} }; await checkpoint(group, record); await log({ event: 'upload_reused', index: s.index, mode: group }); return record; }
         }
         const file = join(dir, `slice_${String(s.index).padStart(3, '0')}.wav`); await writeSlice(pcm, s, file);
-        const uploaded=await uploadSlice(bridge, s, file, record, r => checkpoint(group, r), log);
+        const uploaded=await (deps.uploadSlice??uploadSlice)(bridge, s, file, record, r => checkpoint(group, r), log);
         if(sharedUploadsEnabled)await durableJson(join(sharedUploadDir,s.localHash+'.json'),{localHash:s.localHash,clipId:uploaded.clipId,uploadId:uploaded.uploadId,status:'complete',createdAt:new Date().toISOString()});
         return uploaded;
-      });
+      }catch(error){failures.push(error);throw error;}}).catch(error=>{error.concurrentUploadFailures=failures;throw error;});
       const ms=performance.now()-uploadStarted;timings.uploadsMs=(timings.uploadsMs??0)+ms;await log({event:'phase_timing',mode:group,message:'uploads',milliseconds:ms});return results;
     }
     async function render(mode, slices, transpose, probeTimes, strategy = 'exact', options={}) {
@@ -365,10 +387,38 @@ export async function runPipeline(requested, deps = {}) {
       return{summary,analysis,wire,gate,qualitySummary:qa.qualitySummary};
     }
     await durableJson(join(work,'config.json'),privacy.sanitize(config));
-    const fingerprint=sourceFingerprint(inputHash,pcm,config),cacheFile=join(root,'runs','cache','calibration',fingerprint.sourceFingerprint+'.json');
+    async function minimumSuccessfulUploads(handleOptions={}) {
+      let plan=productionPlan(handleOptions);
+      for(;;){
+        const candidate=chunkSummary(pcm,plan,uploadLimits,chunkSelection.attempts);
+        await log({event:'AUTO_CHUNK',message:`duration=${candidate.preprocessedDuration}s clips=${candidate.clipCount} internal boundaries=${candidate.internalBoundaryCount}`, ...candidate});
+        const group=`AUTO_${handleOptions.prerollMs??0}_${plan.length}_${candidate.uploadPlanHash.slice(0,8)}`;
+        try{assertUploadPlan(pcm,plan,uploadLimits);const clips=await uploads(group,plan);const previousSuccess=candidate.attempts.find(a=>a.status==='SUCCESS'&&(a.planHash===candidate.planHash||!a.planHash&&a.clipCount===plan.length&&a.preRollMs===(handleOptions.prerollMs??0)));if(previousSuccess)previousSuccess.planHash=candidate.planHash;else candidate.attempts.push({clipCount:plan.length,preRollMs:handleOptions.prerollMs??0,planHash:candidate.planHash,status:'SUCCESS'});chunkSelection=candidate;config.chunkSelection=chunkSelection;commonPlan=planForCuts(pcm,candidate.cuts);await durableJson(join(work,'chunk-selection.json'),chunkSelection);await durableJson(join(work,'slice-plan.json'),commonPlan);return clips;}
+        catch(error){const terminal=error.concurrentUploadFailures?.find(e=>!technicalChunkFailure(e));if(terminal)throw terminal;const failure=technicalChunkFailure(error);if(!failure)throw error;
+          candidate.attempts.push({clipCount:plan.length,status:'TECHNICAL_FAILURE',...failure});
+          if(failure.maxUploadBytes)uploadLimits={...uploadLimits,maxUploadBytes:Math.min(uploadLimits.maxUploadBytes??Infinity,failure.maxUploadBytes)};
+          chunkSelection=candidate;config.chunkSelection=chunkSelection;await durableJson(join(work,'chunk-selection.json'),chunkSelection);
+          const next=autoChunkPlan(pcm,uploadLimits,{minimumClipCount:plan.length+1,...handleOptions});
+          chunkSelection=chunkSummary(pcm,next,uploadLimits,candidate.attempts);config.chunkSelection=chunkSelection;commonPlan=planForCuts(pcm,chunkSelection.cuts);await durableJson(join(work,'chunk-selection.json'),chunkSelection);await log({event:'auto_chunk_downgrade',message:`${plan.length} -> ${next.length} clips: ${failure.reason}`});plan=next;
+        }
+      }
+    }
+    let autoExactResult=null;
+    const boundBeforeChunk=jobs.PRODUCTION_PREROLL??jobs.PRODUCTION;
+    if(autoChunk&&!boundBeforeChunk?.projectId){
+      const exact=await minimumSuccessfulUploads();
+      if(commonPlan.length>1&&override)strategy=override.strategy;
+      if(commonPlan.length>1&&!override){const started=performance.now();autoExactResult=await render('PRODUCTION_EXACT_PROBE',exact,config['studio-transpose'],undefined,'exact',{calibration:true});timings.exactProductionProbeMs=performance.now()-started;}
+    }
+    await durableJson(join(work,'config.json'),privacy.sanitize(config));
+    let fingerprint=sourceFingerprint(inputHash,pcm,config),cacheFile=join(deps.calibrationCacheDir??join(root,'runs','cache','calibration'),fingerprint.sourceFingerprint+'.json');
     let calibration=await readJson(join(work,'calibration.json'),null);
     const boundProduction=jobs.PRODUCTION_PREROLL??jobs.PRODUCTION;
-    if(boundProduction?.projectId){
+    if(autoChunk&&commonPlan.length===1){
+      strategy='exact';calibration={status:'SKIPPED_NO_INTERNAL_BOUNDARIES',chosenStrategy:'exact',preRollMs:0,postRollMs:0,testedCandidates:[],reason:'One clip has no internal seams'};
+    }else if(autoExactResult&&!needsSeamMitigation(autoExactResult.qualitySummary)){
+      strategy='exact';calibration={status:'EXACT_PRODUCTION_QA',chosenStrategy:'exact',preRollMs:0,postRollMs:0,testedCandidates:[],exactQuality:autoExactResult.qualitySummary};
+    }else if(boundProduction?.projectId){
       if(requested.provided?.includes('recalibrate'))throw Error('Cannot recalibrate an already bound production run; start a new run');
       strategy=jobs.PRODUCTION_PREROLL?'preroll':'exact';
       calibration??={status:'BOUND_PRODUCTION_RESUME',chosenStrategy:strategy,preRollMs:config['preroll-ms'],postRollMs:strategy==='preroll'?config['postroll-ms']:0};
@@ -380,12 +430,14 @@ export async function runPipeline(requested, deps = {}) {
       else if(validCalibrationCache(cache,fingerprint.sourceFingerprint)&&!config.recalibrate){calibration={...cache,cacheHit:true};}
       else{
         const continuing=['RUNNING','CALIBRATION_FAILED'].includes(calibration?.status)&&calibration.sourceFingerprint===fingerprint.sourceFingerprint&&calibration.qualityThresholdVersion===QUALITY_THRESHOLDS.version&&!requested.provided?.includes('recalibrate');
-        const region=continuing?calibration.region:selectCalibrationRegion(pcm,commonPlan);
-        calibration={schemaVersion:CALIBRATION_SCHEMA,...fingerprint,createdAt:continuing?calibration.createdAt:new Date().toISOString(),runId:continuing?calibration.runId:randomUUID(),calibration:true,region,chunkSeconds:config['chunk-seconds'],pitchUp:config['pitch-up'],studioTranspose:config['studio-transpose'],qualityThresholdVersion:QUALITY_THRESHOLDS.version,detectorVersion:QUALITY_THRESHOLDS.detectorVersion,status:'RUNNING',testedCandidates:continuing?calibration.testedCandidates:[]};
+        const region=continuing?calibration.region:autoChunk?actualBoundaryRegion(pcm,commonPlan,autoExactResult?.analysis,uploadLimits):selectCalibrationRegion(pcm,commonPlan);
+        const exactEvidence=autoExactResult?{strategy:'exact',preRollMs:0,postRollMs:0,qualityPass:false,qualityThresholdVersion:QUALITY_THRESHOLDS.version,qualitySummary:autoExactResult.qualitySummary,renderId:autoExactResult.summary.renderClipId,scope:'FULL_PRODUCTION_ACTUAL_BOUNDARIES'}:null;
+        calibration={schemaVersion:CALIBRATION_SCHEMA,...fingerprint,createdAt:continuing?calibration.createdAt:new Date().toISOString(),runId:continuing?calibration.runId:randomUUID(),calibration:true,region,chunkSeconds:config['chunk-seconds'],pitchUp:config['pitch-up'],studioTranspose:config['studio-transpose'],qualityThresholdVersion:QUALITY_THRESHOLDS.version,detectorVersion:QUALITY_THRESHOLDS.detectorVersion,status:'RUNNING',testedCandidates:continuing?calibration.testedCandidates:exactEvidence?[exactEvidence]:[]};
         await durableJson(join(work,'calibration.json'),privacy.sanitize(calibration));
         const selected=await progressiveCalibration(async candidate=>{
           candidatesTestedThisRun++;
           const plan=calibrationPlan(pcm,commonPlan,region,{...planOptions,prerollMs:candidate.preRollMs,postrollMs:candidate.postRollMs});
+          if(autoChunk)assertUploadPlan(pcm,plan,uploadLimits);
           const mode=`CALIBRATION_${calibration.runId.slice(0,8)}_${candidate.preRollMs}`,clips=await uploads(mode,plan),result=await render(mode,clips,config['studio-transpose'],undefined,candidate.strategy,{calibration:true,sourceOffsetSeconds:region.sourceStart});
           return{boundaryCount:result.qualitySummary.boundaryCount,anomalyCount:result.qualitySummary.anomalyCount,averageScore:result.qualitySummary.averageScore,maxScore:result.qualitySummary.maxScore,renderId:result.summary.renderClipId,projectId:result.summary.projectId,versionId:result.summary.versionId,qualitySummary:result.qualitySummary};
         },{postRollMs:config['postroll-ms'],testedCandidates:calibration.testedCandidates,checkpoint:async tested=>{calibration.testedCandidates=tested;await durableJson(join(work,'calibration.json'),privacy.sanitize(calibration));}});
@@ -481,12 +533,18 @@ export async function runPipeline(requested, deps = {}) {
       const result={work,diagnosticOnly:true,abc:abc.classification,experiments:abc.experiments,productionRun:false};
       await durableJson(join(work,'summary.json'),result);await log({event:'diagnosis_complete',message:abc.classification});return result;
     }
-    const finalPlan = slicePlan(pcm, { ...planOptions, ...(strategy === 'preroll' ? { prerollMs: config['preroll-ms'], postrollMs: config['postroll-ms'] } : {}) });
-    const uploaded = await uploads(strategy === 'exact' ? 'exact' : `handles-${config['preroll-ms']}`, finalPlan);
+    const handleOptions=strategy==='preroll'?{prerollMs:config['preroll-ms'],postrollMs:config['postroll-ms']}:{};
+    if(autoChunk&&strategy==='preroll'){
+      try{assertUploadPlan(pcm,productionPlan(handleOptions),uploadLimits);}catch{commonPlan=autoChunkPlan(pcm,uploadLimits,{minimumClipCount:commonPlan.length,...handleOptions});await log({event:'auto_chunk_handle_capacity',message:'Balanced cuts/count adjusted to keep actual handle WAV uploads within verified constraints'});}
+    }
+    const finalPlan=productionPlan(handleOptions);
+    const uploaded=autoChunk?await minimumSuccessfulUploads(handleOptions):await uploads(strategy==='exact'?'exact':`handles-${config['preroll-ms']}`,finalPlan);
+    if(autoChunk){const resolved=sourceFingerprint(inputHash,pcm,config);if(resolved.sourceFingerprint!==fingerprint.sourceFingerprint){if(calibration)calibration.productionCutsChanged=true;fingerprint=resolved;}await durableJson(join(work,'config.json'),privacy.sanitize(config));if(calibration)await durableJson(join(work,'calibration.json'),privacy.sanitize(calibration));}
+
     const productionMode = strategy === 'exact' ? 'PRODUCTION' : 'PRODUCTION_PREROLL';
     // A completed controlled experiment can already be the exact production render.
     // Reuse its verified project/version binding instead of requesting identical DSP twice.
-    const matchingMode = strategy === 'exact' ? 'SLICED_NEG8_TRANSPOSE' : `HANDLE_ALIGNED_${config['preroll-ms']}`;
+    const matchingMode = strategy === 'exact' ? (autoChunk?'PRODUCTION_EXACT_PROBE':'SLICED_NEG8_TRANSPOSE') : `HANDLE_ALIGNED_${config['preroll-ms']}`;
     const matching = jobs[matchingMode];
     if (!jobs[productionMode] && matching?.phase === 'complete') {
       const planned = buildTimeline(template,uploaded,{transpose:config['studio-transpose'],title:'Production',bps:config.bps,strategy,profile:studioProfile});
@@ -502,10 +560,11 @@ export async function runPipeline(requested, deps = {}) {
     await mkdir(join(work, 'diagnostics'), { recursive: true });
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.json'), join(work, 'diagnostics', 'boundaries.json'));
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.csv'), join(work, 'diagnostics', 'boundaries.csv'));
+    timings.calibrationTotalMs??=0;
     Object.assign(timings,{productionCreateSaveMs:production.summary.timings?.createSaveMs,productionRenderWaitMs:production.summary.timings?.renderWaitMs,productionQualityProbeMs:production.summary.timings?.qualityProbeMs,totalElapsedMs:performance.now()-totalStarted});
-    const result={work,studioProfile,localInverse,...production.summary,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!config.download};
+    const result={work,studioProfile,localInverse,...production.summary,preprocessedDuration:pcm.frames/pcm.sampleRate,chunkStrategy:autoChunk?'AUTO_CHUNK':'FIXED_SECONDS',clipCount:uploaded.length,internalBoundaryCount:uploaded.length-1,chunkSelection:autoChunk?chunkSelection:undefined,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!config.download};
     await durableJson(join(work,'summary.json'),privacy.sanitize(result));
-    await durableJson(join(work,'studio-summary.json'),{projectId:result.projectId,versionId:result.versionId,strategy:result.strategy,preRollMs:result.preRollMs,postRollMs:result.postRollMs});
+    await durableJson(join(work,'studio-summary.json'),{projectId:result.projectId,versionId:result.versionId,strategy:result.strategy,preRollMs:result.preRollMs,postRollMs:result.postRollMs,preprocessedDuration:result.preprocessedDuration,chunkStrategy:result.chunkStrategy,clipCount:result.clipCount,internalBoundaryCount:result.internalBoundaryCount});
     await durableJson(join(work,'render-summary.json'),{renderedClipId:result.renderClipId,renderedAudioURL:result.renderedAudioURL,downloaded:result.downloaded,output:result.output});
     await durableJson(join(work,'quality-summary.json'),privacy.sanitize(production.qualitySummary));
     if (!config['keep-workdir'] && !config.diagnose) {

@@ -34,7 +34,7 @@ export function resumableSlice(record, slice) { return record?.localHash === sli
 export async function uploadSlice(bridge, slice, file, record, checkpoint, log) {
   const bytes = await readFile(file); if (sha256(bytes) !== slice.localHash) throw Error('Slice hash changed before upload');
   if (!resumableSlice(record, slice)) record = { ...slice, status: 'pending', stages: {} };
-  const stage = async (name, fn) => { const t = performance.now(); const result = await retry429(fn, { log }); record.stages[name] = (record.stages[name] ?? 0) + performance.now() - t; await log({ event: 'upload_stage', index: slice.index, stage: name, milliseconds: record.stages[name] }); return result; };
+  const stage = async (name, fn) => { const t = performance.now();let result;try{result=await retry429(fn,{log});}catch(error){error.uploadStage=name;throw error;}record.stages[name] = (record.stages[name] ?? 0) + performance.now() - t; await log({ event: 'upload_stage', index: slice.index, stage: name, milliseconds: record.stages[name] }); return result; };
   const call = async (method, path, body) => (await bridge.call({ method, path, ...(body === undefined ? {} : { body }), timeoutMs: 30000 })).result;
   if (record.status === 'complete' && record.clipId) return record;
   if (record.status === 'rejected' || record.processingError) { record.status='rejected'; await checkpoint(record); throw Error(`Previously rejected upload: ${record.processingError?.errorType ?? 'unknown'}; no replacement upload attempted`); }
@@ -51,16 +51,26 @@ export async function uploadSlice(bridge, slice, file, record, checkpoint, log) 
       throw Error('Upload parameters unavailable: bridge must preserve scoped presigned upload data in transit');
     }
     record.uploadId = slot.id; record.status = 'slot_created'; await checkpoint(record);
+    const policyText=slot.fields.policy??slot.fields.Policy;
+    let policy;try{policy=JSON.parse(Buffer.from(policyText??'', 'base64').toString('utf8'));}catch{}
+    const range=policy?.conditions?.find(c=>Array.isArray(c)&&c[0]==='content-length-range');
+    if(range&&Number.isSafeInteger(range[2])){record.uploadSizeConstraint={maxUploadBytes:range[2],source:'SIGNED_S3_CONTENT_LENGTH_RANGE'};await checkpoint(record);}
+    if(range&&Number.isSafeInteger(range[2])&&bytes.length>range[2]) {
+      const error=Error('WAV exceeds the signed upload size constraint');error.kind='technical_upload_constraint';error.constraintReason='size';error.maxUploadBytes=range[2];throw error;
+    }
     // Signed credentials are ephemeral and must never enter checkpoint/log/evidence.
     await stage('S3_upload', async () => {
       const u = new URL(slot.url); if (u.protocol !== 'https:' || !/\.amazonaws\.com$/.test(u.hostname)) throw Error('Unexpected S3 upload destination');
       const form = new FormData(); for (const [k, v] of Object.entries(slot.fields)) form.append(k, v); form.append('file', new Blob([bytes], { type: 'audio/wav' }), basename(file));
       // Bytes to the same signed object can be replayed safely. Slot creation,
       // finish, initialize and Studio writes do not inherit this network retry.
-      await retryS3Transfer(async()=>{
+      try {await retryS3Transfer(async()=>{
         const res = await fetch(u, { method: 'POST', body: form, signal: AbortSignal.timeout(600000) });
         if (!res.ok) { const e = Error(`S3 HTTP ${res.status}`); e.status = res.status; e.retryAfter = res.headers.get('retry-after'); throw e; }
-      },{log:e=>log({...e,index:slice.index})});
+      },{log:e=>log({...e,index:slice.index})});}catch(error){
+        if(error instanceof TypeError&&/fetch failed/i.test(error.message)||['ECONNRESET','ETIMEDOUT','EPIPE'].includes(error.cause?.code)||error.status>=500&&error.status<=599){error.kind='technical_upload_constraint';error.constraintReason='transfer';}
+        throw error;
+      }
     });
     record.status = 's3_complete'; await checkpoint(record);
   }
@@ -76,7 +86,12 @@ export async function uploadSlice(bridge, slice, file, record, checkpoint, log) 
           record.status = 'rejected';
           record.processingError = { errorType: processed.error_type ?? null, errorMessage: processed.error_message ?? null };
           await checkpoint(record); await log({ event: 'upload_processing_failed', index: slice.index, ...record.processingError });
-          throw Error(`Suno upload processing failed (${processed.error_type ?? 'unknown'}): ${processed.error_message ?? 'no detail'}`);
+          const error=Error(`Suno upload processing failed (${processed.error_type ?? 'unknown'}): ${processed.error_message ?? 'no detail'}`);
+          error.uploadErrorType=processed.error_type??null;
+          const reason=`${processed.error_type??''} ${processed.error_message??''}`;
+          if(/duration.*(?:exceed|too.long|maximum)|too.long.*duration/i.test(reason)){error.kind='technical_upload_constraint';error.constraintReason='duration';}
+          if(/(?:file|upload).*(?:too.large|size.limit)|size.*(?:exceed|maximum)/i.test(reason)){error.kind='technical_upload_constraint';error.constraintReason='size';}
+          throw error;
         } await sleep(2000); }
       throw Error('Upload processing timed out; resume reuses upload id');
     });

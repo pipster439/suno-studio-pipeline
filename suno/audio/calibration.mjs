@@ -1,11 +1,13 @@
 import {resolveStudioProfile} from './postprocessing-profile.mjs';
 import {deriveLocalInverse} from './inverse-profile.mjs';
 import {sample,sha256,slicePlan,wav}from'./pcm.mjs';
+import {planForCuts} from './chunk-strategy.mjs';
 import{QUALITY_THRESHOLDS,calibrationPass}from'./quality.mjs';
 export const CALIBRATION_SCHEMA=2;
 export function sourceFingerprint(inputHash,pcm,config) {
   const profile=config.studioProfile??resolveStudioProfile(config),inverse=config.localInverse??deriveLocalInverse(profile,config);
   const preprocessConfig={implementation:'ffmpeg-rubberband-quality-v1',studioProfileHash:profile.hash,localInverseProfileVersion:inverse.version,localTempo:inverse.tempoMultiplier,localTempoEngine:inverse.tempoEngine??'legacy_rubberband',inverseGain:inverse.requestedGain,warpStrategyVersion:profile.warpStrategyVersion,studioProfileHash:profile.hash,localInverseProfileVersion:inverse.version,localTempo:inverse.tempoMultiplier,localTempoEngine:inverse.tempoEngine??'legacy_rubberband',inverseGain:inverse.requestedGain,warpStrategyVersion:profile.warpStrategyVersion,inputHash,pcmContentHash:sha256(pcm.data),pitchUp:config['pitch-up'],studioTranspose:config['studio-transpose'],chunkSeconds:config['chunk-seconds'],minimumSliceSeconds:config['minimum-slice-seconds'],bps:config.bps,postRollMs:config['postroll-ms'],sampleFormat:{tag:pcm.tag,bits:pcm.bits,sampleRate:pcm.sampleRate,channels:pcm.channels}};
+  if(config['chunk-seconds']==='auto')preprocessConfig.autoChunk={version:config.chunkSelection?.version,planHash:config.chunkSelection?.planHash};
   return {sourceFingerprint:sha256(JSON.stringify(preprocessConfig)),preprocessConfig};
 }
 export function validCalibrationCache(cache,fingerprint) {
@@ -37,5 +39,6 @@ export function selectCalibrationRegion(pcm,plan) {
   return {...selected,whySelected:'Highest deterministic activity score among chunk-aligned short regions: envelope transients + adjacent-sample spectral-energy proxy + non-silence; no instrument inference',methodVersion:1,candidateCount:candidates.length,logicalBoundaryCount:count-1,shortSource:plan.length<7};
 }
 export function calibrationPlan(pcm,fullPlan,region,options) {
+  if(region.cuts)return planForCuts(pcm,region.cuts,options).map(s=>({...s,start:s.start-region.startFrame,end:s.end-region.startFrame,startSec:s.startSec-region.sourceStart,endSec:s.endSec-region.sourceStart}));
   return slicePlan(pcm,options).slice(region.startIndex,region.startIndex+region.count).map((s,index)=>({...s,index,originalIndex:s.index,start:s.start-region.startFrame,end:s.end-region.startFrame,startSec:(s.start-region.startFrame)/pcm.sampleRate,endSec:(s.end-region.startFrame)/pcm.sampleRate,localHash:sha256(wav(pcm,s.sourceStart,s.sourceEnd))}));
 }

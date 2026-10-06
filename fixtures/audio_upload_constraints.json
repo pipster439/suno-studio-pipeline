@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "minDurationSeconds": 6,
+  "maxDurationSeconds": 480,
+  "maxUploadBytes": null,
+  "evidence": {
+    "status": "OBSERVED_SERVER_RESPONSE",
+    "capturedAt": "2026-10-04T17:04:30.816Z",
+    "source": "captures/2026-10-04T17-03-59-172Z-6555881e/059-response.json",
+    "path": "body.audio_upload_limits",
+    "refreshEndpoint": "/api/billing/info/",
+    "scope": "Upload limits only; no entitlement changes. File-size maximum not established by this response."
+  }
+}
