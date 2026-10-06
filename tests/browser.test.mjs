@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
+import privacy from '../shared/privacy.cjs';
 class CE extends Event { constructor(n, opts) { super(n); this.detail = opts?.detail; } }
 test('actual browser app correlates replies, times out, cancels on disconnect and reconnects without replay', async () => {
   const w = new EventTarget(), elements = new Map(), sockets = [], tasks = new Map(); let clockId = 0;
@@ -15,7 +16,7 @@ test('actual browser app correlates replies, times out, cancels on disconnect an
   const sandbox = { window: w, document: { getElementById: get }, location: { hash: '#fixture-local-key', host: '127.0.0.1:3000', origin: 'http://127.0.0.1:3000' },
     history: { replaceState() {} }, sessionStorage: { getItem() { return ''; }, setItem() {} }, CustomEvent: CE, WebSocket: WS,
     setTimeout: (f, delay) => { tasks.set(++clockId, { f, delay }); return clockId; }, clearTimeout: (id) => tasks.delete(id), setInterval: () => 1,
-    SunoPrivacy: { redact: (v) => v } };
+    SunoPrivacy: privacy };
   vm.runInNewContext(await readFile(new URL('../web/app.js', import.meta.url), 'utf8'), sandbox);
   const ws = sockets[0]; ws.readyState = 1; ws.onopen();
   const requests = [], cancels = [];

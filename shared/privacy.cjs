@@ -59,7 +59,28 @@
     for (const [key, v] of Object.entries(value)) output[key] = /^(?:content-type|content-length|accept|cache-control|date|server)$/i.test(key) ? string(String(v)) : MASK;
     return output;
   }
-  const api = { redact, url, body, headers, MASK };
+  // Operational upload credentials may cross the authenticated loopback transport
+  // only for the exact create-slot response. Evidence/log paths still use redact.
+  function transportResponse(value, { method, path } = {}) {
+    const clean = redact(value);
+    if (method === 'GET' && /^\/api\/download\/clip\/[A-Za-z0-9_-]+\?format=(?:m4a|mp3)$/.test(path ?? '') && value?.ok === true && value.status === 200 && value.result?.status === 'ready') {
+      try { const u = new URL(value.result.download_url);
+        if (u.protocol === 'https:' && /(?:\.amazonaws\.com|\.cloudfront\.net|\.suno\.ai|\.suno\.com)$/.test(u.hostname)) clean.result.download_url = value.result.download_url;
+      } catch { /* Fail closed on unknown signed download destination. */ }
+      return clean;
+    }
+    if (method !== 'POST' || path !== '/api/uploads/audio/' || value?.ok !== true || value.status !== 200 || !value.result?.id) return clean;
+    const slot = value.result;
+    try {
+      const destination = new URL(slot.url);
+      if (destination.protocol !== 'https:' || !/\.amazonaws\.com$/.test(destination.hostname) || !slot.fields || typeof slot.fields !== 'object') return clean;
+      const allowed = /^(?:key|policy|signature|AWSAccessKeyId|acl|success_action_status|Content-Type|x-amz-(?:algorithm|credential|date|signature|security-token))$/i;
+      if (Object.entries(slot.fields).some(([k, v]) => !allowed.test(k) || typeof v !== 'string')) return clean;
+      clean.result.url = slot.url; clean.result.fields = { ...slot.fields };
+    } catch { /* Keep normal sanitization on unexpected response shapes. */ }
+    return clean;
+  }
+  const api = { redact, url, body, headers, transportResponse, MASK };
   if (typeof module !== 'undefined') module.exports = api;
   else root.SunoPrivacy = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

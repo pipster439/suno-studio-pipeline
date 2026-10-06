@@ -7,3 +7,4 @@ userscripts/reference-recorder.user.js
 userscripts/studio-validation.user.js
 *.log
 .env
+runs/

@@ -3,10 +3,11 @@ let socket, retry, delay = 500, reconnect = true;
 let key = location.hash.slice(1) || sessionStorage.getItem('controller-key') || '';
 history.replaceState(null, '', '/'); $('key').value = key;
 const inflight = new Map();
+const pendingCalls = new Map();
 const show = (value) => { $('result').textContent = JSON.stringify(SunoPrivacy.redact(value), null, 2); };
 function send(value) { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value)); }
 function dispatch(name, detail) { window.dispatchEvent(new CustomEvent(name, { detail })); }
-function cancel(id) { const p = inflight.get(id); if (!p) return; clearTimeout(p); inflight.delete(id); dispatch('suno-console-upload-cancel', { requestId: id }); }
+function cancel(id) { const p = inflight.get(id); if (!p) return; clearTimeout(p); inflight.delete(id); pendingCalls.delete(id); dispatch('suno-console-upload-cancel', { requestId: id }); }
 function connect() {
   clearTimeout(retry); if (socket && socket.readyState < 2) return;
   key = $('key').value; if (!key) return show({ error: '请填写启动终端中的配对码' });
@@ -35,6 +36,7 @@ function connect() {
       inflight.set(m.id, setTimeout(() => {
         cancel(m.id); send({ type: 'suno_api_response', requestId: m.id, ok: false, kind: 'timeout', error: 'browser timeout' });
       }, m.timeoutMs));
+      pendingCalls.set(m.id, { method: m.method, path: m.path });
       dispatch('suno-console-upload-request', { requestId: m.id, path: m.path, method: m.method, bodyJson: m.body === undefined ? undefined : JSON.stringify(m.body), verifiedStudioWrite: m.verifiedStudioWrite === true });
     } else if (m.type === 'suno_api_cancel') cancel(m.id);
   };
@@ -51,7 +53,8 @@ function connect() {
 window.addEventListener('suno-console-upload-response', (e) => {
   const data = e.detail || {}; if (!inflight.has(data.requestId)) return;
   clearTimeout(inflight.get(data.requestId)); inflight.delete(data.requestId);
-  send({ ...SunoPrivacy.redact(data), type: 'suno_api_response' });
+  const context = pendingCalls.get(data.requestId); pendingCalls.delete(data.requestId);
+  send({ ...SunoPrivacy.transportResponse(data, context), type: 'suno_api_response' });
 });
 window.addEventListener('suno-local-auth-state', (e) => {
   send({ type: 'auth_status', ready: e.detail?.ready === true, state: String(e.detail?.state || 'unknown'), version: e.detail?.version, buildId: e.detail?.buildId });

@@ -35,7 +35,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
   const server = http.createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    const reply = (status, value) => { if (res.destroyed) return; res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(privacy.redact(value))); };
+    const reply = (status, value, context) => { if (res.destroyed) return; res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(context ? privacy.transportResponse(value, context) : privacy.redact(value))); };
     try {
       if (req.headers.host !== new URL(origin).host) return reply(403, { error: { kind: 'permission_error', message: 'Host rejected; use 127.0.0.1' } });
       const path = new URL(req.url, origin).pathname;
@@ -95,7 +95,7 @@ export async function createController({ port = 3000, captureRoot = resolve(root
         const call = path === '/api/probe' ? { method: 'GET', path: '/api/session/', timeoutMs: 30000 } : body;
         const abort = new AbortController(); res.on('close', () => { if (!res.writableEnded) abort.abort(); });
         const result = await hub.call(call, { signal: abort.signal });
-        return reply(200, path === '/api/probe' ? { ok: true, status: result.status, requestId: result.requestId, evidence: 'real transport response; no Studio operation verified' } : result);
+        return reply(200, path === '/api/probe' ? { ok: true, status: result.status, requestId: result.requestId, evidence: 'real transport response; no Studio operation verified' } : result, path === '/api/call' ? body : undefined);
       }
       if (path === '/api/cancel') return reply(200, { cancelled: hub.cancel(body.requestId) });
       if (path === '/api/capture/start') { const result = await captures.start(body.label); broadcast(); return reply(200, result); }

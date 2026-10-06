@@ -35,7 +35,9 @@ replace('function callSunoApi(path, method = \'GET\', body) {', `function callSu
       const startedAt = performance.now();`);
 replace('resolve(result);', 'resolve({ body: result, status: response.status, durationMs: performance.now() - startedAt });');
 replace('ok: true, result }', 'ok: true, result: result.body, status: result.status, durationMs: result.durationMs }');
-replace('error.status = response.status;', 'error.status = response.status; error.details = SunoPrivacy.body(result);');
+replace('error.status = response.status;', `error.status = response.status; error.details = SunoPrivacy.body(result);
+        const retryAfter = String(response.responseHeaders || '').match(/^retry-after:\\s*(.+)$/im)?.[1]?.trim();
+        if (retryAfter) error.details = { ...(error.details || {}), retryAfter };`);
 replace('status: error.status }', 'status: error.status, details: error.details, kind: error.kind }');
 source = source.replaceAll("new Error('无法连接 Suno，请检查网络或登录状态')", "Object.assign(new Error('无法连接 Suno，请检查网络或登录状态'), { kind: 'network_error' })");
 source = source.replaceAll("new Error('上传请求已取消')", "Object.assign(new Error('上传请求已取消'), { kind: 'cancelled' })");
