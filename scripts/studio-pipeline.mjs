@@ -51,7 +51,8 @@ Studio pitch -8 / relative speed x0.5 / Stretch On restores original timing.
 --preroll-ms 50 --postroll-ms 200 --crossfade-ms 10
 --dry-run --keep-workdir --verbose --json-log --resume runs/RUN
 --render-timeout-seconds 900 --delivery-timeout-seconds 180 (durable jobs; never auto-resubmit)
---export-strategy verified_studio_export (default) | verified_legacy_render | experimental_fullsong_export
+--export-strategy verified_legacy_render (default page result) | verified_studio_export | experimental_fullsong_export
+--require-library defaults to verified_studio_export unless a strategy is explicit
 --resume-render-id ID (select an already acknowledged, exactly bound historical job)
 Advanced research compatibility:
 --postprocess-test (synthetic API/render matrix; UI mapping remains NOT VERIFIED)

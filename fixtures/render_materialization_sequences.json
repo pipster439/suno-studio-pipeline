@@ -8,6 +8,10 @@
     "restrictedDelivery": [{"ok":false,"reason":"not_authorized"}],
     "expectedRestrictedState": "DELIVERY_RESTRICTED"
   },
+  "sameFullRangeRecovery": [
+    {"exportMode":"fullsong_export","fullRange":true,"duration":243.87918367346938,"materialized":false,"state":"TIMEOUT","elapsedMs":902436},
+    {"exportMode":"rendered_context_window","fullRange":true,"duration":243.87918367346938,"materialized":true,"state":"RENDER_READY","elapsedMs":25012}
+  ],
   "bothLongModesHaveCompletionEvidence": [
     {"exportMode":"rendered_context_window","fullRange":true,"duration":182.72727083333334,"materialized":true},
     {"exportMode":"fullsong_export","fullRange":true,"duration":182.72727083333334,"materialized":true}

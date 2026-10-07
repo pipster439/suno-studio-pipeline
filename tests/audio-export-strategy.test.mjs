@@ -5,10 +5,14 @@ import { exportModeFor, classifyRenderComparison } from '../suno/audio/export-st
 import { parseConfig } from '../suno/audio/config.mjs';
 import { prepareFullSongExport, describeExportRequest, exportCompletionStatus } from '../suno/audio/studio-export.mjs';
 import { buildRenderProjectRequest } from '../suno/studio/request-builders.mjs';
+import {selectAcknowledgedRender} from '../suno/audio/render-lifecycle.mjs';
 const fixture=JSON.parse(await readFile(new URL('../fixtures/studio_project_get.json',import.meta.url)));
 const sequences=JSON.parse(await readFile(new URL('../fixtures/render_materialization_sequences.json',import.meta.url)));
-test('formal Studio default and explicit context alternate have validated CLI configuration',()=>{
-  assert.equal(exportModeFor(parseConfig(['input.wav'])['export-strategy']),'fullsong_export');
+test('page-result default, strict Library default and explicit overrides choose their observed modes',()=>{
+  assert.equal(exportModeFor(parseConfig(['input.wav'])['export-strategy']),'rendered_context_window');
+  assert.equal(exportModeFor(parseConfig(['input.wav','--require-library'])['export-strategy']),'fullsong_export');
+  assert.equal(exportModeFor(parseConfig(['input.wav','--require-library','--export-strategy','verified_legacy_render'])['export-strategy']),'rendered_context_window');
+  assert.equal(exportModeFor(parseConfig(['input.wav','--export-strategy','verified_studio_export'])['export-strategy']),'fullsong_export');
   assert.equal(exportModeFor(parseConfig(['input.wav','--export-strategy','experimental_fullsong_export'])['export-strategy']),'fullsong_export');
   assert.throws(()=>parseConfig(['input.wav','--export-strategy','unknown']),/Invalid export/);
   assert.throws(()=>parseConfig(['input.wav','--resume-render-id','known']),/requires --resume/);
@@ -39,4 +43,17 @@ test('materialized account clip without QA delivery is not RUN SUCCESS',()=>{
   assert.equal(status.renderReady,true);assert.equal(status.deliveryResolved,false);assert.equal(status.runSuccess,false);
   job.renderJobs[0].terminalFailure={status:'error'};
   assert.equal(exportCompletionStatus(job,binding).renderReady,false);
+});
+
+test('explicit full-range context recovery retains timeout history and rejects unrelated replacements',()=>{
+  assert.equal(classifyRenderComparison(sequences.sameFullRangeRecovery),'MODE_DEPENDENT_MATERIALIZATION_OBSERVED');
+  assert.equal(sequences.sameFullRangeRecovery[0].terminalFailure,undefined);
+  const binding={projectId:'project',versionId:'version',startBeats:0,endBeats:475.5644081632653};
+  const original={id:'timedout-full',state:'TIMEOUT',binding,exportMode:'fullsong_export',submittedAt:'2026-10-07T00:00:00Z'};
+  const candidate={id:'ready-context',state:'RENDER_READY',binding,exportMode:'rendered_context_window',submittedAt:'2026-10-07T00:15:00Z'};
+  const job={renderClipId:original.id,renderJobs:[original]},experiment={renderJobs:[candidate]};
+  selectAcknowledgedRender(job,[job,experiment],candidate.id,binding);
+  assert.equal(job.renderClipId,candidate.id);assert.equal(job.exportMode,'rendered_context_window');assert.equal(job.renderJobs[0].state,'TIMEOUT');assert.equal(job.renderJobs.length,2);
+  assert.throws(()=>selectAcknowledgedRender(job,[job,experiment],candidate.id,{...binding,endBeats:24}),/not acknowledged/);
+  assert.throws(()=>selectAcknowledgedRender(job,[job,experiment],'invented-id',binding),/not acknowledged/);
 });

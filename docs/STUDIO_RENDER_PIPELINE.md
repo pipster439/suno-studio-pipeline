@@ -69,8 +69,10 @@ dispatches POST `/api/studio/render-state` after save/version readback verificat
 No frontend Export button is involved. The full-song contract uses the latest
 save-returned version ID and a render transform/serialization of that readback,
 with `start_beats=0`, `end_beats=max(saved arrangement.endBeats)`,
-`export_mode=fullsong_export` and `render_engine=v2`. The diagnostic context
-alternate also supplies the observed `from_studio_project_id`. End is never derived from
+`export_mode=rendered_context_window` and `render_engine=v2` for the default page result.
+It also supplies the observed `from_studio_project_id`. Formal Library mode remains
+`fullsong_export/v2`, selected by `--require-library` or an explicit strategy.
+End is never derived from
 uploaded PCM duration or just one clip. At the default inverse, 91.363628 seconds
 uploaded restores a 182.727256-second timeline, ending at 356.31814965986393 beats.
 
@@ -150,7 +152,8 @@ ciphertext (encoding 1.0.0), not a usable delivery. Official song UI also return
 ## Formal Library export correction (2026-10-07)
 
 `rendered_context_window` completion and playback prove an intermediate asset.
-They do not prove formal Studio export. The production default follows the
+They do not prove formal Studio export. The default page-result workflow uses
+the observed full-range context path. Optional Library export follows the
 observed StudioV2ExportMenu full-song branch: `fullsong_export`, engine `v2`.
 Its `onRenderedClip` callback sets local UI state and displays the saved-song link;
 no additional finalize/register mutation was found in that observed call chain.
@@ -182,3 +185,10 @@ The current 182.727s fullsong controlled render did not become readable within
 15 minutes; its durable ID is retained. This is unresolved, not permanent-loss
 proof, entitlement proof, or a verified duration limit. Historical 24s and
 174.96s Library Studio exports remain readable.
+
+On the 243.87918367346938s saved project, fullsong metadata remained absent through
+the 900s timeout, while an explicit context-mode comparison completed in ~25s at
+the identical version, render state hash and full range. Its complete metadata
+duration was 243.8791875s. The original ID remains acknowledged; no automated
+replacement POST is added. This is mode-dependent materialization evidence for
+that project, not a permanent-failure diagnosis or a universal latency guarantee.

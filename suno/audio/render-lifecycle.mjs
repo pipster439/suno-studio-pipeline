@@ -252,5 +252,6 @@ export async function resolveRenderDelivery(job, { bridge, binding, snapshots = 
   }
   const failed = records.every(r => r.terminalFailure);
   job.phase = failed ? 'render_failed' : 'render_timeout'; await persist();
-  throw Object.assign(Error(failed ? 'Render FAILED: explicit server terminal failure; acknowledged IDs retained' : 'Render TIMEOUT: delivery unresolved; acknowledged IDs retained, resume without resubmission'), { kind: failed ? 'render_failed' : 'render_timeout', outcomes });
+  const stage=job.renderLifecycle?.stage??'metadata';
+  throw Object.assign(Error(failed ? 'Render FAILED: explicit server terminal failure; acknowledged IDs retained' : `Render TIMEOUT: ${stage} unresolved; acknowledged IDs retained, resume without resubmission`), { kind: failed ? 'render_failed' : 'render_timeout', outcomes, ...(failed?{}:{stage}) });
 }

@@ -23,8 +23,8 @@ test('backend full-song export covers restored timeline for one or multiple clip
     const state=stateFor(n),out=prepareFullSongExport(saved(state),{projectId:'project',versionId:'latest-save-version',title:'Export'});
     assert.equal(out.endBeats,24*1.95);assert.equal(out.preview.body.start_beats,0);
     assert.equal(out.preview.body.studio_project_version_id,'latest-save-version');
-    assert.equal(out.preview.body.export_mode,'fullsong_export');assert.equal(out.preview.body.render_engine,'v2');
-    assert.equal(out.preview.body.from_studio_project_id,undefined);
+    assert.equal(out.preview.body.export_mode,'rendered_context_window');assert.equal(out.preview.body.render_engine,'v2');
+    assert.equal(out.preview.body.from_studio_project_id,'project');
     assert.equal(out.preview.body.state.tracks[0].clips[0].transposition,-8);
     assert.equal(describeExportRequest(out.preview).arrangementCount,n);
   }
@@ -64,7 +64,7 @@ test('production dispatches real SDK POST after readback, uses latest version/fu
   const dir=await mkdtemp(join(tmpdir(),'studio-backend-export-'));let state,renderBody,metadata,reads=0,deliveries=0,clock=Date.now(),libraryVisible=true;const calls=[];
   try{
     const source=syntheticReference(24),input=join(dir,'input.wav');await writeFile(input,wav(source));
-    await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--keep-workdir'])));
+    await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--keep-workdir','--export-strategy','verified_studio_export'])));
     const bridge={call:async q=>{
       calls.push({method:q.method,path:q.path});
       if(q.path.startsWith('/api/studio/create-project'))return{status:200,result:{id:'project',title:'Export',created_at:'2026-10-07T00:00:00Z',updated_at:'2026-10-07T00:00:00Z',archived:false,major_version:2}};

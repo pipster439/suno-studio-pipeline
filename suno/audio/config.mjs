@@ -21,7 +21,7 @@ export function parseConfig(args) {
   }
   if (!values.help && !input && !values.resume && !values['postprocess-test']) throw Error('Audio input or --resume is required');
   values.open ??= false; values['require-library'] ??= false;
-  values['export-strategy'] ??= DEFAULT_EXPORT_STRATEGY;
+  values['export-strategy'] ??= values['require-library']?'verified_studio_export':DEFAULT_EXPORT_STRATEGY;
   exportModeFor(values['export-strategy']);
   if (values['resume-render-id'] && (!values.resume || !/^[A-Za-z0-9_-]+$/.test(values['resume-render-id']))) throw Error('--resume-render-id requires --resume and an acknowledged ID');
   if (!['auto','exact','preroll','crossfade'].includes(values.strategy)) throw Error('Invalid strategy');

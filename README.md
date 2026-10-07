@@ -249,7 +249,9 @@ phase timings and candidates actually tested this run (cache history separately)
 Default success removes preprocessed WAV, slices and temporary full QA assets.
 
 Production exports use the authenticated backend after verified save/readback,
-with full-song range from the saved timeline and `verified_studio_export` (`fullsong_export/v2`).
+with full-song range from the saved timeline and `verified_legacy_render`
+(`rendered_context_window/v2`). `--require-library` selects `verified_studio_export`
+(`fullsong_export/v2`) for new runs unless a strategy is explicitly supplied.
 No Studio UI Export click is required. `run-status.json` declares COMPLETE only
 after the acknowledged render metadata materializes with the saved binding and
 the official Suno song page is accessible. Restricted delivery yields successful
@@ -350,8 +352,9 @@ matrix (and accepts `--resume`); non-neutral formant inversion stays unsupported
 Optional `--require-library` completion requires the exact final song ID in the official Library Songs
 feed, `metadata.type=studio_export`, the saved project/version/range binding,
 and server-provided `metadata.model_badges.songrow.display_name=STUDIO`.
-The default is `verified_studio_export` (`fullsong_export/v2`). Context renders
-(`--export-strategy verified_legacy_render`) are diagnostic intermediate assets;
+The page-result default is `verified_legacy_render` (`rendered_context_window/v2`).
+`--require-library` selects `verified_studio_export` (`fullsong_export/v2`) for a
+new run; explicit strategy overrides take priority. Context renders are playable intermediate assets;
 a playable song page or render ID does not qualify as a Library export. Default
 production completion requires materialized bound metadata and an accessible
 official song page, and does not claim formal Library export.
@@ -360,3 +363,9 @@ Long fullsong materialization remains unresolved in the current live test;
 that job stays INCOMPLETE until metadata materializes. Download authorization
 and Library status are separate from default page completion. Select an existing acknowledged render with
 `--resume runs/RUN --resume-render-id ID`; this never resubmits.
+
+On the timed-out 243.879s project, a single explicit context-mode comparison with
+the same saved version, render-state hash and full range completed in about 25s.
+The old fullsong ID is retained. This supports using context mode for the default
+page result; it does not prove every fullsong job fails or guarantee queue latency.
+TIMEOUT never automatically starts a mode comparison or resubmits a render.
