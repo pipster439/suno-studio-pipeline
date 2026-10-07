@@ -1,5 +1,5 @@
 // Official StudioV2ExportMenu full-song branch. Context renders are intermediate
-// assets and cannot satisfy the Library + server Studio badge completion gate.
+// assets; --require-library adds the Library + server Studio badge gate.
 export const EXPORT_STRATEGIES = Object.freeze({
   verified_studio_export: 'fullsong_export',
   verified_legacy_render: 'rendered_context_window',

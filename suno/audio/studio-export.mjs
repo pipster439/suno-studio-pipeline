@@ -4,6 +4,7 @@ import { deserializeAudioProjectState, serializeAudioProjectState } from '../stu
 import { transformRenderState, deriveDownbeats } from '../studio/render-pipeline.mjs';
 import { buildRenderProjectRequest } from '../studio/request-builders.mjs';
 import { exportModeFor } from './export-strategy.mjs';
+import {songPageURL} from './final-result.mjs';
 
 export function prepareFullSongExport(readback, { projectId, versionId, title, exportMode = exportModeFor() }) {
   if (readback.id !== undefined && readback.id !== versionId || readback.project_id !== undefined && readback.project_id !== projectId)
@@ -39,12 +40,13 @@ export function describeExportRequest(call) {
     downbeatCount: body.downbeats.length };
 }
 
-export function exportCompletionStatus(job, binding, complete = null) {
+export function exportCompletionStatus(job, binding, complete = null, {requireLibrary=false}={}) {
   const acknowledged = job.renderJobs?.find(record => record.id === job.renderClipId);
   const proof = !acknowledged?.terminalFailure && acknowledged?.materialization?.binding ? acknowledged.materialization : null;
   const observed = complete ?? (proof ? {id:acknowledged.id,status:proof.status,metadata:{studio_project_id:proof.binding.projectId,studio_project_version_id:proof.binding.versionId,studio_project_start_beats:proof.binding.startBeats,studio_project_end_beats:proof.binding.endBeats}} : null);
   const m = observed?.metadata;
   const metadataMatches = job.projectId === binding.projectId && job.versionId === binding.versionId &&
+    !acknowledged?.terminalFailure &&
     !!observed && !!job.renderClipId && observed.id === job.renderClipId && observed.status === 'complete' &&
     m?.studio_project_id === binding.projectId && m.studio_project_version_id === binding.versionId &&
     m.studio_project_start_beats === binding.startBeats && m.studio_project_end_beats === binding.endBeats;
@@ -54,18 +56,24 @@ export function exportCompletionStatus(job, binding, complete = null) {
   const libraryVisible = metadataMatches && library?.renderId === job.renderClipId && library.libraryVisible === true;
   const studioBadgeVerified = libraryVisible && library.studioBadgeVerified === true && library.studioProvenanceVerified === true &&
     library.projectId === binding.projectId && library.versionId === binding.versionId;
+  const page=job.songPage;
+  const songPageAccessible=!!metadataMatches && page?.renderId===job.renderClipId && page.accessible===true && page.url===songPageURL(job.renderClipId);
+  const libraryStatus=library?.renderId!==job.renderClipId||!library?.membershipDeterminate?'UNKNOWN':libraryVisible?'VISIBLE':'NOT_VISIBLE';
+  const success=!!acknowledged&&songPageAccessible&&(!requireLibrary||studioBadgeVerified);
   return { studioProjectSaved: !!job.projectId && !!job.versionId,
     renderSubmitted: !!acknowledged, renderId: job.renderClipId ?? null,
     renderReady: !!metadataMatches, deliveryResolved: !!deliveryResolved,
     libraryVisible: !!libraryVisible, studioBadgeVerified: !!studioBadgeVerified,
-    exportLifecycleState: studioBadgeVerified ? 'STUDIO_BADGE_VERIFIED' : libraryVisible ? 'LIBRARY_VISIBLE' : metadataMatches ? 'RENDER_READY' : acknowledged ? 'RENDER_SUBMITTED' : 'PROJECT_SAVED',
-    finalSongId: libraryVisible ? library.finalSongId : null,
-    reason: studioBadgeVerified ? null : libraryVisible ? 'STUDIO_PROVENANCE_NOT_VERIFIED' : 'FINAL_LIBRARY_ASSET_NOT_CREATED',
+    libraryStatus, requireLibrary, songPageAccessible, finalSongURL:metadataMatches?songPageURL(job.renderClipId):null,
+    deliveryStatus:job.deliveryRenderId===job.renderClipId?job.deliveryStatus??'UNKNOWN':'UNKNOWN',
+    exportLifecycleState: success ? 'COMPLETE' : metadataMatches ? 'RENDER_READY' : acknowledged ? 'RENDER_SUBMITTED' : 'PROJECT_SAVED',
+    finalSongId:metadataMatches?job.renderClipId:null,
+    reason: success ? null : !metadataMatches?'RENDER_NOT_READY':!songPageAccessible?'SONG_PAGE_UNAVAILABLE':libraryVisible?'STUDIO_PROVENANCE_NOT_VERIFIED':'FINAL_LIBRARY_ASSET_NOT_CREATED',
     projectId: binding.projectId, versionId: binding.versionId, startBeats: binding.startBeats, endBeats: binding.endBeats,
-    runSuccess: !!job.projectId && !!job.versionId && !!acknowledged && !!studioBadgeVerified };
+    runSuccess: success };
 }
 
 export function requireExportReady(status) {
-  if (!status.runSuccess) throw Object.assign(Error(`RUN INCOMPLETE: ${status.reason}; Library membership and Studio provenance are required`), { kind: 'export_incomplete', exportStatus: status });
+  if (!status.runSuccess) throw Object.assign(Error(`RUN INCOMPLETE: ${status.reason}${status.requireLibrary?'; --require-library requires Library membership and Studio provenance':''}`), { kind: 'export_incomplete', exportStatus: status });
   return status;
 }

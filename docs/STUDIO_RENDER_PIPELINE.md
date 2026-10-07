@@ -84,9 +84,11 @@ No POST is repeated just to fill an older audit gap.
 
 `jobs.json` and `<mode>/export-status.json` expose studioProjectSaved,
 renderSubmitted, renderId, renderReady, libraryVisible, studioBadgeVerified and
-deliveryResolved. `run-status.json` is INCOMPLETE until formal Library membership
-and Studio provenance pass; EXPORT_READY then precedes the QA/download flow.
-RUN SUCCESS requires those formal gates and completion of the QA/download flow.
+deliveryResolved, finalSongURL, songPageAccessible, libraryStatus and deliveryStatus.
+Default `run-status.json` is COMPLETE after bound metadata materializes and the
+official `/song/<id>` page is accessible. Library membership and Studio provenance
+are required only with `--require-library`. Restricted direct media yields
+successful production and `UNAVAILABLE / DELIVERY_RESTRICTED` audio QA.
 Saved and queued do not count as success. A resolved asset must match this run's
 actual project/latest saved version/range; an older identical-state cache bound
 to another project/version cannot be declared a successful export for this run.
@@ -159,18 +161,23 @@ with current-owner filters and pagination by the last returned clip ID. Membersh
 must match the exact song ID. The server badge consumed by ModelNameTagClip is
 `metadata.model_badges.songrow.display_name`, not the project ID or title.
 Known-good exports have `metadata.type=studio_export`, `STUDIO` badge,
-and saved project/version/range provenance. All are required before COMPLETE.
+and saved project/version/range provenance. These are optional strict gates,
+enabled by `--require-library`; default page completion does not claim Library export.
 
-Lifecycle: PROJECT_SAVED -> RENDER_SUBMITTED -> RENDER_READY -> LIBRARY_VISIBLE ->
-STUDIO_BADGE_VERIFIED -> COMPLETE. No additional finalization is present in the
-observed official flow. Missing membership gives INCOMPLETE /
+Default lifecycle: PROJECT_SAVED -> RENDER_SUBMITTED -> RENDER_READY ->
+SONG_PAGE_ACCESSIBLE -> COMPLETE. The strict optional lifecycle adds
+LIBRARY_VISIBLE -> STUDIO_BADGE_VERIFIED before COMPLETE.
+No additional finalization is present in the observed official flow.
+With `--require-library`, missing membership gives INCOMPLETE /
 FINAL_LIBRARY_ASSET_NOT_CREATED; truncated pagination is indeterminate, not
-proof of absence. Resume rechecks Library membership and never submits a second
+proof of absence. Default resume rechecks materialized metadata and the page;
+strict resume also rechecks Library membership and never submits a second
 render to compensate for propagation or missing membership.
 
-Default QA uses only an actually observed clear player source after formal
-Library verification. It does not request download authorization merely to
-establish export completion. `--download` retains its separate delivery gate.
+Default QA uses an actually observed clear player source or available official
+delivery. A known permission rejection is ancillary, not a render failure;
+no media analysis is claimed when delivery is unavailable. `--download` saves
+media only when accessible, and `--open` explicitly opens the final page.
 The current 182.727s fullsong controlled render did not become readable within
 15 minutes; its durable ID is retained. This is unresolved, not permanent-loss
 proof, entitlement proof, or a verified duration limit. Historical 24s and

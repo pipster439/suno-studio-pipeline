@@ -114,3 +114,60 @@ test('signed S3 policy rejects oversize WAV before any bytes transfer and expose
   const dir=await mkdtemp(join(tmpdir(),'suno-policy-')),p=signal(6),s=autoChunkPlan(p,constraints())[0],file=join(dir,'s.wav');await writeFile(file,wav(p));let calls=0;
   try{const bridge={call:async()=>{calls++;return{result:{id:'slot',url:'https://downloads.s3.amazonaws.com/',fields:{policy:Buffer.from(JSON.stringify({conditions:[['content-length-range',0,1000]]})).toString('base64')}}};}};await assert.rejects(uploadSlice(bridge,s,file,null,async()=>{},async()=>{}),e=>e.kind==='technical_upload_constraint'&&e.maxUploadBytes===1000);assert.equal(calls,1);}finally{await rm(dir,{recursive:true,force:true});}
 });
+
+
+test('restricted delivery completes with final page, no QA, no default opening; resume keeps same render',async()=>{
+  const h=await harness(36);let deliveryReads=0,opened=0;
+  try{
+    const original=h.deps.bridge.call;h.deps.bridge.call=async q=>q.path.startsWith('/api/download/clip/')?(deliveryReads++,{result:{reason:'not_authorized'}}):original(q);
+    h.deps.renderLifecycle={playerProbe:async()=>({unavailable:true})};h.deps.qa=async()=>{throw Error('QA must not run without delivery');};h.deps.openSongPage=async()=>{opened++;};
+    const result=await runPipeline(parseConfig(['--resume',h.run]),h.deps);
+    assert.equal(result.runSuccess,true);assert.equal(result.runStatus,'COMPLETE');assert.equal(result.deliveryStatus,'RESTRICTED');assert.equal(result.qualityResult,'UNAVAILABLE');assert.equal(result.qualityReason,'DELIVERY_RESTRICTED');assert.equal(opened,0);assert.equal(deliveryReads,1);
+    await rm(h.input);await assert.rejects(access(join(h.run,'preprocessed.wav')));
+    const id=result.renderClipId;const resumed=await runPipeline(parseConfig(['--resume',h.run,'--open']),h.deps);
+    assert.equal(resumed.resumedWithoutLocalAudioWork,true);
+    assert.equal(resumed.renderClipId,id);assert.equal(h.stats().renderCount,1);assert.equal(h.stats().creates,1);assert.equal(deliveryReads,1);assert.equal(opened,1);
+    assert.equal(JSON.parse(await readFile(join(h.run,'run-status.json'))).status,'COMPLETE');assert.equal((await readFile(join(h.run,'run.log'),'utf8')).includes('run_failed'),false);
+    const defaultResume=await productionPipeline(parseConfig(['--resume',h.run]),{
+      pageProbe:async id=>({renderId:id,url:'https://suno.com/song/'+id,accessible:true}),
+      openSongPage:async()=>{throw Error('Unflagged resume must not open');}
+    });
+    assert.equal(opened,1);assert.equal(defaultResume.openStatus,undefined);assert.equal(h.stats().renderCount,1);
+  }finally{await h.cleanup();}
+});
+test('multi-clip QA unavailable skips speculative mitigation and reuses exact merged render',async()=>{
+  const h=await harness(36,{max:18});
+  try{
+    const original=h.deps.bridge.call;h.deps.bridge.call=async q=>q.path.startsWith('/api/download/clip/')?{result:{reason:'not_authorized'}}:original(q);h.deps.renderLifecycle={playerProbe:async()=>({unavailable:true})};
+    const result=await runPipeline(parseConfig(['--resume',h.run]),h.deps);
+    assert.equal(result.runSuccess,true);assert.equal(result.qualityResult,'UNAVAILABLE');assert.equal(result.clipCount,2);assert.equal(result.calibration.status,'SKIPPED_QA_UNAVAILABLE');assert.equal(h.stats().renderCount,1);
+  }finally{await h.cleanup();}
+});
+test('restricted resume strict Library gate stays opt-in and uses no local audio or new writes',async()=>{
+  const h=await harness(36);let clock=0;
+  try{
+    const original=h.deps.bridge.call;h.deps.bridge.call=async q=>q.path.startsWith('/api/download/clip/')?{result:{reason:'not_authorized'}}:original(q);
+    h.deps.renderLifecycle={playerProbe:async()=>({unavailable:true})};
+    const first=await runPipeline(parseConfig(['--resume',h.run]),h.deps);
+    // A durable render checkpoint must not activate network/open during dry-run.
+    const forbidden=()=>{throw Error('Network/open forbidden');};
+    const dry=await runPipeline(parseConfig(['--resume',h.run,'--dry-run','--open']),{bridge:{call:forbidden},pageProbe:forbidden,openSongPage:forbidden,uploadConstraints:constraints()});
+    assert.equal(dry.networkWrites,0);
+    await rm(h.input);h.deps.libraryLifecycle={client:{is_song_in_library:async()=>({visible:false,pagesRead:1})},now:()=>clock,wait:async ms=>{clock+=ms;}};
+    await assert.rejects(runPipeline(parseConfig(['--resume',h.run,'--require-library']),h.deps),/FINAL_LIBRARY_ASSET_NOT_CREATED/);
+    const failed=JSON.parse(await readFile(join(h.run,'run-status.json')));assert.equal(failed.runSuccess,false);assert.equal(failed.requireLibrary,true);assert.equal(failed.renderReady,true);
+    const resumed=await runPipeline(parseConfig(['--resume',h.run]),h.deps);
+    assert.equal(resumed.renderClipId,first.renderClipId);assert.equal(resumed.runSuccess,true);assert.equal(resumed.libraryStatus,'NOT_VISIBLE');assert.equal(h.stats().renderCount,1);assert.equal(h.stats().creates,1);
+  }finally{await h.cleanup();}
+});
+test('explicit download restriction and clear-source QA 403 preserve successful final page',async()=>{
+  for(const download of [true,false]){
+    const h=await harness(36);
+    try{
+      const original=h.deps.bridge.call;h.deps.bridge.call=async q=>q.path.startsWith('/api/download/clip/')?{result:{reason:'not_authorized'}}:original(q);
+      if(!download)h.deps.qa=async()=>{throw Object.assign(Error('HTTP 403'),{status:403});};
+      const r=await runPipeline(parseConfig(['--resume',h.run,...(download?['--download']:[])]),h.deps);
+      assert.equal(r.runSuccess,true);assert.equal(r.deliveryStatus,'RESTRICTED');assert.equal(r.qualityResult,'UNAVAILABLE');assert.equal(r.downloaded,false);assert.equal(r.output,null);
+    }finally{await h.cleanup();}
+  }
+});

@@ -117,7 +117,10 @@ the resulting PCM duration, sample format, WAV upload bytes and verified upload
 constraints: one clip is preferred to two, two to three, and so on. It uploads with
 four bounded workers, saves/reads back the Studio state, renders and runs remote QA.
 The result
-stays on Suno by default: no final full-song file is saved locally.
+stays on Suno by default: no final full-song file is saved locally. The final
+`DONE` output shows the official clickable Suno song page, render ID, Library
+status, direct delivery status and automated quality result. Library visibility
+and direct-media permission are optional statuses, not default success gates.
 
 Observed formant is neutral (0%) and volume is 0 dB. The half/double speed buttons
 are actions. The half-speed production target is explicitly specified; AUTO_CHUNK
@@ -136,6 +139,8 @@ permissions. Use only audio you have permission to upload.
 
 ```powershell
 node scripts/studio-pipeline.mjs song.mp3 --download
+node scripts/studio-pipeline.mjs song.mp3 --open
+node scripts/studio-pipeline.mjs song.mp3 --require-library
 node scripts/studio-pipeline.mjs song.mp3 --diagnose --keep-workdir
 node scripts/studio-pipeline.mjs song.mp3 --recalibrate
 node scripts/studio-pipeline.mjs --resume runs/<run-id>
@@ -147,8 +152,12 @@ node scripts/studio-pipeline.mjs song.mp3 --dry-run
 `runs/<run-id>/song-studio-render.m4a`. `--output PATH` requires `--download`.
 An explicit .wav/.mp3/.flac output is a conversion; delivery-summary.json records
 both formats, transcoded=true and the file hash. Decoding compressed delivery to WAV does not
-establish a lossless source. An unavailable official delivery fails explicitly;
-there is no player-stream interception or entitlement workaround.
+establish a lossless source. If direct media is restricted, the completed render
+still succeeds through its official song page; no local download is produced,
+and QA is `UNAVAILABLE / DELIVERY_RESTRICTED`. No permission workaround is used.
+`--open` opens that page in the default browser only when explicitly requested.
+`--require-library` additionally requires real Library membership and Studio
+provenance; an absent song then leaves the run INCOMPLETE.
 
 ### AUTO_CHUNK and conditional seam calibration
 
@@ -241,8 +250,10 @@ Default success removes preprocessed WAV, slices and temporary full QA assets.
 
 Production exports use the authenticated backend after verified save/readback,
 with full-song range from the saved timeline and `verified_studio_export` (`fullsong_export/v2`).
-No Studio UI Export click is required. `run-status.json` declares RUN SUCCESS only
-after a bound render is ready, delivery is resolved, and QA completes. Saving a
+No Studio UI Export click is required. `run-status.json` declares COMPLETE only
+after the acknowledged render metadata materializes with the saved binding and
+the official Suno song page is accessible. Restricted delivery yields successful
+production with unavailable QA. Saving a
 project or receiving a queued render ID remains INCOMPLETE. Per-mode export-request
 and export-status artifacts plus the actual transport journal distinguish request
 preparation, dispatch/HTTP acknowledgement, and final completion.
@@ -251,7 +262,8 @@ Render submission IDs are durable. Transient metadata 404s and empty/processing
 delivery responses are retried with 1/2/3/5/8/10-second backoff; they never create
 another render. `--render-timeout-seconds 900` measures time from acknowledgment;
 `--delivery-timeout-seconds 180` measures time from completed metadata. Resume
-keeps all historical render IDs and tries the oldest eligible job first. TIMEOUT
+keeps all historical render IDs and tries the oldest eligible job first, unless
+`--resume-render-id` selects an exactly bound acknowledged job. TIMEOUT
 keeps the checkpoint and does not declare the remote ID permanently missing.
 Only an actually returned, verified clear player source can replace unavailable
 official delivery; encrypted player bytes and `/api/forbidden` are not deliveries.
@@ -259,7 +271,11 @@ Failure, --diagnose or --keep-workdir retains debugging artifacts; --diagnose al
 writes boundary snippets. --verbose shows individual upload stages; --json-log
 prints structured diagnostics. Logs do not retain browser credentials.
 
-Resume checks source hashes and reuses upload mappings and bound project/version/
+For a known delivery-restricted render, resume validates the saved acknowledged
+binding and materialized metadata, then rechecks the official page without
+requiring local source audio, preprocessing files or another run's controller.
+An unverified completion or optional Library check still uses the authenticated bridge.
+Other unfinished audio/QA stages check source hashes and reuse upload mappings and bound project/version/
 render IDs, including interruptions after calibration or render before QA.
 Completed QA is reused; a subsequent --download need not recreate or rerender the
 project. Uncertain writes stop for binding reconciliation rather than duplication.
@@ -331,14 +347,16 @@ and alignment checks do not establish absolute listening perfection or a univers
 saves a final delivery. `--postprocess-test` runs the short synthetic API/render
 matrix (and accepts `--resume`); non-neutral formant inversion stays unsupported.
 
-Formal completion requires the exact final song ID in the official Library Songs
+Optional `--require-library` completion requires the exact final song ID in the official Library Songs
 feed, `metadata.type=studio_export`, the saved project/version/range binding,
 and server-provided `metadata.model_badges.songrow.display_name=STUDIO`.
 The default is `verified_studio_export` (`fullsong_export/v2`). Context renders
 (`--export-strategy verified_legacy_render`) are diagnostic intermediate assets;
-a playable song page or render ID does not qualify as a Library export.
+a playable song page or render ID does not qualify as a Library export. Default
+production completion requires materialized bound metadata and an accessible
+official song page, and does not claim formal Library export.
 No post-render registration write was found in the official Export callback.
 Long fullsong materialization remains unresolved in the current live test;
-production is INCOMPLETE until these gates pass. Download authorization is
-separate from Library completion. Select an existing acknowledged render with
+that job stays INCOMPLETE until metadata materializes. Download authorization
+and Library status are separate from default page completion. Select an existing acknowledged render with
 `--resume runs/RUN --resume-render-id ID`; this never resubmits.

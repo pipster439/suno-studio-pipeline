@@ -52,6 +52,7 @@ test('saved or queued projects cannot be RUN SUCCESS; ready delivery needs exact
   const complete={id:'render',status:'complete',metadata:{studio_project_id:'project',studio_project_version_id:'latest-save-version',studio_project_start_beats:0,studio_project_end_beats:46.8}};
   assert.equal(exportCompletionStatus(job,binding,complete).renderReady,true);
   assert.equal(exportCompletionStatus(job,binding,complete).runSuccess,false);
+  job.songPage={renderId:'render',url:'https://suno.com/song/render',accessible:true};
   job.libraryExport={renderId:'render',libraryVisible:true,studioBadgeVerified:true,studioProvenanceVerified:true,projectId:'project',versionId:'latest-save-version',finalSongId:'render'};
   job.renderJobs[0]={id:'render',state:'READY',delivery:{source:'OFFICIAL_DELIVERY'}};job.renderLifecycle={state:'READY',selectedId:'render'};
   assert.equal(requireExportReady(exportCompletionStatus(job,binding,complete)).runSuccess,true);
@@ -81,7 +82,7 @@ test('production dispatches real SDK POST after readback, uses latest version/fu
       if(q.path==='/api/download/clip/render?format=m4a')return{status:200,result:++deliveries===1?{status:'processing'}:{status:'ready',download_url:'https://downloads.s3.amazonaws.com/test.m4a'}};
       throw Error('Unexpected endpoint '+q.path);
     }};
-    const deps={bridge,libraryLifecycle:{now:()=>clock,wait:async ms=>{clock+=ms;}},uploadConstraints:{min:6,max:180},renderLifecycle:{playerProbe:async()=>({url:'https://cdn1.suno.ai/test.mp3',field:'audio_url'}),now:()=>clock,wait:async ms=>{clock+=ms;}},uploadSlice:async(_b,s,_p,_r,checkpoint)=>{const r={...s,clipId:'source',status:'complete',stages:{}};await checkpoint(r);return r;},qa:async q=>{
+    const deps={bridge,pageProbe:async id=>({renderId:id,url:'https://suno.com/song/'+id,accessible:true}),libraryLifecycle:{now:()=>clock,wait:async ms=>{clock+=ms;}},uploadConstraints:{min:6,max:180},renderLifecycle:{playerProbe:async()=>({url:'https://cdn1.suno.ai/test.mp3',field:'audio_url'}),now:()=>clock,wait:async ms=>{clock+=ms;}},uploadSlice:async(_b,s,_p,_r,checkpoint)=>{const r={...s,clipId:'source',status:'complete',stages:{}};await checkpoint(r);return r;},qa:async q=>{
       await mkdir(join(q.directory,'diagnostics'),{recursive:true});const analysis=analyzeBoundaries(source,[]);await writeAnalysis(join(q.directory,'diagnostics'),analysis,source,false);
       return{analysis,gate:{status:'PASS',warnings:[]},qualitySummary:{quality:'PASS',remoteProbeMode:'RANGE',qualityThresholdVersion:QUALITY_THRESHOLDS.version,detectorVersion:QUALITY_THRESHOLDS.detectorVersion}};
     }};
@@ -89,12 +90,12 @@ test('production dispatches real SDK POST after readback, uses latest version/fu
     assert.equal(result.exportStatus.runSuccess,true);assert.equal(result.preprocessedDuration,12);assert.equal(result.clipCount,1);assert.equal(result.downloaded,false);
     const audit=JSON.parse(await readFile(join(dir,'last-render-transport-response.json')));
     assert.equal(audit.response.status,200);assert.equal(audit.response.result.id,'render');assert.equal(audit.requestSummary.export_mode,'fullsong_export');assert.equal(audit.requestSummary.render_engine,'v2');
-    assert.equal(JSON.parse(await readFile(join(dir,'run-status.json'))).status,'RUN SUCCESS');
+    assert.equal(JSON.parse(await readFile(join(dir,'run-status.json'))).status,'COMPLETE');
     await runPipeline(parseConfig(['--resume',dir]),deps);
     assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/api/studio/render-state').length,1);
     assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/api/studio/save-project').length,1);
     assert.equal(deliveries,0,'default formal validation must not request download authorization');
-    libraryVisible=false;await assert.rejects(runPipeline(parseConfig(['--resume',dir]),deps),/FINAL_LIBRARY_ASSET_NOT_CREATED/);
+    libraryVisible=false;await assert.rejects(runPipeline(parseConfig(['--resume',dir,'--require-library']),deps),/FINAL_LIBRARY_ASSET_NOT_CREATED/);
     const missing=JSON.parse(await readFile(join(dir,'run-status.json')));assert.equal(missing.status,'INCOMPLETE');assert.equal(missing.renderReady,true);assert.equal(missing.libraryVisible,false);assert.equal(missing.runSuccess,false);
     assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/api/studio/render-state').length,1);
 

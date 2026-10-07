@@ -53,6 +53,7 @@ test('sanitized archived owner cannot select a guessed account or authorize Libr
 test('player ready and render id never suffice; verified Library export does not require download authorization',()=>{
   const job={projectId:'project',versionId:'version',renderClipId:id,renderJobs:[{id,state:'READY',delivery:{source:'PLAYER'},materialization:{status:'complete',binding}}],renderLifecycle:{state:'READY',selectedId:id}};
   assert.equal(exportCompletionStatus(job,binding,good).runSuccess,false);
+  job.songPage={renderId:id,url:'https://suno.com/song/'+id,accessible:true};
   job.libraryExport=verifyLibraryExport({visible:true,pagesRead:1,song:good},binding,id);
   delete job.renderJobs[0].delivery;job.renderLifecycle.state='RENDER_READY';
   assert.equal(exportCompletionStatus(job,binding,good).runSuccess,true);

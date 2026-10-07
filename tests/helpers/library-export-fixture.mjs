@@ -13,5 +13,5 @@ export function libraryExportFixture(deps) {
     }
     return response;
   };
-  return{...deps,bridge,renderLifecycle:{playerProbe:async()=>({url:'https://downloads.s3.amazonaws.com/test.m4a',field:'audio_url'}),...deps.renderLifecycle}};
+  return{...deps,bridge,pageProbe:deps.pageProbe??(async id=>({renderId:id,url:'https://suno.com/song/'+id,accessible:true})),renderLifecycle:{playerProbe:async()=>({url:'https://downloads.s3.amazonaws.com/test.m4a',field:'audio_url'}),...deps.renderLifecycle}};
 }

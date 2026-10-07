@@ -82,6 +82,33 @@ export async function probeObservedPlayer(clip, { fetch: request = globalThis.fe
   return { unavailable: true, failures };
 }
 
+// Best-effort ancillary delivery status. A materialized song remains successful
+// on its official page even when these existing delivery reads are restricted.
+export async function resolveOptionalDelivery(job, clip, {bridge,playerProbe=probeObservedPlayer,
+  persist=async()=>{},observe=async()=>{},log=async()=>{}}={}) {
+  const record=job.renderJobs?.find(r=>r.id===clip.id);
+  const done=async(status,deliveryURL=null,deliverySource=null)=>{
+    job.deliveryStatus=status;job.deliveryRenderId=clip.id;await persist();
+    if(status==='RESTRICTED')await log({event:'delivery_restricted',id:clip.id,message:'Direct media delivery unavailable; using official Suno player page.'});
+    return {deliveryStatus:status,deliveryURL,deliverySource};
+  };
+  if(record?.deliveryRestriction?.reason==='not_authorized')return done('RESTRICTED');
+  let player;
+  try{player=await playerProbe(clip);}catch(error){await log({event:'player_probe_unavailable',id:clip.id,status:error.status??null});}
+  if(player?.url&&usableURL(player.url))return done('AVAILABLE',player.url,'OBSERVED_PLAYER_STREAM');
+  try {
+    const response=await bridge.call({method:'GET',path:`/api/download/clip/${clip.id}?format=m4a`,timeoutMs:30000});
+    await observe('delivery',response);
+    const delivery=response.result;
+    if(delivery?.reason==='not_authorized'){
+      if(record)record.deliveryRestriction={reason:'not_authorized',observedAt:new Date().toISOString()};
+      return done('RESTRICTED');
+    }
+    if(delivery?.status==='ready'&&usableURL(delivery.download_url))return done('AVAILABLE',delivery.download_url,'OFFICIAL_DELIVERY');
+  } catch(error) {await log({event:'delivery_status_unknown',id:clip.id,status:error.status??null});}
+  return done('UNKNOWN');
+}
+
 // This module has no submission capability. All transitions retain acknowledged
 // IDs, including TIMEOUT; subsequent resolution can observe them becoming ready.
 export async function resolveRenderDelivery(job, { bridge, binding, snapshots = [], persist = async () => {},

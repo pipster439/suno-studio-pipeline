@@ -13,7 +13,7 @@ import { parseConfig } from '../suno/audio/config.mjs';
 import { preprocess, probe, decode, readPCM, slicePlan, writeSlice, sha256, verifyAlignment, ffmpeg } from '../suno/audio/pcm.mjs';
 import { estimateSliceGains } from '../suno/audio/gain.mjs';
 import {sourceFingerprint,validCalibrationCache,strategyOverride,progressiveCalibration,selectCalibrationRegion,calibrationPlan,CALIBRATION_SCHEMA} from '../suno/audio/calibration.mjs';
-import {QUALITY_THRESHOLDS} from '../suno/audio/quality.mjs';
+import {QUALITY_THRESHOLDS,unavailableQuality} from '../suno/audio/quality.mjs';
 import {AUTO_CHUNK_VERSION,normalizeUploadConstraints,autoChunkPlan,planForCuts,chunkSummary,assertUploadPlan,technicalChunkFailure,needsSeamMitigation,actualBoundaryRegion} from '../suno/audio/chunk-strategy.mjs';
 import {qualityFromDelivery,saveDeliveryAsset} from '../suno/audio/remote-qa.mjs';
 import { analyzeBoundaries, writeAnalysis, qualityGate, silentGaps, classifyABC, windowMetrics } from '../suno/audio/boundaries.mjs';
@@ -26,7 +26,9 @@ import { deriveLocalInverse, preprocessInverse } from '../suno/audio/inverse-pro
 import { verifyTransformFile } from '../suno/audio/transform-verification.mjs';
 import { reconcileCachedRender } from '../suno/audio/render-reconciliation.mjs';
 import { runPostprocessMatrix } from '../suno/audio/postprocess-matrix.mjs';
-import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery, selectAcknowledgedRender, probeObservedPlayer } from '../suno/audio/render-lifecycle.mjs';
+import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery, selectAcknowledgedRender, resolveOptionalDelivery } from '../suno/audio/render-lifecycle.mjs';
+import {songPageURL,probeSongPage,openSongPage,finalOutput} from '../suno/audio/final-result.mjs';
+import {resumeRestrictedResult,verifiedResumeCompletion} from '../suno/audio/resume-result.mjs';
 import {resolveLibraryExport} from '../suno/audio/library-export.mjs';
 import { exportModeFor } from '../suno/audio/export-strategy.mjs';
 import { prepareFullSongExport, describeExportRequest, exportCompletionStatus, requireExportReady } from '../suno/audio/studio-export.mjs';
@@ -37,7 +39,7 @@ const help = `Usage: node scripts/studio-pipeline.mjs song.mp3 [options]
 Default: AUTO_CHUNK minimizes clip count within verified upload constraints;
 EXACT render first, seam mitigation only if actual internal boundary QA fails;
 the final asset stays on Suno. Only --download saves the delivery locally.
---download [--output PATH] --recalibrate --skip-calibration --allow-quality-warning
+--open --require-library --download [--output PATH] --recalibrate --skip-calibration --allow-quality-warning
 --studio-profile default --studio-pitch -8 --studio-speed 0.5 --studio-stretch on
 --studio-volume 1 --studio-formant 0 --studio-quantize 1/2 --local-pitch N
 Default inverse: joint Rubber Band pitch +8 / tempo x2 before AUTO_CHUNK;
@@ -49,7 +51,7 @@ Studio pitch -8 / relative speed x0.5 / Stretch On restores original timing.
 --preroll-ms 50 --postroll-ms 200 --crossfade-ms 10
 --dry-run --keep-workdir --verbose --json-log --resume runs/RUN
 --render-timeout-seconds 900 --delivery-timeout-seconds 180 (durable jobs; never auto-resubmit)
---export-strategy verified_legacy_render (default) | experimental_fullsong_export
+--export-strategy verified_studio_export (default) | verified_legacy_render | experimental_fullsong_export
 --resume-render-id ID (select an already acknowledged, exactly bound historical job)
 Advanced research compatibility:
 --postprocess-test (synthetic API/render matrix; UI mapping remains NOT VERIFIED)
@@ -122,8 +124,9 @@ export async function runPipeline(requested, deps = {}) {
   };
   try {
     const old = requested.resume ? await readJson(join(work, 'config.json')) : null;
-    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','download','render-timeout-seconds','delivery-timeout-seconds','recalibrate','skip-calibration','allow-quality-warning','validate-transform','synthetic-reference','gain-test','handle-test',...['handle-clip-count','export-strategy','resume-render-id'].filter(k=>requested.provided?.includes(k))].filter(k => requested[k] !== undefined && (!['render-timeout-seconds','delivery-timeout-seconds'].includes(k)||requested.provided?.includes(k)||old[k]===undefined)).map(k => [k, requested[k]])) } : requested;
-    if (requested['dry-run']) config['dry-run'] = true;
+    const config = old ? { ...old, ...Object.fromEntries(['resume','open','require-library','verbose','json-log','keep-workdir','output','download','render-timeout-seconds','delivery-timeout-seconds','recalibrate','skip-calibration','allow-quality-warning','validate-transform','synthetic-reference','gain-test','handle-test',...['handle-clip-count','export-strategy','resume-render-id'].filter(k=>requested.provided?.includes(k))].filter(k => requested[k] !== undefined && (!['render-timeout-seconds','delivery-timeout-seconds'].includes(k)||requested.provided?.includes(k)||old[k]===undefined)).map(k => [k, requested[k]])) } : requested;
+    // Dry-run is per invocation; an earlier preview must not disable a resume.
+    config['dry-run'] = !!requested['dry-run'];
     if(requested.provided?.includes('output')&&!config.download)throw Error('--output requires explicit --download');
     config.pipelineSchemaVersion=3;
     // Legacy runs with saved projects must retain their original experiment cuts.
@@ -134,6 +137,21 @@ export async function runPipeline(requested, deps = {}) {
     for (const k of ['chunk-seconds','minimum-slice-seconds','pitch-up','studio-transpose','strategy','strategy-evidence','preroll-ms','postroll-ms','bps','abc-seconds','preprocessed','reuse-uploads','studio-profile','studio-pitch','studio-speed','studio-stretch','studio-quantize','studio-formant','studio-volume','local-pitch']) if (old && requested.provided?.includes(k) && requested[k] !== config[k]) throw Error(`Resume cannot change --${k}`);
     if (!old) await durableJson(join(work, 'config.json'), privacy.sanitize(config));
     await log({ event: 'run_start', message: work });
+    if(old&&!config['dry-run']&&!config.download&&!['abc-test','postprocess-test','validate-transform','gain-test','handle-test','recalibrate'].some(k=>config[k])){
+      const existingJobs=await readJson(join(work,'jobs.json'),{});
+      const mode=existingJobs.PRODUCTION_PREROLL?'PRODUCTION_PREROLL':'PRODUCTION',job=existingJobs[mode];
+      if(job?.renderClipId&&job.wire?.tracks?.length){
+        const binding={projectId:job.projectId,versionId:job.versionId,startBeats:0,endBeats:Math.max(...job.wire.tracks.flatMap(t=>t.clips.map(c=>c.endBeats)))};
+        if(config['resume-render-id'])selectAcknowledgedRender(job,Object.values(existingJobs),config['resume-render-id'],binding);
+        const record=job.renderJobs?.find(r=>r.id===job.renderClipId);
+        if(record?.deliveryRestriction?.reason==='not_authorized'){
+          const cached=await readJson(join(work,mode,'render-complete.json'),null);
+          let bridge=deps.bridge;if(!bridge&&(config['require-library']||config.diagnose||!verifiedResumeCompletion(job,binding,cached))){const connected=await connectPipelineBridge(config,log);bridge=connected.bridge;app=connected.app;}
+          return await resumeRestrictedResult({work,mode,job,binding,bridge,config,deps,log,
+            persist:()=>durableJson(join(work,'jobs.json'),privacy.sanitize(existingJobs))});
+        }
+      }
+    }
     const studioProfile = config.studioProfile ?? resolveStudioProfile(config);
     const localInverse = config.localInverse ?? deriveLocalInverse(studioProfile,config);
     config.studioProfile=studioProfile;config.localInverse=localInverse;
@@ -321,7 +339,7 @@ export async function runPipeline(requested, deps = {}) {
       }
       restoreRenderJobs(job,renderSnapshots);await persistJobs();
       const checkpointExport = async complete => {
-        job.exportStatus=exportCompletionStatus(job,expectedBinding,complete);
+        job.exportStatus=exportCompletionStatus(job,expectedBinding,complete,{requireLibrary:!!config['require-library']&&!options.calibration});
         await persistJobs();await durableJson(join(dir,'export-status.json'),job.exportStatus);
         if(mode.startsWith('PRODUCTION')&&!options.calibration){productionExportStatus=job.exportStatus;await durableJson(join(work,'run-status.json'),{status:job.exportStatus.runSuccess?'EXPORT_READY':'INCOMPLETE',...job.exportStatus});}
       };
@@ -340,54 +358,67 @@ export async function runPipeline(requested, deps = {}) {
       }
       await checkpointExport();
       let resolved;
-      const formalExport = mode.startsWith('PRODUCTION') && !options.calibration;
+      const pageExport = mode.startsWith('PRODUCTION');
+      const formalExport = pageExport && !options.calibration;
       try { resolved=await resolveRenderDelivery(job,{
         ...deps.renderLifecycle,bridge,binding:{...actualBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId},snapshots:renderSnapshots,persist:persistJobs,
         timeoutMs:config['render-timeout-seconds']?config['render-timeout-seconds']*1000:undefined,
         deliveryTimeoutMs:config['delivery-timeout-seconds']?config['delivery-timeout-seconds']*1000:undefined,
         preferredRenderId:mode.startsWith('PRODUCTION')?config['resume-render-id']:undefined,
-        metadataOnly:formalExport,
+        metadataOnly:pageExport,
         log:e=>log({mode,...e,message:`id=${e.id} state=${e.state??''} age=${Math.round((e.ageMs??0)/1000)}s${e.metadata!==undefined?` metadata=${e.metadata} transient=${!!e.transient}`:''}${e.delivery?` delivery=${e.delivery}`:''}`}),
         observe:async(kind,value)=>{if(kind==='complete')await durableJson(join(dir,'render-complete.json'),privacy.sanitize(value));if(kind==='delivery')await durableJson(join(dir,'download-response.json'),privacy.sanitize(value));}
       }); } catch(error) { await checkpointExport(); throw error; }
       const {complete}=resolved;
       let {deliveryURL,deliverySource}=resolved;
-      if(formalExport){
-        job.libraryExport=await resolveLibraryExport(bridge,complete,expectedBinding,{
-          ...deps.libraryLifecycle,log:e=>log({mode,...e}),
-          persist:async result=>{job.libraryExport=result;await persistJobs();await durableJson(join(dir,'library-membership.json'),result);}
-        });
+      if(pageExport){
+        job.songPage=await (deps.pageProbe??probeSongPage)(job.renderClipId);
+        await persistJobs();await durableJson(join(dir,'song-page.json'),job.songPage);
+        if(formalExport&&(config['require-library']||config.diagnose)){
+          try{job.libraryExport=await resolveLibraryExport(bridge,complete,expectedBinding,{
+            ...deps.libraryLifecycle,timeoutMs:config['require-library']?180000:0,log:e=>log({mode,...e}),
+            persist:async result=>{job.libraryExport=result;await persistJobs();await durableJson(join(dir,'library-membership.json'),result);}
+          });}catch(error){job.libraryExport={renderId:job.renderClipId,libraryVisible:false,membershipDeterminate:false,studioBadgeVerified:false,studioProvenanceVerified:false};await persistJobs();await log({event:'library_status_unknown',mode,kind:error.kind,status:error.status});}
+        }
+        await checkpointExport(complete);requireExportReady(job.exportStatus);
+        await log({event:'final_song',mode,id:job.renderClipId,message:songPageURL(job.renderClipId)});
+        if(config.download){
+          try{const delivered=await resolveRenderDelivery(job,{...deps.renderLifecycle,bridge,binding:expectedBinding,persist:persistJobs});
+            deliveryURL=delivered.deliveryURL;deliverySource=delivered.deliverySource;job.deliveryStatus='AVAILABLE';job.deliveryRenderId=job.renderClipId;
+          }catch(error){if(error.kind!=='render_delivery_restricted')throw error;job.deliveryStatus='RESTRICTED';job.deliveryRenderId=job.renderClipId;await log({event:'delivery_restricted',mode,message:'Direct media delivery unavailable; using official Suno player page.'});}
+        }else{
+          const delivery=await resolveOptionalDelivery(job,complete,{bridge,playerProbe:deps.renderLifecycle?.playerProbe,persist:persistJobs,log:e=>log({mode,...e}),observe:async(_kind,value)=>durableJson(join(dir,'download-response.json'),privacy.sanitize(value))});
+          deliveryURL=delivery.deliveryURL;deliverySource=delivery.deliverySource;
+        }
       }
       await checkpointExport(complete);
-      if(formalExport){
-        requireExportReady(job.exportStatus);
-        // Default QA reads only an actual observed clear player source. Library
-        // completion is independent of download authorization.
-        if(config.download){
-          const delivered=await resolveRenderDelivery(job,{...deps.renderLifecycle,bridge,binding:expectedBinding,persist:persistJobs});
-          deliveryURL=delivered.deliveryURL;deliverySource=delivered.deliverySource;
-        }else{
-          const player=await (deps.renderLifecycle?.playerProbe??probeObservedPlayer)(complete);
-          if(player?.url){deliveryURL=player.url;deliverySource='OBSERVED_PLAYER_STREAM';}
-        }
-        if(!deliveryURL)throw Object.assign(Error('Library export verified; no observed clear audio source available for automated QA'),{kind:'quality_probe_unavailable'});
-      }
       const selectedRenderBinding={...(job.renderBinding??{}),renderClipId:job.renderClipId,renderProjectId:complete.metadata.studio_project_id,renderVersionId:complete.metadata.studio_project_version_id};
       phaseTimings.renderWaitMs=performance.now()-renderWaitStarted;job.timings.renderWaitMs=(job.timings.renderWaitMs??0)+phaseTimings.renderWaitMs;
       const metadata=complete.metadata;
       const previousQuality=await readJson(join(dir,'quality-summary.json'),null);
       let qa;const qualityStarted=performance.now();let qualityReused=false;
-      if(previousQuality?.renderClipId===job.renderClipId&&previousQuality.qualityThresholdVersion===QUALITY_THRESHOLDS.version&&previousQuality.detectorVersion===QUALITY_THRESHOLDS.detectorVersion&&!config['gain-test']&&!config['handle-test']&&!config['validate-transform']){
+      if(!deliveryURL){
+        const reason=job.deliveryStatus==='RESTRICTED'?'DELIVERY_RESTRICTED':'DELIVERY_UNAVAILABLE';
+        qa=unavailableQuality({boundaryCount:timeline.boundariesSeconds.length,expectedDuration:timeline.expectedTimelineSeconds,metadataDuration:metadata.duration,reason});
+        await writeAnalysis(join(dir,'diagnostics'),qa.analysis,pcm,false);
+        await durableJson(join(dir,'quality-summary.json'),qa.qualitySummary);await durableJson(join(dir,'diagnostics','quality-gate.json'),qa.gate);
+        await log({event:'quality_unavailable',mode,message:reason});
+      }else if(previousQuality?.renderClipId===job.renderClipId&&previousQuality.qualityThresholdVersion===QUALITY_THRESHOLDS.version&&previousQuality.detectorVersion===QUALITY_THRESHOLDS.detectorVersion&&!config['gain-test']&&!config['handle-test']&&!config['validate-transform']){
         qa={analysis:await readJson(join(dir,'diagnostics','boundaries.json')),gate:await readJson(join(dir,'diagnostics','quality-gate.json')),qualitySummary:previousQuality};
         qualityReused=true;
         await log({event:'quality_reused',mode});
       }else{
-        qa=await(deps.qa??qualityFromDelivery)({url:deliveryURL,directory:dir,times:probeTimes??timeline.boundariesSeconds,expectedDuration:timeline.expectedTimelineSeconds,metadataDuration:metadata.duration,sourcePCM:pcm,sourceOffsetSeconds:options.sourceOffsetSeconds??0,sourceTimeRatio:studioProfile.speedRatio,timelineGapSamples:Math.max(0,...timeline.gaps.map(g=>Math.abs(g.estimatedSourceSamples))),keep:!!config['keep-workdir'],diagnose:!!config.diagnose,localAnalysis:!!config['gain-test']||!!config['handle-test']||!!config['validate-transform']},{log});
+        try{qa=await(deps.qa??qualityFromDelivery)({url:deliveryURL,directory:dir,times:probeTimes??timeline.boundariesSeconds,expectedDuration:timeline.expectedTimelineSeconds,metadataDuration:metadata.duration,sourcePCM:pcm,sourceOffsetSeconds:options.sourceOffsetSeconds??0,sourceTimeRatio:studioProfile.speedRatio,timelineGapSamples:Math.max(0,...timeline.gaps.map(g=>Math.abs(g.estimatedSourceSamples))),keep:!!config['keep-workdir'],diagnose:!!config.diagnose,localAnalysis:!!config['gain-test']||!!config['handle-test']||!!config['validate-transform']},{log});}catch(error){
+          if(!pageExport||!(error.kind==='render_delivery_restricted'||[401,403].includes(error.status)||/not_authorized|HTTP 403|forbidden/i.test(error.message)))throw error;
+          job.deliveryStatus='RESTRICTED';job.deliveryRenderId=job.renderClipId;deliveryURL=null;deliverySource=null;await persistJobs();await checkpointExport(complete);
+          qa=unavailableQuality({boundaryCount:timeline.boundariesSeconds.length,expectedDuration:timeline.expectedTimelineSeconds,metadataDuration:metadata.duration,reason:'DELIVERY_RESTRICTED'});
+          await writeAnalysis(join(dir,'diagnostics'),qa.analysis,pcm,false);await log({event:'delivery_restricted',mode,message:'Direct media delivery unavailable; using official Suno player page.'});
+        }
         qa.qualitySummary.renderClipId=job.renderClipId;
         await durableJson(join(dir,'quality-summary.json'),privacy.sanitize(qa.qualitySummary));await durableJson(join(dir,'diagnostics','quality-gate.json'),qa.gate);
       }
       let transformVerification=null;
-      if(config['validate-transform']&&!options.calibration){
+      if(config['validate-transform']&&!options.calibration&&qa.gate.status!=='UNAVAILABLE'){
         if(!qa.pcm)throw Error('Transform validation requires temporary decoded delivery PCM');
         transformVerification=await verifyTransformFile(config.input,qa.pcm,join(dir,'qa','reference.wav'),{synthetic:!!config['synthetic-reference']});
         await durableJson(join(dir,'diagnostics','transform-verification.json'),transformVerification);
@@ -399,14 +430,14 @@ export async function runPipeline(requested, deps = {}) {
         qa.qualitySummary.inverseDurationErrorMs=inverseDurationErrorMs;
         if(Math.abs(inverseDurationErrorMs)>50)qa.gate.warnings.push({metric:'inverse_duration',severity:'warning',durationErrorMs:inverseDurationErrorMs});
         for(const message of localInverse.warnings??[])qa.gate.warnings.push({metric:'inverse_unsupported',severity:'warning',message});
-        if(qa.gate.warnings.length)qa.gate.status='QUALITY WARNING';
+        if(qa.gate.warnings.length&&qa.gate.status!=='UNAVAILABLE')qa.gate.status='QUALITY WARNING';
         qa.qualitySummary.quality=qa.gate.status;qa.qualitySummary.transformVerification=transformVerification;
         await durableJson(join(dir,'quality-summary.json'),privacy.sanitize(qa.qualitySummary));await durableJson(join(dir,'diagnostics','quality-gate.json'),privacy.sanitize(qa.gate));
       }
       const {analysis,gate}=qa;phaseTimings.qualityProbeMs=qualityReused?0:performance.now()-qualityStarted;phaseTimings.qualityReused=qualityReused;job.timings.qualityProbeMs=qa.qualitySummary.qualityProbeMs;
       for(const warning of gate.warnings)await log({event:'QUALITY WARNING',mode,...warning});
-      const summary={mode,exportStatus:job.exportStatus,renderBinding:selectedRenderBinding,studioProfileHash:studioProfile.hash,transformVerification,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),deliverySource,outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
-      if(config.download&&!options.calibration&&mode.startsWith('PRODUCTION')){
+      const summary={mode,finalSongURL:job.exportStatus.finalSongURL,libraryStatus:job.exportStatus.libraryStatus,deliveryStatus:job.exportStatus.deliveryStatus,qualityResult:qa.gate.status==='PASS'?'PASS':qa.gate.status==='UNAVAILABLE'?'UNAVAILABLE':'WARN',qualityReason:qa.qualitySummary.qualityReason??null,exportStatus:job.exportStatus,renderBinding:selectedRenderBinding,studioProfileHash:studioProfile.hash,transformVerification,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),deliverySource,outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
+      if(config.download&&deliveryURL&&!options.calibration&&mode.startsWith('PRODUCTION')){
         const downloadStarted=performance.now();
         const output=resolve(config.output??join(work,basename(config.input,extname(config.input))+'-studio-render.m4a'));
         const delivered=await saveDeliveryAsset(deliveryURL,output,qa.deliveryFile,{download:deps.downloadAsset,deliveryInfo:qa.qualitySummary.deliveryInfo});summary.output=delivered.output;summary.delivery=delivered;
@@ -446,6 +477,8 @@ export async function runPipeline(requested, deps = {}) {
     const boundProduction=jobs.PRODUCTION_PREROLL??jobs.PRODUCTION;
     if(autoChunk&&commonPlan.length===1){
       strategy='exact';calibration={status:'SKIPPED_NO_INTERNAL_BOUNDARIES',chosenStrategy:'exact',preRollMs:0,postRollMs:0,testedCandidates:[],reason:'One clip has no internal seams'};
+    }else if(autoExactResult?.qualitySummary.quality==='UNAVAILABLE'){
+      strategy='exact';calibration={status:'SKIPPED_QA_UNAVAILABLE',chosenStrategy:'exact',preRollMs:0,postRollMs:0,testedCandidates:[],reason:autoExactResult.qualitySummary.qualityReason};
     }else if(autoExactResult&&!needsSeamMitigation(autoExactResult.qualitySummary)){
       strategy='exact';calibration={status:'EXACT_PRODUCTION_QA',chosenStrategy:'exact',preRollMs:0,postRollMs:0,testedCandidates:[],exactQuality:autoExactResult.qualitySummary};
     }else if(boundProduction?.projectId){
@@ -593,7 +626,7 @@ export async function runPipeline(requested, deps = {}) {
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.csv'), join(work, 'diagnostics', 'boundaries.csv'));
     timings.calibrationTotalMs??=0;
     Object.assign(timings,{productionCreateSaveMs:production.summary.timings?.createSaveMs,productionRenderWaitMs:production.summary.timings?.renderWaitMs,productionQualityProbeMs:production.summary.timings?.qualityProbeMs,totalElapsedMs:performance.now()-totalStarted});
-    const result={work,studioProfile,localInverse,...production.summary,preprocessedDuration:pcm.frames/pcm.sampleRate,chunkStrategy:autoChunk?'AUTO_CHUNK':'FIXED_SECONDS',clipCount:uploaded.length,internalBoundaryCount:uploaded.length-1,chunkSelection:autoChunk?chunkSelection:undefined,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!config.download};
+    const result={work,studioProfile,localInverse,...production.summary,runSuccess:production.summary.exportStatus.runSuccess,runStatus:'COMPLETE',productionResult:'SUCCESS',preprocessedDuration:pcm.frames/pcm.sampleRate,chunkStrategy:autoChunk?'AUTO_CHUNK':'FIXED_SECONDS',clipCount:uploaded.length,internalBoundaryCount:uploaded.length-1,chunkSelection:autoChunk?chunkSelection:undefined,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!production.summary.output};
     await durableJson(join(work,'summary.json'),privacy.sanitize(result));
     await durableJson(join(work,'studio-summary.json'),{projectId:result.projectId,versionId:result.versionId,strategy:result.strategy,preRollMs:result.preRollMs,postRollMs:result.postRollMs,preprocessedDuration:result.preprocessedDuration,chunkStrategy:result.chunkStrategy,clipCount:result.clipCount,internalBoundaryCount:result.internalBoundaryCount});
     await durableJson(join(work,'render-summary.json'),{renderedClipId:result.renderClipId,renderedAudioURL:result.renderedAudioURL,deliverySource:result.deliverySource,exportStatus:result.exportStatus,downloaded:result.downloaded,output:result.output});
@@ -604,12 +637,14 @@ export async function runPipeline(requested, deps = {}) {
       await rm(sliceDir, { recursive: true, force: true }); await unlink(processed);
       for(const mode of Object.keys(jobs).filter(m=>/^[A-Z0-9_a-f-]+$/.test(m))){const qaDir=resolve(work,mode,'qa');if(!qaDir.startsWith(work+'\\')&&!qaDir.startsWith(work+'/'))throw Error('QA cleanup path escaped run');await rm(qaDir,{recursive:true,force:true});}
     }
-    await durableJson(join(work,'run-status.json'),{status:'RUN SUCCESS',...requireExportReady(result.exportStatus),exportLifecycleState:'COMPLETE',quality:result.quality});
-    await log({ event: 'run_complete', message: config.download?result.output:'RUN SUCCESS: final Studio export ready on Suno; no product download', strategy, quality: result.quality,exportStatus:result.exportStatus }); return result;
-  } catch (e) { await durableJson(join(work,'run-status.json'),{status:'INCOMPLETE',...(productionExportStatus??{}),runSuccess:false,error:{message:e.message,kind:e.kind,status:e.status}});await log({ event: 'run_failed', message: e.message, kind: e.kind, status: e.status, workspaceRetained: true }); throw e; }
+    await durableJson(join(work,'run-status.json'),{status:'COMPLETE',...requireExportReady(result.exportStatus),exportLifecycleState:'COMPLETE',quality:result.quality});
+    await log({ event: 'run_complete', message: 'DONE: '+result.finalSongURL, strategy, quality: result.quality,exportStatus:result.exportStatus });
+    if(config.open){try{await(deps.openSongPage??openSongPage)(result.finalSongURL);result.openStatus='OPENED';}catch(error){result.openStatus='UNAVAILABLE';await log({event:'open_unavailable',message:error.message});}await durableJson(join(work,'summary.json'),privacy.sanitize(result));}
+    return result;
+  } catch (e) { await durableJson(join(work,'run-status.json'),{status:'INCOMPLETE',...(e.exportStatus??productionExportStatus??{}),runSuccess:false,error:{message:e.message,kind:e.kind,status:e.status}});await log({ event: 'run_failed', message: e.message, kind: e.kind, status: e.status, workspaceRetained: true }); throw e; }
   finally { await app?.close(); await logQueue; await unlink(lockPath); }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { const config = parseConfig(process.argv.slice(2)); if (config.help) console.log(help); else console.log(JSON.stringify(await runPipeline(config), null, config['json-log']?undefined:2)); }
+  try { const config = parseConfig(process.argv.slice(2)); if (config.help) console.log(help); else {const result=await runPipeline(config);console.log(config['json-log']||!result.finalSongURL?JSON.stringify(result):finalOutput(result));} }
   catch (e) { console.error(privacy.sanitize({ error: e.message, kind: e.kind, status: e.status })); process.exitCode = 1; }
 }
