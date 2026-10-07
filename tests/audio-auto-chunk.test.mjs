@@ -70,7 +70,7 @@ async function harness(seconds=36,{max=480,failCounts=[],seamFailure=false,inter
   const qa=async q=>{qaCalls.push(basename(q.directory));if(interrupt){interrupt=false;throw Error('QA interrupted');}const start=Math.round((q.sourceOffsetSeconds??0)*p.sampleRate),part=readPCM(wav(p,start,Math.min(p.frames,start+Math.round(q.expectedDuration*p.sampleRate)))),analysis=analyzeBoundaries(part,q.times);analysis.duration=q.expectedDuration+.0135;const gate=qualityGate(analysis,q.expectedDuration,q.expectedDuration);
     if(seamFailure&&q.directory.endsWith('PRODUCTION_EXACT_PROBE')){analysis.detectedAnomalyCount=1;gate.status='QUALITY WARNING';}
     await writeAnalysis(join(q.directory,'diagnostics'),analysis,part,false);return{analysis,gate,qualitySummary:{...summarizeQuality(analysis,gate),remoteProbeMode:'RANGE',qualityProbeMs:1,deliveryInfo:{formatName:'m4a',codec:'opus'}}};};
-  const config=parseConfig([input,'--preprocessed',input,'--upload-concurrency','1']);await writeFile(join(run,'config.json'),JSON.stringify(config));
+  const config=parseConfig([input,'--studio-speed','1','--preprocessed',input,'--upload-concurrency','1']);await writeFile(join(run,'config.json'),JSON.stringify(config));
   const deps={client,bridge,qa,uploadSlice:upload,uploadConstraints:constraints(max),calibrationCacheDir:join(dir,'calibration-cache')};
   return{dir,run,input,deps,counts,qaCalls,stats:()=>({creates,renderCount,uploadCount}),cleanup:async()=>rm(dir,{recursive:true,force:true})};
 }

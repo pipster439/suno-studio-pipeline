@@ -42,3 +42,21 @@ rendered_context_window value. Parsers preserve unknown response fields.
 
 RenderJob records QUEUED; it cannot infer COMPLETE or start unverified polling.
 Multitrack render remains FOUND_STATICALLY with its separate download_url consumption.
+
+
+## Current production inverse profile
+
+The unified pipeline defaults to joint Rubber Band pitch +8 / pitch-preserving
+tempo ×2 before AUTO_CHUNK. Studio uses transposition -8, relative speed ×0.5
+(populated linear warp marker output beats divided by 0.5), and Stretch On.
+Save/readback compares playback state before render; the range uses restored
+timeline duration. Single-clip selection removes internal seams and handles, while
+preserving both inverse and Studio transforms. Historical validation statuses above
+refer to their individual captures, not the current end-to-end orchestration.
+
+`--validate-transform` temporarily decodes the delivery for source comparison.
+Known synthetic tones use a measured spectral peak. Polyphonic material uses a
+confidence-gated relative spectral translation estimate; low confidence remains
+NOT VERIFIED. Duration, envelope timing, levels, clipping candidates and spectral
+distribution are separately reported. These metrics do not claim perceptual identity.
+The original delivery stays on Suno unless `--download` is explicit.

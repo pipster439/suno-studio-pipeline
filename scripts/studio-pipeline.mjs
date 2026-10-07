@@ -35,9 +35,10 @@ Default: AUTO_CHUNK minimizes clip count within verified upload constraints;
 EXACT render first, seam mitigation only if actual internal boundary QA fails;
 the final asset stays on Suno. Only --download saves the delivery locally.
 --download [--output PATH] --recalibrate --skip-calibration --allow-quality-warning
---studio-profile default --studio-pitch -8 --studio-speed 1 --studio-stretch on
+--studio-profile default --studio-pitch -8 --studio-speed 0.5 --studio-stretch on
 --studio-volume 1 --studio-formant 0 --studio-quantize 1/2 --local-pitch N
-Speed 0.5 applies the half-speed ACTION; default preserves verified identity timing.
+Default inverse: joint Rubber Band pitch +8 / tempo x2 before AUTO_CHUNK;
+Studio pitch -8 / relative speed x0.5 / Stretch On restores original timing.
 --chunk-seconds auto (default); numeric seconds are diagnostic/legacy fixed cuts
 (legacy --pitch-up / --studio-transpose aliases are explicit overrides)
 --minimum-slice-seconds 6 (merge a shorter final slice into its predecessor)

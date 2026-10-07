@@ -1,6 +1,7 @@
 import { sample, wav, decode, ffmpeg, readPCM } from './pcm.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
-export const TRANSFORM_THRESHOLDS=Object.freeze({version:'transform-v2',durationMs:50,pitchCents:35,transientLagMs:20,rmsDeltaDb:3,clippingSamples:0,spectralCosine:.85});
+import { estimateSpectralPitchShift } from './spectral-pitch.mjs';
+export const TRANSFORM_THRESHOLDS=Object.freeze({version:'transform-v3',durationMs:50,pitchCents:35,transientLagMs:20,rmsDeltaDb:3,clippingSamples:0,spectralCosine:.85});
 export function syntheticReference(seconds=24,rate=48000) {
   const frames=Math.round(seconds*rate),data=Buffer.alloc(frames*8);let seed=142857;
   for(let i=0;i<frames;i++){
@@ -46,11 +47,13 @@ export function compareTransforms(reference,rendered,{synthetic=false}={}) {
   const durationErrorMs=(rendered.frames-reference.frames)/reference.sampleRate*1000,rmsDeltaDb=20*Math.log10(Math.max(1e-12,b.rms)/Math.max(1e-12,a.rms));
   const pitch=synthetic?{reference:toneFrequency(reference),rendered:toneFrequency(rendered)}:null;
   if(pitch)pitch.deltaCents=1200*Math.log2(pitch.rendered.hz/pitch.reference.hz);
+  const spectralPitch=synthetic?null:estimateSpectralPitchShift(reference,rendered,{lagMs:best.lag*10});
   let xy=0,xx=0,yy=0;const n=Math.min(reference.frames,rendered.frames);for(let i=0;i<n;i+=4){const u=sample(reference,i,0),v=sample(rendered,i,0);xy+=u*v;xx+=u*u;yy+=v*v;}
   const spectralA=spectrum(reference),spectralB=spectrum(rendered),cosine=spectralA.reduce((s,v,i)=>s+v*spectralB[i],0)/Math.max(1e-12,Math.hypot(...spectralA)*Math.hypot(...spectralB));
   const warnings=[];if(Math.abs(durationErrorMs)>TRANSFORM_THRESHOLDS.durationMs)warnings.push('duration');if(pitch&&Math.abs(pitch.deltaCents)>TRANSFORM_THRESHOLDS.pitchCents)warnings.push('pitch');if(Math.abs(best.lag*10)>TRANSFORM_THRESHOLDS.transientLagMs||best.correlation<.8)warnings.push('transient alignment');if(Math.abs(rmsDeltaDb)>TRANSFORM_THRESHOLDS.rmsDeltaDb)warnings.push('RMS restoration');if(cosine<TRANSFORM_THRESHOLDS.spectralCosine)warnings.push('spectral distribution');
   if(b.clipping>TRANSFORM_THRESHOLDS.clippingSamples&&!warnings.includes('clipping'))warnings.push('clipping');
-  return {thresholdVersion:TRANSFORM_THRESHOLDS.version,sourceDuration:reference.frames/reference.sampleRate,renderDuration:rendered.frames/rendered.sampleRate,durationErrorMs,pitch,pitchStatus:synthetic?'MEASURED_SYNTHETIC_TONE':'NOT VERIFIED for arbitrary polyphonic source',transientAlignment:{lagMs:best.lag*10,correlation:best.correlation,resolutionMs:10,method:'RMS envelope correlation'},rmsDeltaDb,peakDeltaDb:20*Math.log10(Math.max(1e-12,b.peak)/Math.max(1e-12,a.peak)),clippingCandidates:b.clipping,waveformCorrelation:xy/Math.max(1e-12,Math.sqrt(xx*yy)),spectralSimilarity:{cosine,method:'24 Hann FFT windows; 32 log amplitude bands; distribution proxy, not perceptual equivalence'},formantSimilarity:'NOT VERIFIED; synthetic harmonics are not human voice evidence',classification:warnings.length?'WARN':'PASS',warnings};
+  if(spectralPitch?.deltaCents!=null&&Math.abs(spectralPitch.deltaCents)>TRANSFORM_THRESHOLDS.pitchCents)warnings.push('estimated spectral pitch');
+  return {thresholdVersion:TRANSFORM_THRESHOLDS.version,sourceDuration:reference.frames/reference.sampleRate,renderDuration:rendered.frames/rendered.sampleRate,durationErrorMs,pitch,spectralPitch,pitchStatus:synthetic?'MEASURED_SYNTHETIC_TONE':spectralPitch.status,transientAlignment:{lagMs:best.lag*10,correlation:best.correlation,resolutionMs:10,method:'RMS envelope correlation'},rmsDeltaDb,peakDeltaDb:20*Math.log10(Math.max(1e-12,b.peak)/Math.max(1e-12,a.peak)),clippingCandidates:b.clipping,sourceClippingCandidates:a.clipping,peak:b.peak,sourcePeak:a.peak,waveformCorrelation:xy/Math.max(1e-12,Math.sqrt(xx*yy)),spectralSimilarity:{cosine,method:'24 Hann FFT windows; 32 log amplitude bands; distribution proxy, not perceptual equivalence'},formantSimilarity:'NOT VERIFIED; synthetic harmonics are not human voice evidence',classification:warnings.length?'WARN':'PASS',warnings};
 }
 export async function verifyTransformFile(input,rendered,referenceFile,{synthetic=false}={}) {
   await ffmpeg(['-y','-i',input,'-ar',String(rendered.sampleRate),'-ac',String(rendered.channels),'-c:a','pcm_f32le',referenceFile]);

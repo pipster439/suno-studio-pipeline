@@ -110,7 +110,9 @@ node scripts/studio-pipeline.mjs song.mp3
 ```
 
 The command defaults to `--chunk-seconds auto`. It reads the Studio profile and
-applies the supported local inverse once. **AUTO_CHUNK minimizes clip count** from
+applies the default **joint Rubber Band pitch +8 / pitch-preserving tempo ×2**
+inverse once. Studio uses **pitch −8 / relative speed ×0.5 / Stretch On**.
+**AUTO_CHUNK minimizes clip count** from
 the resulting PCM duration, sample format, WAV upload bytes and verified upload
 constraints: one clip is preferred to two, two to three, and so on. It uploads with
 four bounded workers, saves/reads back the Studio state, renders and runs remote QA.
@@ -118,8 +120,9 @@ The result
 stays on Suno by default: no final full-song file is saved locally.
 
 Observed formant is neutral (0%) and volume is 0 dB. The half/double speed buttons
-are actions; default retains verified identity timing. `--studio-speed 0.5` applies
-half speed with a local pitch-preserving tempo inverse. UI before/after mapping is
+are actions. The half-speed production target is explicitly specified; AUTO_CHUNK
+never disables its local tempo inverse or Studio speed, including the single-clip path.
+Use `--studio-speed 1` only as an explicit research/compatibility override. UI before/after mapping is
 NOT VERIFIED because official edits were subscription-blocked; Quantize is not
 faked as a persistent audio scalar. See [post-processing evidence and limitations](docs/STUDIO_POST_PROCESSING.md).
 
@@ -248,7 +251,7 @@ Do not concurrently resume a run. Remove a stale lock only after checking its PI
 
 ### Advanced parameters and existing experiments
 
---chunk-seconds auto, --studio-pitch -8, --studio-speed 1, --studio-stretch on,
+--chunk-seconds auto, --studio-pitch -8, --studio-speed 0.5, --studio-stretch on,
 --studio-formant 0, --studio-volume 1, --upload-concurrency 4,
 --strategy auto|exact|preroll, --preroll-ms N, --postroll-ms N and --bps 1.95
 are supported. Source sample rate and channels are retained through WAV processing.

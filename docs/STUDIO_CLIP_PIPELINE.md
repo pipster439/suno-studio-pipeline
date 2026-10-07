@@ -202,7 +202,10 @@ SDK 使用显式的 save_project_id / render project_id / studio_project_id / st
 The orchestration default is `--chunk-seconds auto`. After local inverse PCM processing,
 choose the minimum feasible clip count within read-only server duration limits and known
 upload byte capacity. Balanced integer sample cuts reconstruct the entire PCM without
-rounding gaps or short tails. One clip forces zero handles/fades and skips seam calibration.
+rounding gaps or short tails. One clip forces zero handles/fades and skips seam calibration. It still uses the
+production joint Rubber Band +8/tempo ×2 inverse and Studio -8/relative speed ×0.5
+with Stretch On. AUTO_CHUNK never changes the processing profile; compressed PCM
+duration determines clip count, while the scaled timeline restores source duration.
 Multiple clips default to a full EXACT render and real internal-boundary QA before any
 handle experiments. Numeric chunk duration remains an explicit legacy research option.
 Catalog, permission and unknown-outcome failures never trigger repartition retries.

@@ -21,16 +21,19 @@ Fixtures record source hashes, the neutral UI observation and individual API tes
 | Volume | linear `amplitude`, UI displays dB | Verified | Local reciprocal gain is theoretical; positive boosts are peak capped with a restoration warning. Upload level changes can invalidate end-to-end restoration |
 
 Both speed buttons (`½` and `×2`) are visible together. They are **relative actions**,
-not evidence that current speed is 0.5. Default profile preserves the verified
-identity timing: Loop/Reverse Off, Stretch On, pitch -8, formant 0, volume 1,
-quantize menu label 1/2, speed action 1 (no action). To apply the half-speed target:
+not evidence that current speed is 0.5. The user explicitly specifies the production
+target: Loop/Reverse Off, Stretch On, pitch -8, relative speed 0.5, formant 0,
+volume 1 and quantize menu label 1/2. This is the default, independently of the
+unverified UI mapping:
 
 ```powershell
-node scripts/studio-pipeline.mjs song.mp3 --studio-speed 0.5
+node scripts/studio-pipeline.mjs song.mp3
 ```
 
 Its local inverse is pitch +8 and joint Rubber Band tempo ×2 (pitch preserving), followed
-by sample-accurate slicing and Studio half-speed warp. Speed-only (pitch 0, ratio
+by AUTO_CHUNK on the actual compressed PCM, sample-accurate slicing and Studio
+half-speed warp. A single clip skips seam mitigation, not inverse processing: its
+preprocessed duration is half the source and its Studio timeline restores that duration. Speed-only (pitch 0, ratio
 0.5) instead uses the measured atempo ×2 candidate: it restored pitch/alignment
 better than Rubber Band tempo in that synthetic test. The combined -8/0.5 case
 keeps joint Rubber Band because its transient correlation was better than sequential
@@ -50,7 +53,9 @@ Every save is read back before render. Profile, trim, warp, amplitude, fades and
 source IDs must agree; server normalization is reported rather than silently
 rendering a different state. Calibration fingerprints include profile hash, inverse
 version, tempo/gain and warp version. Previous pitch-only calibration caches are
-incompatible with this schema.
+incompatible with this schema. Profile version v2 changes the production default
+and invalidates previous calibration profiles. Existing bound runs keep their saved
+profiles on resume; start a new run to use the new default.
 
 ## Warp provenance
 
@@ -101,3 +106,28 @@ formant inversion remain unfinished and explicitly unverified.
 Pairing credentials are displayed only on interactive stderr, never redirected
 logs. `--json-log` keeps stdout as JSON records, including the final summary;
 the matrix forwards this mode to every candidate.
+
+
+## Default inverse correction validation (2026-10-07)
+
+The production default is now profile v2: Studio -8 / relative speed 0.5 /
+Stretch On, with local +8 / tempo ×2 in one joint Rubber Band pass. AUTO_CHUNK
+uses actual preprocessed duration and never resets the transforms to identity.
+
+Live music: source 174.96 s, preprocessed 87.48 s, render 174.9735 s; one clip,
+zero internal boundaries, zero handles/fades, amplitude 1. Save/readback matched
+pitch, enabled warp and marker slope 3.9 (= base 1.95 / relative speed 0.5),
+with zero read trim. This slope follows the existing relative speed action, not
+the historical pitch/warp correlation formula.
+
+Known synthetic tone: 220 Hz → 221.8 Hz (+14.107 cents), duration delta +13.5 ms,
+envelope alignment +10 ms. Music: relative spectral shift estimate 0 cents at
+12.5-cent resolution (16 aligned windows); this is a confidence-gated spectral
+estimate, not a per-voice pitch or formant claim. Detector thresholds are central
+in `suno/audio/spectral-pitch.mjs`; insufficient confidence reports NOT VERIFIED.
+
+Music RMS delta was -1.236 dB and clipping-candidate counts were 2 source /
+2 rendered; the rendered peak was lower. The conservative full-transform gate
+remains WARN. Synthetic RMS delta was +4.455 dB and also remains WARN. No
+automatic level repair, limiter or normalization was applied. The temporary full
+QA fallback was removed after analysis; no final delivery was persisted.

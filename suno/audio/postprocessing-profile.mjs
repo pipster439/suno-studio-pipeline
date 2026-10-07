@@ -1,7 +1,7 @@
 import { sha256 } from './pcm.mjs';
 import { applySpeedAction, WARP_STRATEGY_VERSION } from './warp-derivation.mjs';
 import { deserializeAudioProjectState } from '../studio/clip-pipeline.mjs';
-export const PROFILE_VERSION = 'studio-postprocessing-v1';
+export const PROFILE_VERSION = 'studio-postprocessing-v2';
 export const UI_MAPPING = Object.freeze({
   loop: { paths:['loop.enabled'], status:'FOUND_STATICALLY', uiVerification:'NOT VERIFIED' },
   reverse: { paths:['reversed','warp.markers','readStartBeats','loop'], status:'FOUND_STATICALLY', uiVerification:'NOT VERIFIED' },
@@ -16,12 +16,12 @@ export function resolveStudioProfile(config) {
   const provided = config.provided ?? [], has = k => provided.includes(k);
   if (config['studio-profile'] && config['studio-profile'] !== 'default') throw Error('Unknown Studio profile');
   if (has('studio-pitch') && has('studio-transpose') && config['studio-pitch'] !== config['studio-transpose']) throw Error('Conflicting pitch aliases');
-  // Half speed is an ACTION button. The observed UI cannot establish a prior
-  // speed action. Default retains the verified identity timing; explicit .5 applies it.
+  // The production half-speed target is explicitly specified by the user.
+  // It uses the measured joint inverse; UI button labels alone do not establish it.
   const profile = { schemaVersion:1, version:PROFILE_VERSION, loop:false, reverse:false,
     stretch:(config['studio-stretch'] ?? 'on') === 'on', quantize:config['studio-quantize'] ?? '1/2',
     pitchSemitones:has('studio-pitch') ? config['studio-pitch'] : config['studio-transpose'] ?? -8,
-    speedRatio:config['studio-speed'] ?? 1, formant:config['studio-formant'] ?? 0, volume:config['studio-volume'] ?? 1,
+    speedRatio:config['studio-speed'] ?? .5, formant:config['studio-formant'] ?? 0, volume:config['studio-volume'] ?? 1,
     evidence:Object.fromEntries(Object.entries(UI_MAPPING).map(([k,v])=>[k,{...v,schemaVerification:k==='quantize'?'NOT VERIFIED':'VERIFIED_SAVE_READBACK',renderVerification:['pitch','speed','volume','formant'].includes(k)?'render_ab':'NOT VERIFIED',verificationKind:['static_callback',...(k==='quantize'?[]:['save_readback'])]}])), warpStrategyVersion:WARP_STRATEGY_VERSION,
     limitations:['UI mapping NOT VERIFIED: official edit was subscription-blocked', 'Quantize label does not imply quantization was applied; no marker quantization is synthesized', 'Speed half/double controls are actions, not a current value'] };
   if (!profile.stretch && profile.speedRatio !== 1) throw Error('Speed + Stretch Off inverse NOT VERIFIED');

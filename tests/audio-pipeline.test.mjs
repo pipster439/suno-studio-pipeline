@@ -149,7 +149,7 @@ test('scoped presigned upload transport preserves operation only; logs, other en
 test('dry-run performs zero network including controller and injected clients',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'suno-dry-'));let calls=0;const previous=globalThis.fetch;
   try{const input=join(dir,'input.wav');await writeFile(input,wav(signal(12)));globalThis.fetch=async()=>{calls++;throw Error('network forbidden');};
-    const config=parseConfig([input,'--chunk-seconds','6','--preprocessed',input,'--dry-run']); const result=await runPipeline(config,{bridge:{call:()=>{calls++;throw Error('write forbidden');}},client:{create_project:()=>{calls++;throw Error('write forbidden');}}});assert.equal(result.networkWrites,0);assert.equal(calls,0);
+    const config=parseConfig([input,'--chunk-seconds','6','--studio-speed','1','--preprocessed',input,'--dry-run']); const result=await runPipeline(config,{bridge:{call:()=>{calls++;throw Error('write forbidden');}},client:{create_project:()=>{calls++;throw Error('write forbidden');}}});assert.equal(result.networkWrites,0);assert.equal(calls,0);
     const stored=JSON.parse(await readFile(join(result.work,'config.json'),'utf8'));stored['dry-run']=false;await writeFile(join(result.work,'config.json'),JSON.stringify(stored));
     const resumed=await runPipeline(parseConfig(['--resume',result.work,'--dry-run']));assert.equal(resumed.networkWrites,0);assert.equal(calls,0);
     await rm(result.work,{recursive:true,force:true});
@@ -178,7 +178,7 @@ test('offline production resume keeps project after definite save rejection and 
   const dir=await mkdtemp(join(tmpdir(),'suno-resume-'));const previous=globalThis.fetch;
   try{
     const p=signal(12.012),input=join(dir,'input.wav');await writeFile(input,wav(p));
-    const config=parseConfig([input,'--chunk-seconds','6','--preprocessed',input,'--strategy','exact','--download','--keep-workdir','--output',join(dir,'output.wav')]);
+    const config=parseConfig([input,'--chunk-seconds','6','--studio-speed','1','--preprocessed',input,'--strategy','exact','--download','--keep-workdir','--output',join(dir,'output.wav')]);
     await writeFile(join(dir,'config.json'),JSON.stringify(config));
     const records=Object.fromEntries(slicePlan(p,{minimumSliceSeconds:6}).map(s=>[s.index,{...s,clipId:`cached-${s.index}`,uploadId:`upload-${s.index}`,status:'complete',stages:{}}]));
     await writeFile(join(dir,'upload-results.json'),JSON.stringify({exact:records}));
@@ -203,7 +203,7 @@ test('ABC retains completed A/C when B is rejected, and never runs production wi
   const dir=await mkdtemp(join(tmpdir(),'suno-abc-')),previous=globalThis.fetch;
   try{
     const p=signal(12),input=join(dir,'input.wav');await writeFile(input,wav(p));
-    await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--chunk-seconds','6','--preprocessed',input,'--abc-test','--abc-test-only','--keep-workdir'])));
+    await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--chunk-seconds','6','--studio-speed','1','--preprocessed',input,'--abc-test','--abc-test-only','--keep-workdir'])));
     const records=plan=>Object.fromEntries(plan.map(s=>[s.index,{...s,clipId:`cached-${s.durSec}-${s.index}`,status:'complete',stages:{}}]));
     await writeFile(join(dir,'upload-results.json'),JSON.stringify({exact:records(slicePlan(p,{minimumSliceSeconds:6})),continuous:records(slicePlan(p,{chunkSeconds:12}))}));
     const states=new Map(),requests=new Map();let creates=0,denyB=true;
@@ -225,7 +225,7 @@ test('ABC retains completed A/C when B is rejected, and never runs production wi
 test('confirmed missing render retries once on the same binding; a second missing render and subsequent resume do not submit again',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'suno-missing-'));
   try{
-    const p=signal(12),input=join(dir,'input.wav');await writeFile(input,wav(p));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--chunk-seconds','6','--preprocessed',input,'--strategy','exact','--keep-workdir'])));
+    const p=signal(12),input=join(dir,'input.wav');await writeFile(input,wav(p));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--chunk-seconds','6','--studio-speed','1','--preprocessed',input,'--strategy','exact','--keep-workdir'])));
     await writeFile(join(dir,'upload-results.json'),JSON.stringify({exact:Object.fromEntries(slicePlan(p).map(s=>[s.index,{...s,clipId:`cached-${s.index}`,status:'complete',stages:{}}]))}));
     let creates=0,saves=0,renders=0,wire;const bindings=[];
     const client={create_project:async()=>{creates++;return{id:'same-project'};},save_project:async r=>{saves++;wire=inspectSaveSerializedState(r.state);return{version_id:'same-version'};},get_project_version:async()=>({state:wire}),render_project:async r=>{bindings.push([r.project_id,r.studio_project_version_id]);return{id:`missing-${++renders}`};}};
@@ -241,7 +241,7 @@ test('explicit upload reuse verifies handle source hashes/mapping and uploads no
     const p=signal(12),input=join(dir,'input.wav'),cache=join(dir,'cache.json');await writeFile(input,wav(p));
     const slices=slicePlan(p,{minimumSliceSeconds:6,prerollMs:300,postrollMs:200}),cached=[];
     for(const s of slices){const file=join(dir,`slice-${s.index}.wav`);await writeFile(file,wav(p,s.sourceStart,s.sourceEnd));cached.push({...s,file,clipId:`cached-handle-${s.index}`,status:'complete'});}
-    await writeFile(cache,JSON.stringify(cached));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--chunk-seconds','6','--preprocessed',input,'--strategy','preroll','--preroll-ms','300','--reuse-uploads',cache,'--keep-workdir'])));
+    await writeFile(cache,JSON.stringify(cached));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--chunk-seconds','6','--studio-speed','1','--preprocessed',input,'--strategy','preroll','--preroll-ms','300','--reuse-uploads',cache,'--keep-workdir'])));
     let wire,request;
     const client={create_project:async()=>({id:'project'}),save_project:async r=>{wire=inspectSaveSerializedState(r.state);return{version_id:'version'};},get_project_version:async()=>({state:wire}),render_project:async r=>{request=r;return{id:'render'};}};
     const bridge={call:async r=>{assert.equal(r.method,'GET');if(r.path==='/api/clip/render')return{result:{id:'render',status:'complete',metadata:{studio_project_id:'project',studio_project_version_id:'version',studio_project_start_beats:0,studio_project_end_beats:request.end_beats,duration:12}}};if(r.path==='/api/download/clip/render?format=m4a')return{result:{status:'ready',download_url:'https://downloads.s3.amazonaws.com/test.m4a'}};throw Error(`Duplicate source request ${r.path}`);}};
@@ -261,7 +261,7 @@ test('matching-source strategy evidence selects measured handles in dry-run; mis
     await writeFile(join(calibration,'diagnostics','handle-experiment.json'),JSON.stringify({status:'E2E_MEASURED_READ_OFFSETS',selected:50,baseline,tests:[candidate]}));
     await writeFile(join(calibration,'diagnostics','handle-alignment.json'),JSON.stringify({passed:true,checks:[{passed:true,correlation:.99,lagMs:0}]}));
     const forbidden={bridge:{call:()=>{throw Error('network forbidden');}},client:{create_project:()=>{throw Error('network forbidden');}}};
-    const result=await runPipeline(parseConfig([input,'--chunk-seconds','6','--preprocessed',input,'--strategy-evidence',calibration,'--dry-run']),forbidden);work=result.work;assert.equal(result.networkWrites,0);
+    const result=await runPipeline(parseConfig([input,'--chunk-seconds','6','--studio-speed','1','--preprocessed',input,'--strategy-evidence',calibration,'--dry-run']),forbidden);work=result.work;assert.equal(result.networkWrites,0);
     const timeline=JSON.parse(await readFile(join(work,'diagnostics-local-timeline.json')));assert.equal(timeline.arrangements[1].readStartBeats,.05*1.95);
     await writeFile(join(calibration,'source-info.json'),JSON.stringify({preprocessedHash:'changed'}));
     await assert.rejects(runPipeline(parseConfig(['--resume',work,'--dry-run']),forbidden),/source hash mismatch/);
