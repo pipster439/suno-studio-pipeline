@@ -1,0 +1,6 @@
+{
+  "queued404Ready": ["queued", 404, 404, 404, 404, 404, 404, 404, 404, "complete"],
+  "emptyAudioUntilReady": ["queued", "processing", "complete"],
+  "delayedDelivery": [{"status":"processing"}, {"status":"ready","download_url":""}, {"ok":false,"reason":"invalid_asset"}, {"status":"ready","download_url":"https://downloads.s3.amazonaws.com/render.m4a"}],
+  "terminalFailure": ["queued", "error"]
+}

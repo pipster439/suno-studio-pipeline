@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // One public orchestration entry; authentication, state and render remain SDK-owned.
-import { readFile, writeFile, mkdir, rm, copyFile, open, unlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, stat, copyFile, open, unlink } from 'node:fs/promises';
 import { resolve, join, dirname, extname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -27,6 +27,7 @@ import { deriveLocalInverse, preprocessInverse } from '../suno/audio/inverse-pro
 import { verifyTransformFile } from '../suno/audio/transform-verification.mjs';
 import { reconcileCachedRender } from '../suno/audio/render-reconciliation.mjs';
 import { runPostprocessMatrix } from '../suno/audio/postprocess-matrix.mjs';
+import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery } from '../suno/audio/render-lifecycle.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pause = ms => new Promise(r => setTimeout(r, ms));
 const readJson = async (file, fallback) => { try { return JSON.parse(await readFile(file, 'utf8')); } catch (e) { if (e.code === 'ENOENT' && fallback !== undefined) return fallback; throw e; } };
@@ -45,6 +46,7 @@ Studio pitch -8 / relative speed x0.5 / Stretch On restores original timing.
 --upload-concurrency 4 --strategy auto|exact|preroll|crossfade
 --preroll-ms 50 --postroll-ms 200 --crossfade-ms 10
 --dry-run --keep-workdir --verbose --json-log --resume runs/RUN
+--render-timeout-seconds 900 --delivery-timeout-seconds 180 (durable jobs; never auto-resubmit)
 Advanced research compatibility:
 --postprocess-test (synthetic API/render matrix; UI mapping remains NOT VERIFIED)
 --validate-transform (temporary full QA comparison; no final download)
@@ -116,7 +118,7 @@ export async function runPipeline(requested, deps = {}) {
   };
   try {
     const old = requested.resume ? await readJson(join(work, 'config.json')) : null;
-    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','download','recalibrate','skip-calibration','allow-quality-warning','validate-transform','synthetic-reference','gain-test','handle-test',...(requested.provided?.includes('handle-clip-count')?['handle-clip-count']:[])].filter(k => requested[k] !== undefined).map(k => [k, requested[k]])) } : requested;
+    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','download','render-timeout-seconds','delivery-timeout-seconds','recalibrate','skip-calibration','allow-quality-warning','validate-transform','synthetic-reference','gain-test','handle-test',...(requested.provided?.includes('handle-clip-count')?['handle-clip-count']:[])].filter(k => requested[k] !== undefined && (!['render-timeout-seconds','delivery-timeout-seconds'].includes(k)||requested.provided?.includes(k)||old[k]===undefined)).map(k => [k, requested[k]])) } : requested;
     if (requested['dry-run']) config['dry-run'] = true;
     if(requested.provided?.includes('output')&&!config.download)throw Error('--output requires explicit --download');
     config.pipelineSchemaVersion=3;
@@ -293,59 +295,41 @@ export async function runPipeline(requested, deps = {}) {
         await durableJson(join(dir,'render-response.json'),privacy.sanitize(captured.response.result));
         await log({event:'cached_render_reconciled',mode,...proven});
       }
-      if(job.phase==='render_submitting'&&!job.renderClipId){const captured=await readJson(join(work,'last-render-transport-response.json'),null);if(captured?.response?.status!==200||captured.response.result?.status!=='complete')throw Error(`${mode}: remote outcome unknown at render_submitting; reconcile jobs.json binding before resume`);await reconcile();}
+      const expectedBinding={projectId:job.projectId,versionId:job.versionId,startBeats:0,endBeats};
+      const actualBinding={...expectedBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId};
+      const renderSnapshots=[];
+      for(const filename of ['render-response-unavailable.json','render-response.json','render-complete.json']){
+        const path=join(dir,filename),clip=await readJson(path,null);
+        const m=clip?.metadata;
+        const snapshotBinding=[expectedBinding,actualBinding].find(b=>m?.studio_project_id===b.projectId&&m.studio_project_version_id===b.versionId&&m.studio_project_start_beats===b.startBeats&&m.studio_project_end_beats===b.endBeats);
+        if(snapshotBinding)renderSnapshots.push({clip,binding:snapshotBinding,observedAt:(await stat(path)).mtime.toISOString()});
+      }
+      restoreRenderJobs(job,renderSnapshots);await persistJobs();
+      if(job.phase==='render_submitting'&&!job.renderClipId){
+        const captured=await readJson(join(work,'last-render-transport-response.json'),null),ack=recoverRenderAcknowledgement(captured,expectedBinding);
+        if(ack){rememberRenderSubmission(job,ack,expectedBinding);await persistJobs();await durableJson(join(dir,'render-response.json'),privacy.sanitize(ack));await log({event:'render_submitted',mode,id:ack.id,recoveredAcknowledgement:true});}
+        else if(captured?.response?.status===200&&captured.response.result?.status==='complete')await reconcile();
+        else throw Error(`${mode}: remote outcome unknown at render_submitting; reconcile jobs.json binding before resume`);
+      }
       if (!job.renderClipId) {
         let submitted;try{submitted = await submit(job, 'render_submitting', 'saved', () => client.render_project({ title, project_id: job.projectId, studio_project_id: job.projectId, studio_project_version_id: job.versionId,
           web_client_pathname: '/studio', lyrics: '', state: prepareRenderTransformedState(editor, transformRenderState, serializeAudioProjectState),
           start_beats: 0, end_beats: endBeats, downbeats: deriveDownbeats(renderTiming, 0, endBeats), export_mode: 'fullsong_export' }));}catch(e){if(e.status===200&&/queued render response\/range\/project\/version relation mismatch/.test(e.message)){await reconcile();submitted={id:job.renderClipId,reconciled:true};}else throw e;}
-        job.renderClipId = submitted.id; job.phase = 'render_queued'; await persistJobs();
+        rememberRenderSubmission(job,submitted,{...expectedBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId});await persistJobs();
+        await log({event:'render_submitted',mode,id:submitted.id,message:`id=${submitted.id}`});
         if(!submitted.reconciled)await durableJson(join(dir, 'render-response.json'), privacy.sanitize(submitted));
       }
-      let complete, consecutiveNotFound=0;
-      for (let i = 0; i < 180; i++) {
-        let response;
-        try { response = await retry429(() => bridge.call({ method: 'GET', path: `/api/clip/${job.renderClipId}`, timeoutMs: 30000 }), { log }); consecutiveNotFound=0; }
-        catch(e) {
-          await log({event:'render_poll_failed',mode,renderClipId:job.renderClipId,status:e.status,kind:e.kind,message:e.message});
-          // Only a GET on the acknowledged render ID retries eventual visibility.
-          // A retry requires the official endpoint to confirm a missing asset.
-          if(e.status!==404)throw e;
-          if(++consecutiveNotFound>=3) {
-            const confirmation=await retry429(()=>bridge.call({method:'GET',path:`/api/download/clip/${job.renderClipId}?format=m4a`,timeoutMs:30000}),{log});
-            await durableJson(join(dir,'missing-render-download-confirmation.json'),privacy.sanitize(confirmation));
-            if(confirmation.result?.ok===false && confirmation.result.reason==='invalid_asset' && !job.missingRenderRetryAttempted) {
-              job.missingRenderRetryAttempted=true;
-              job.unavailableRenderIds=[...(job.unavailableRenderIds??[]),job.renderClipId];
-              await copyFile(join(dir,'render-response.json'),join(dir,'render-response-unavailable.json'));
-              await log({event:'confirmed_missing_render_retry',mode,previousRenderClipId:job.renderClipId,projectId:job.projectId,versionId:job.versionId,reason:'GET 404 and official download invalid_asset; retry once using existing saved binding'});
-              job.renderClipId=null;job.phase='saved';await persistJobs();
-              return render(mode,slices,transpose,probeTimes,strategy,options);
-            }
-            throw e;
-          }
-          await pause(4000);continue;
-        }
-        const c = response.result;
-        if (c?.id !== job.renderClipId) throw Error('Render polling response id mismatch');
-        if (c.status === 'error') throw Error('Remote render failed');
-        if (c.status === 'complete') { complete = c; break; }
-        if (i % 5 === 0) await log({ event: 'render_poll', mode, message: c.status }); await pause(4000);
-      }
-      if (!complete) throw Error('Render still processing; resume uses existing render id');
+      const resolved=await resolveRenderDelivery(job,{
+        ...deps.renderLifecycle,bridge,binding:{...actualBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId},snapshots:renderSnapshots,persist:persistJobs,
+        timeoutMs:config['render-timeout-seconds']?config['render-timeout-seconds']*1000:undefined,
+        deliveryTimeoutMs:config['delivery-timeout-seconds']?config['delivery-timeout-seconds']*1000:undefined,
+        log:e=>log({mode,...e,message:`id=${e.id} state=${e.state??''} age=${Math.round((e.ageMs??0)/1000)}s${e.metadata!==undefined?` metadata=${e.metadata} transient=${!!e.transient}`:''}${e.delivery?` delivery=${e.delivery}`:''}`}),
+        observe:async(kind,value)=>{if(kind==='complete')await durableJson(join(dir,'render-complete.json'),privacy.sanitize(value));if(kind==='delivery')await durableJson(join(dir,'download-response.json'),privacy.sanitize(value));}
+      });
+      const {complete,deliveryURL,deliverySource}=resolved;
+      const selectedRenderBinding={...(job.renderBinding??{}),renderClipId:job.renderClipId,renderProjectId:complete.metadata.studio_project_id,renderVersionId:complete.metadata.studio_project_version_id};
       phaseTimings.renderWaitMs=performance.now()-renderWaitStarted;job.timings.renderWaitMs=(job.timings.renderWaitMs??0)+phaseTimings.renderWaitMs;
-      const metadata = complete.metadata;
-      if (metadata?.studio_project_id !== (job.renderBinding?.renderProjectId??job.projectId) || metadata.studio_project_version_id !== (job.renderBinding?.renderVersionId??job.versionId) || metadata.studio_project_start_beats !== 0 || metadata.studio_project_end_beats !== endBeats) throw Error('Completed render binding/range mismatch');
-      await durableJson(join(dir, 'render-complete.json'), privacy.sanitize(complete));
-      job.phase='qa_pending';await persistJobs();
-      let deliveryURL;
-      for(let i=0;i<90;i++){
-        const response=await retry429(()=>bridge.call({method:'GET',path:`/api/download/clip/${job.renderClipId}?format=m4a`,timeoutMs:30000}),{log});
-        await durableJson(join(dir,'download-response.json'),privacy.sanitize(response));const d=response.result;
-        if(d?.status==='ready'&&d.download_url&&!d.download_url.includes('<redacted>')){deliveryURL=d.download_url;break;}
-        if(d?.status!=='processing')throw Error('Official delivery unavailable; no player stream fallback');
-        await pause(2000);
-      }
-      if(!deliveryURL)throw Error('Official delivery still processing; resume retains render id');
+      const metadata=complete.metadata;
       const previousQuality=await readJson(join(dir,'quality-summary.json'),null);
       let qa;const qualityStarted=performance.now();let qualityReused=false;
       if(previousQuality?.renderClipId===job.renderClipId&&previousQuality.qualityThresholdVersion===QUALITY_THRESHOLDS.version&&previousQuality.detectorVersion===QUALITY_THRESHOLDS.detectorVersion&&!config['gain-test']&&!config['handle-test']&&!config['validate-transform']){
@@ -376,7 +360,7 @@ export async function runPipeline(requested, deps = {}) {
       }
       const {analysis,gate}=qa;phaseTimings.qualityProbeMs=qualityReused?0:performance.now()-qualityStarted;phaseTimings.qualityReused=qualityReused;job.timings.qualityProbeMs=qa.qualitySummary.qualityProbeMs;
       for(const warning of gate.warnings)await log({event:'QUALITY WARNING',mode,...warning});
-      const summary={mode,renderBinding:job.renderBinding??{renderProjectId:job.projectId,renderVersionId:job.versionId},studioProfileHash:studioProfile.hash,transformVerification,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
+      const summary={mode,renderBinding:selectedRenderBinding,studioProfileHash:studioProfile.hash,transformVerification,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),deliverySource,outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
       if(config.download&&!options.calibration&&mode.startsWith('PRODUCTION')){
         const downloadStarted=performance.now();
         const output=resolve(config.output??join(work,basename(config.input,extname(config.input))+'-studio-render.m4a'));
@@ -566,7 +550,7 @@ export async function runPipeline(requested, deps = {}) {
     const result={work,studioProfile,localInverse,...production.summary,preprocessedDuration:pcm.frames/pcm.sampleRate,chunkStrategy:autoChunk?'AUTO_CHUNK':'FIXED_SECONDS',clipCount:uploaded.length,internalBoundaryCount:uploaded.length-1,chunkSelection:autoChunk?chunkSelection:undefined,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!config.download};
     await durableJson(join(work,'summary.json'),privacy.sanitize(result));
     await durableJson(join(work,'studio-summary.json'),{projectId:result.projectId,versionId:result.versionId,strategy:result.strategy,preRollMs:result.preRollMs,postRollMs:result.postRollMs,preprocessedDuration:result.preprocessedDuration,chunkStrategy:result.chunkStrategy,clipCount:result.clipCount,internalBoundaryCount:result.internalBoundaryCount});
-    await durableJson(join(work,'render-summary.json'),{renderedClipId:result.renderClipId,renderedAudioURL:result.renderedAudioURL,downloaded:result.downloaded,output:result.output});
+    await durableJson(join(work,'render-summary.json'),{renderedClipId:result.renderClipId,renderedAudioURL:result.renderedAudioURL,deliverySource:result.deliverySource,downloaded:result.downloaded,output:result.output});
     await durableJson(join(work,'quality-summary.json'),privacy.sanitize(production.qualitySummary));
     if (!config['keep-workdir'] && !config.diagnose) {
       // Only task-owned large intermediates; checkpoint hashes/IDs remain for resume.

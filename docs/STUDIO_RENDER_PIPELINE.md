@@ -60,3 +60,48 @@ confidence-gated relative spectral translation estimate; low confidence remains
 NOT VERIFIED. Duration, envelope timing, levels, clipping candidates and spectral
 distribution are separately reported. These metrics do not claim perceptual identity.
 The original delivery stays on Suno unless `--download` is explicit.
+
+
+## Durable render lifecycle
+
+The production orchestrator records an acknowledged render ID before further
+polling. States are SUBMITTED → QUEUED → WAITING_FOR_METADATA →
+WAITING_FOR_DELIVERY → READY, or TIMEOUT / FAILED. HTTP 404 is eventual
+visibility, not permanent disappearance; empty audio_url while queued is normal.
+GET metadata and delivery calls retry with 1/2/3/5/8/10-second intervals, capped at
+10 seconds. Rate-limit Retry-After remains respected. Default metadata budget is
+900 seconds from acknowledgement; delivery budget is 180 seconds from observed
+completion. Both are CLI adjustable and preserved across restart. An aged job is
+queried once on resume even if its budget has elapsed, so late readiness can resolve.
+
+TIMEOUT retains the render ID. FAILED requires an explicit server error state;
+auth/binding validation errors keep the checkpoint without a replacement render.
+The old three-404 + invalid_asset "confirmed_missing_render_retry" path is removed.
+No resolver has render submission capability. After a primary 404/405, the
+already documented reference-client `iD/338609` GET template
+`/api/clips/get_songs_by_ids?ids=<id>` may resolve metadata. Empty `clips` arrays
+remain temporary visibility, not missing proof; the exact returned ID/binding
+must match. The live failed IDs returned HTTP 200 with empty arrays. Queued acknowledgements captured in
+the transport journal can recover the submission/checkpoint crash gap only when
+project, version and range match. Existing cached-complete reconciliation still
+requires saved-state/source binding evidence; strict StudioClient behavior remains.
+
+Legacy unavailableRenderIds are migrated into ordered, deduplicated renderJobs.
+The oldest job is resolved first; only timeout or explicit terminal failure allows
+trying another already acknowledged historical ID. No new render is submitted.
+Completed metadata persisted for an exact matching ID/project/version/range may
+be used when a later GET is temporarily 404; its provenance is labelled separately.
+
+Official delivery remains preferred. Processing, ready-with-empty-url and
+invalid_asset responses remain WAITING_FOR_DELIVERY until its budget is exhausted.
+Only then inspect this exact clip's observed media_urls/audio_url. Trusted URLs
+must pass a clear-container HTTP probe; /api/forbidden, masked signed URLs, unknown
+hosts and encrypted bytes are rejected. No hidden endpoints, constructed media
+URLs, decryption keys or entitlement changes are used. Full QA still validates
+codec/duration. TIMEOUT reports whether fallback was absent or not decodable.
+
+The 2026-10-07 failed run has two archived acknowledgements. Live resume made zero
+network writes, retained both IDs and correctly ended TIMEOUT: both reads returned
+404, official delivery remained invalid_asset, and the observed player CDN returned
+ciphertext (encoding 1.0.0), not a usable delivery. Official song UI also returned
+404. This is unresolved service-side availability, not a successful final delivery.

@@ -238,6 +238,15 @@ quality-summary.json, summary.json and run.log. Summary lists selected handles,
 project/version/render identifiers, a sanitized delivery URL, quality metrics,
 phase timings and candidates actually tested this run (cache history separately).
 Default success removes preprocessed WAV, slices and temporary full QA assets.
+
+Render submission IDs are durable. Transient metadata 404s and empty/processing
+delivery responses are retried with 1/2/3/5/8/10-second backoff; they never create
+another render. `--render-timeout-seconds 900` measures time from acknowledgment;
+`--delivery-timeout-seconds 180` measures time from completed metadata. Resume
+keeps all historical render IDs and tries the oldest eligible job first. TIMEOUT
+keeps the checkpoint and does not declare the remote ID permanently missing.
+Only an actually returned, verified clear player source can replace unavailable
+official delivery; encrypted player bytes and `/api/forbidden` are not deliveries.
 Failure, --diagnose or --keep-workdir retains debugging artifacts; --diagnose also
 writes boundary snippets. --verbose shows individual upload stages; --json-log
 prints structured diagnostics. Logs do not retain browser credentials.

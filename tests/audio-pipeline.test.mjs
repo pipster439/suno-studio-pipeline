@@ -222,19 +222,37 @@ test('ABC retains completed A/C when B is rejected, and never runs production wi
     denyB=false;const completed=await runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA});assert.equal(completed.diagnosticOnly,true);assert.equal(completed.productionRun,false);assert.equal(creates,3);assert.equal(JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION,undefined);
   }finally{globalThis.fetch=previous;await rm(dir,{recursive:true,force:true});}
 });
-test('confirmed missing render retries once on the same binding; a second missing render and subsequent resume do not submit again',async()=>{
+test('missing render is eventual visibility until timeout; subsequent resume never submits a replacement',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'suno-missing-'));
   try{
     const p=signal(12),input=join(dir,'input.wav');await writeFile(input,wav(p));await writeFile(join(dir,'config.json'),JSON.stringify(parseConfig([input,'--chunk-seconds','6','--studio-speed','1','--preprocessed',input,'--strategy','exact','--keep-workdir'])));
     await writeFile(join(dir,'upload-results.json'),JSON.stringify({exact:Object.fromEntries(slicePlan(p).map(s=>[s.index,{...s,clipId:`cached-${s.index}`,status:'complete',stages:{}}]))}));
     let creates=0,saves=0,renders=0,wire;const bindings=[];
     const client={create_project:async()=>{creates++;return{id:'same-project'};},save_project:async r=>{saves++;wire=inspectSaveSerializedState(r.state);return{version_id:'same-version'};},get_project_version:async()=>({state:wire}),render_project:async r=>{bindings.push([r.project_id,r.studio_project_version_id]);return{id:`missing-${++renders}`};}};
-    const bridge={call:async r=>{if(r.path.startsWith('/api/clip/'))throw Object.assign(Error('Not found'),{status:404});if(r.path.startsWith('/api/download/clip/'))return{result:{ok:false,reason:'invalid_asset'}};throw Error('Unexpected request');}};
-    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA}),/Not found/);assert.equal(renders,2);assert.equal(creates,1);assert.equal(saves,1);assert.deepEqual(bindings,[['same-project','same-version'],['same-project','same-version']]);
-    const job=JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION;assert.equal(job.missingRenderRetryAttempted,true);assert.deepEqual(job.unavailableRenderIds,['missing-1']);assert.equal(job.renderClipId,'missing-2');
-    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA}),/Not found/);assert.equal(renders,2);assert.equal(creates,1);
+    const bridge={call:async r=>{if(r.path.startsWith('/api/clips/get_songs_by_ids'))return{result:{clips:[]}};if(r.path.startsWith('/api/clip/'))throw Object.assign(Error('Not found'),{status:404});if(r.path.startsWith('/api/download/clip/'))return{result:{ok:false,reason:'invalid_asset'}};throw Error('Unexpected request');}};
+    let clock=Date.now();const lifecycle={now:()=>clock,wait:async ms=>{clock+=ms;},playerProbe:async()=>({unavailable:true})};
+    await assert.rejects(runPipeline(parseConfig(['--resume',dir,'--render-timeout-seconds','15']),{bridge,client,qa:offlineQA,renderLifecycle:lifecycle}),/Render TIMEOUT/);assert.equal(renders,1);assert.equal(creates,1);assert.equal(saves,1);assert.deepEqual(bindings,[['same-project','same-version']]);
+    const job=JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION;assert.equal(job.missingRenderRetryAttempted,undefined);assert.equal(job.renderJobs.length,1);assert.equal(job.renderClipId,'missing-1');assert.equal(job.renderJobs[0].state,'TIMEOUT');
+    await assert.rejects(runPipeline(parseConfig(['--resume',dir]),{bridge,client,qa:offlineQA,renderLifecycle:lifecycle}),/Render TIMEOUT/);assert.equal(renders,1);assert.equal(creates,1);
   }finally{await rm(dir,{recursive:true,force:true});}
 });
+test('resume recovers a queued transport acknowledgement and dispatches no create/save/render/upload writes',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'suno-queued-ack-'));
+  try{
+    const p=signal(12),input=join(dir,'input.wav'),config=parseConfig([input,'--chunk-seconds','6','--studio-speed','1','--preprocessed',input,'--strategy','exact']);
+    await writeFile(input,wav(p));await writeFile(join(dir,'config.json'),JSON.stringify(config));
+    const slices=slicePlan(p).map(s=>({...s,clipId:`cached-${s.index}`,status:'complete',stages:{}})),wire=buildTimeline(fixture,slices,{transpose:-8,title:'test'}),endBeats=23.4;
+    await writeFile(join(dir,'upload-results.json'),JSON.stringify({exact:Object.fromEntries(slices.map(s=>[s.index,s]))}));
+    await writeFile(join(dir,'jobs.json'),JSON.stringify({PRODUCTION:{projectId:'project',versionId:'version',phase:'render_submitting',wire}}));
+    const metadata={studio_project_id:'project',studio_project_version_id:'version',studio_project_start_beats:0,studio_project_end_beats:endBeats,duration:12};
+    await writeFile(join(dir,'last-render-transport-response.json'),JSON.stringify({requestBinding:{projectId:'project',versionId:'version',startBeats:0,endBeats},response:{status:200,result:{id:'acknowledged',status:'queued',metadata}}}));
+    const forbidden=async()=>{throw Error('Unexpected write');},client={create_project:forbidden,save_project:forbidden,render_project:forbidden,get_project_version:async()=>({state:wire})};
+    const bridge={call:async q=>{assert.equal(q.method,'GET');if(q.path==='/api/clip/acknowledged')return{result:{id:'acknowledged',status:'complete',metadata}};if(q.path.startsWith('/api/download/clip/acknowledged'))return{result:{status:'ready',download_url:'https://downloads.s3.amazonaws.com/render.m4a'}};throw Error('Unexpected request');}};
+    const result=await runPipeline(parseConfig(['--resume',dir]),{client,bridge,uploadSlice:forbidden,qa:offlineQA});
+    assert.equal(result.renderClipId,'acknowledged');const job=JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION;assert.equal(job.renderJobs.length,1);assert.equal(job.renderJobs[0].id,'acknowledged');assert.equal(job.phase,'complete');
+  }finally{await rm(dir,{recursive:true,force:true});}
+});
+
 test('explicit upload reuse verifies handle source hashes/mapping and uploads no duplicate sources',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'suno-handle-reuse-')),previous=globalThis.fetch;
   try{
