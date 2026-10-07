@@ -26,7 +26,8 @@ import { deriveLocalInverse, preprocessInverse } from '../suno/audio/inverse-pro
 import { verifyTransformFile } from '../suno/audio/transform-verification.mjs';
 import { reconcileCachedRender } from '../suno/audio/render-reconciliation.mjs';
 import { runPostprocessMatrix } from '../suno/audio/postprocess-matrix.mjs';
-import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery } from '../suno/audio/render-lifecycle.mjs';
+import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery, selectAcknowledgedRender } from '../suno/audio/render-lifecycle.mjs';
+import { exportModeFor } from '../suno/audio/export-strategy.mjs';
 import { prepareFullSongExport, describeExportRequest, exportCompletionStatus, requireExportReady } from '../suno/audio/studio-export.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pause = ms => new Promise(r => setTimeout(r, ms));
@@ -47,6 +48,8 @@ Studio pitch -8 / relative speed x0.5 / Stretch On restores original timing.
 --preroll-ms 50 --postroll-ms 200 --crossfade-ms 10
 --dry-run --keep-workdir --verbose --json-log --resume runs/RUN
 --render-timeout-seconds 900 --delivery-timeout-seconds 180 (durable jobs; never auto-resubmit)
+--export-strategy verified_legacy_render (default) | experimental_fullsong_export
+--resume-render-id ID (select an already acknowledged, exactly bound historical job)
 Advanced research compatibility:
 --postprocess-test (synthetic API/render matrix; UI mapping remains NOT VERIFIED)
 --validate-transform (temporary full QA comparison; no final download)
@@ -118,7 +121,7 @@ export async function runPipeline(requested, deps = {}) {
   };
   try {
     const old = requested.resume ? await readJson(join(work, 'config.json')) : null;
-    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','download','render-timeout-seconds','delivery-timeout-seconds','recalibrate','skip-calibration','allow-quality-warning','validate-transform','synthetic-reference','gain-test','handle-test',...(requested.provided?.includes('handle-clip-count')?['handle-clip-count']:[])].filter(k => requested[k] !== undefined && (!['render-timeout-seconds','delivery-timeout-seconds'].includes(k)||requested.provided?.includes(k)||old[k]===undefined)).map(k => [k, requested[k]])) } : requested;
+    const config = old ? { ...old, ...Object.fromEntries(['resume','verbose','json-log','keep-workdir','output','download','render-timeout-seconds','delivery-timeout-seconds','recalibrate','skip-calibration','allow-quality-warning','validate-transform','synthetic-reference','gain-test','handle-test',...['handle-clip-count','export-strategy','resume-render-id'].filter(k=>requested.provided?.includes(k))].filter(k => requested[k] !== undefined && (!['render-timeout-seconds','delivery-timeout-seconds'].includes(k)||requested.provided?.includes(k)||old[k]===undefined)).map(k => [k, requested[k]])) } : requested;
     if (requested['dry-run']) config['dry-run'] = true;
     if(requested.provided?.includes('output')&&!config.download)throw Error('--output requires explicit --download');
     config.pipelineSchemaVersion=3;
@@ -289,7 +292,11 @@ export async function runPipeline(requested, deps = {}) {
       const renderWaitStarted=performance.now();
       // Use the verified saved version and its full arrangement end, rather than
       // source/PCM duration or a fresh local reconstruction of the render state.
-      const fullExport = prepareFullSongExport(readback,{projectId:job.projectId,versionId:job.versionId,title});
+      const savedEnd = Math.max(...readback.state.tracks.flatMap(t=>t.clips.map(c=>c.endBeats)));
+      if(config['resume-render-id'] && mode.startsWith('PRODUCTION')) selectAcknowledgedRender(job,Object.values(jobs),config['resume-render-id'],{projectId:job.projectId,versionId:job.versionId,startBeats:0,endBeats:savedEnd});
+      const priorRequest = await readJson(join(dir,'export-request.json'),null);
+      const exportMode = job.exportMode ?? (job.renderClipId ? priorRequest?.export_mode : null) ?? exportModeFor(config['export-strategy']);
+      const fullExport = prepareFullSongExport(readback,{projectId:job.projectId,versionId:job.versionId,title,exportMode});
       const endBeats = fullExport.endBeats;
       const requestSummary = describeExportRequest(fullExport.preview);
       await durableJson(join(dir,'export-request.json'),{...requestSummary,evidence:'PREPARED_FROM_VERIFIED_READBACK'});
@@ -326,18 +333,20 @@ export async function runPipeline(requested, deps = {}) {
       }
       if (!job.renderClipId) {
         let submitted;try{submitted = await submit(job, 'render_submitting', 'saved', () => client.render_project(fullExport.input));}catch(e){if(e.status===200&&/queued render response\/range\/project\/version relation mismatch/.test(e.message)){await reconcile();submitted={id:job.renderClipId,reconciled:true};}else throw e;}
-        rememberRenderSubmission(job,submitted,{...expectedBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId});await persistJobs();
-        await log({event:'render_submitted',mode,id:submitted.id,message:`id=${submitted.id}`});
+        const record=rememberRenderSubmission(job,submitted,{...expectedBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId});record.exportMode=exportMode;job.exportMode=exportMode;await persistJobs();
+        await log({event:'render_submitted',mode,id:submitted.id,exportMode,projectId:job.projectId,versionId:job.versionId,startBeats:0,endBeats,message:`id=${submitted.id} export_mode=${exportMode}`});
         if(!submitted.reconciled)await durableJson(join(dir, 'render-response.json'), privacy.sanitize(submitted));
       }
       await checkpointExport();
-      const resolved=await resolveRenderDelivery(job,{
+      let resolved;
+      try { resolved=await resolveRenderDelivery(job,{
         ...deps.renderLifecycle,bridge,binding:{...actualBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId},snapshots:renderSnapshots,persist:persistJobs,
         timeoutMs:config['render-timeout-seconds']?config['render-timeout-seconds']*1000:undefined,
         deliveryTimeoutMs:config['delivery-timeout-seconds']?config['delivery-timeout-seconds']*1000:undefined,
+        preferredRenderId:mode.startsWith('PRODUCTION')?config['resume-render-id']:undefined,
         log:e=>log({mode,...e,message:`id=${e.id} state=${e.state??''} age=${Math.round((e.ageMs??0)/1000)}s${e.metadata!==undefined?` metadata=${e.metadata} transient=${!!e.transient}`:''}${e.delivery?` delivery=${e.delivery}`:''}`}),
         observe:async(kind,value)=>{if(kind==='complete')await durableJson(join(dir,'render-complete.json'),privacy.sanitize(value));if(kind==='delivery')await durableJson(join(dir,'download-response.json'),privacy.sanitize(value));}
-      });
+      }); } catch(error) { await checkpointExport(); throw error; }
       const {complete,deliveryURL,deliverySource}=resolved;
       await checkpointExport(complete);
       requireExportReady(job.exportStatus);

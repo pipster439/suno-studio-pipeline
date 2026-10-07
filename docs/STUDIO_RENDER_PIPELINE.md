@@ -35,7 +35,7 @@ caller748387 @825347 in 3g9-3c-u44c0o.js. These are existing evidence, not a new
 
 Save state and render state are distinct branded handles. Never run save serialization
 blindly on serialized GET state. request-builders preserves required fields and only
-known enum values. Observed export modes other than fullsong_export stay static.
+known enum values. The context branch was subsequently verified in the full-range experiment below.
 render-state returns a full queued entity, not a multitrack download_url object.
 The real queued metadata.type is studio_export; do not rewrite it to the historical
 rendered_context_window value. Parsers preserve unknown response fields.
@@ -69,7 +69,8 @@ dispatches POST `/api/studio/render-state` after save/version readback verificat
 No frontend Export button is involved. The full-song contract uses the latest
 save-returned version ID and a render transform/serialization of that readback,
 with `start_beats=0`, `end_beats=max(saved arrangement.endBeats)`,
-`export_mode=fullsong_export`, and `render_engine=v2`. End is never derived from
+`export_mode=rendered_context_window`, explicit `from_studio_project_id` equal to
+the current project, and `render_engine=v2`. End is never derived from
 uploaded PCM duration or just one clip. At the default inverse, 91.363628 seconds
 uploaded restores a 182.727256-second timeline, ending at 356.31814965986393 beats.
 
@@ -100,7 +101,7 @@ without UI Export. That short control does not prove the failed 182-second run r
 
 The production orchestrator records an acknowledged render ID before further
 polling. States are SUBMITTED → QUEUED → WAITING_FOR_METADATA →
-WAITING_FOR_DELIVERY → READY, or TIMEOUT / FAILED. HTTP 404 is eventual
+WAITING_FOR_DELIVERY → READY, or TIMEOUT / FAILED / DELIVERY_RESTRICTED. HTTP 404 is eventual
 visibility, not permanent disappearance; empty audio_url while queued is normal.
 GET metadata and delivery calls retry with 1/2/3/5/8/10-second intervals, capped at
 10 seconds. Rate-limit Retry-After remains respected. Default metadata budget is
@@ -139,3 +140,38 @@ network writes, retained both IDs and correctly ended TIMEOUT: both reads return
 404, official delivery remained invalid_asset, and the observed player CDN returned
 ciphertext (encoding 1.0.0), not a usable delivery. Official song UI also returned
 404. This is unresolved service-side availability, not a successful final delivery.
+
+
+## Final materialization experiment (2026-10-07)
+
+Official module 130800 uses `rendered_context_window` plus
+`from_studio_project_id` in its context branch. This is the only necessary extra
+field recovered statically. The controlled experiment reused the same saved
+project/version, transformed state SHA256, V2 engine and full 0–356.31814965986393
+beat range. No preprocess/upload/create/save was repeated. Exactly one new render
+was submitted and became readable complete in approximately 30 seconds, correctly
+bound, with duration 182.72727083333334s. Authorized official playback decoded
+182.728s and progressed without error. A fresh default production run subsequently
+completed in approximately 26 seconds. `verified_legacy_render` is now the
+central production strategy; `experimental_fullsong_export` is retained.
+
+This does **not** prove EXPORT_MODE_MISMATCH as the sole cause: the historical
+fullsong archive also contains complete metadata for the same long range, although
+later reads returned 404. Original uploader result type is user-observed;
+its exact submission body is unavailable. Metadata type is not substituted for a
+captured request mode. No duration ladder was necessary: long-range completion
+and authorized playback were directly observed.
+
+Both M4A and MP3 download reads returned explicit `not_authorized` for the new
+context asset. `/api/forbidden` and encoded player media are not clear remote QA
+sources. A page-owned playable blob does not become a reusable HTTP delivery URL.
+The pipeline now records complete materialization separately and stops with
+DELIVERY_RESTRICTED immediately on download permission denial. It retains IDs,
+does not retry renders, and does not claim RUN SUCCESS or automated QA PASS.
+No decryption, entitlement modification, guessed URLs, or UI Export is used.
+Default no-download is preserved; no final audio was persisted.
+
+On resume, prior mode/ID are retained. An explicit `--resume-render-id` may select
+another already acknowledged job with exactly the same project/version/full range;
+all historical IDs remain recorded and no POST is made. Unknown/foreign IDs fail
+before resolution. Normal chronology is unchanged when this override is absent.

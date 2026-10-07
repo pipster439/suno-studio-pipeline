@@ -240,7 +240,7 @@ phase timings and candidates actually tested this run (cache history separately)
 Default success removes preprocessed WAV, slices and temporary full QA assets.
 
 Production exports use the authenticated backend after verified save/readback,
-with full-song range from the saved timeline and explicit `fullsong_export/v2`.
+with full-song range from the saved timeline and `verified_legacy_render` (`rendered_context_window/v2`).
 No Studio UI Export click is required. `run-status.json` declares RUN SUCCESS only
 after a bound render is ready, delivery is resolved, and QA completes. Saving a
 project or receiving a queued render ID remains INCOMPLETE. Per-mode export-request
@@ -330,3 +330,11 @@ and alignment checks do not establish absolute listening perfection or a univers
 `--validate-transform` adds temporary full reference comparison; only `--download`
 saves a final delivery. `--postprocess-test` runs the short synthetic API/render
 matrix (and accepts `--resume`); non-neutral formant inversion stays unsupported.
+
+The full-range context strategy is verified by live complete metadata and official
+player decoding. `--export-strategy experimental_fullsong_export` retains the
+alternate mode. `not_authorized` download responses now stop as
+DELIVERY_RESTRICTED, preserving materialization/IDs and reporting QA unavailable;
+a playable account song alone is not RUN SUCCESS. No entitlement or encrypted
+player handling is changed. To select an existing, exactly bound acknowledged
+render explicitly: `--resume runs/RUN --resume-render-id ID`. This never resubmits.

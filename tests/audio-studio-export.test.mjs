@@ -23,7 +23,8 @@ test('backend full-song export covers restored timeline for one or multiple clip
     const state=stateFor(n),out=prepareFullSongExport(saved(state),{projectId:'project',versionId:'latest-save-version',title:'Export'});
     assert.equal(out.endBeats,24*1.95);assert.equal(out.preview.body.start_beats,0);
     assert.equal(out.preview.body.studio_project_version_id,'latest-save-version');
-    assert.equal(out.preview.body.export_mode,'fullsong_export');assert.equal(out.preview.body.render_engine,'v2');
+    assert.equal(out.preview.body.export_mode,'rendered_context_window');assert.equal(out.preview.body.render_engine,'v2');
+    assert.equal(out.preview.body.from_studio_project_id,'project');
     assert.equal(out.preview.body.state.tracks[0].clips[0].transposition,-8);
     assert.equal(describeExportRequest(out.preview).arrangementCount,n);
   }
@@ -85,7 +86,7 @@ test('production dispatches real SDK POST after readback, uses latest version/fu
     const result=await runPipeline(parseConfig(['--resume',dir]),deps);
     assert.equal(result.exportStatus.runSuccess,true);assert.equal(result.preprocessedDuration,12);assert.equal(result.clipCount,1);assert.equal(result.downloaded,false);
     const audit=JSON.parse(await readFile(join(dir,'last-render-transport-response.json')));
-    assert.equal(audit.response.status,200);assert.equal(audit.response.result.id,'render');assert.equal(audit.requestSummary.export_mode,'fullsong_export');assert.equal(audit.requestSummary.render_engine,'v2');
+    assert.equal(audit.response.status,200);assert.equal(audit.response.result.id,'render');assert.equal(audit.requestSummary.export_mode,'rendered_context_window');assert.equal(audit.requestSummary.render_engine,'v2');
     assert.equal(JSON.parse(await readFile(join(dir,'run-status.json'))).status,'RUN SUCCESS');
     await runPipeline(parseConfig(['--resume',dir]),deps);
     assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/api/studio/render-state').length,1);

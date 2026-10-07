@@ -60,7 +60,7 @@ export class StudioClient {
   set_timeline() { throw new NotImplementedError('UNKNOWN'); }
   async save_project(input,options={}) { this.#permit('/api/studio/save-project');return this.#write(buildSaveProjectRequest(input),options,r=>savedProject(r,input.project_id)); }
   save_version() { throw new NotVerifiedError('save_version'); }
-  async render_project(input,options={}) { this.#permit('/api/studio/render-state');if(input?.export_mode!=='fullsong_export'||input.render_engine!==undefined&&input.render_engine!=='v2')throw new NotVerifiedError('only tested V2 fullsong_export submission is enabled');return this.#write(buildRenderProjectRequest(input),options,r=>queuedRender(r,input)); }
+  async render_project(input,options={}) { this.#permit('/api/studio/render-state');if(!['fullsong_export','rendered_context_window'].includes(input?.export_mode)||input.render_engine!==undefined&&input.render_engine!=='v2')throw new NotVerifiedError('only explicit observed V2 full-song/context submission is enabled');return this.#write(buildRenderProjectRequest(input),options,r=>queuedRender(r,input)); }
   render_multitrack() { throw new NotVerifiedError('render_multitrack'); }
   export_project() { throw new NotVerifiedError('export_project'); }
   export_multitrack() { throw new NotVerifiedError('export_multitrack'); }

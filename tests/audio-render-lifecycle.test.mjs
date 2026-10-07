@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { resolveRenderDelivery, restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, probeObservedPlayer, RENDER_LIFECYCLE } from '../suno/audio/render-lifecycle.mjs';
+import { resolveRenderDelivery, restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, probeObservedPlayer, selectAcknowledgedRender, RENDER_LIFECYCLE } from '../suno/audio/render-lifecycle.mjs';
 const sequences=JSON.parse(await readFile(new URL('../fixtures/render_lifecycle_sequences.json',import.meta.url)));
+const materialization=JSON.parse(await readFile(new URL('../fixtures/render_materialization_sequences.json',import.meta.url))).contextMaterialization;
 const binding={projectId:'project',versionId:'version',startBeats:0,endBeats:46.8};
 const clip=(status='complete',id='render')=>({id,status,audio_url:'',metadata:{studio_project_id:'project',studio_project_version_id:'version',studio_project_start_beats:0,studio_project_end_beats:46.8}});
 const ready={status:'ready',download_url:'https://downloads.s3.amazonaws.com/render.m4a'};
@@ -98,4 +99,26 @@ test('historical renders retain their own proven project/version bindings',async
   const h=harness({job:{renderClipId:'new',unavailableRenderIds:['old']}});h.deps.binding=foreign;
   h.deps.snapshots=[{clip:clip('queued','old'),binding}];await resolveRenderDelivery(h.job,h.deps);
   assert.equal(h.job.renderClipId,'old');assert.deepEqual(h.job.renderJobs[0].binding,binding);
+});
+
+test('explicit download denial retains materialization and durable ID; no retries, player bypass, or duplicate POST',async()=>{
+  const h=harness({metadata:materialization.metadataSequence,delivery:materialization.restrictedDelivery});let playerCalls=0;
+  h.deps.playerProbe=async()=>{playerCalls++;throw Error('must not probe access-controlled bytes');};
+  await assert.rejects(resolveRenderDelivery(h.job,h.deps),{kind:'render_delivery_restricted'});
+  assert.equal(h.job.renderLifecycle.state,'DELIVERY_RESTRICTED');assert.equal(h.job.phase,'delivery_restricted');
+  assert.deepEqual(h.job.renderJobs[0].materialization.binding,binding);assert.equal(h.job.renderJobs[0].materialization.status,'complete');
+  assert.equal(h.requests.filter(q=>q.path.includes('/download/')).length,1);assert.equal(playerCalls,0);assert.equal(h.job.renderClipId,'render');
+  const resumed=harness({job:structuredClone(h.job)});await resolveRenderDelivery(resumed.job,resumed.deps);
+  assert.equal(resumed.job.renderClipId,'render');assert.ok(resumed.requests.every(q=>q.method==='GET'));
+});
+
+test('explicit acknowledged-mode selection preserves historical jobs and rejects foreign binding/unknown ID',async()=>{
+  const h=harness({job:{renderClipId:'old',renderJobs:[{id:'old',binding,submittedAt:'2026-01-01T00:00:00Z'}]}});
+  const context={renderJobs:[{id:'context',binding,exportMode:'rendered_context_window',submittedAt:'2026-01-02T00:00:00Z'}]};
+  assert.throws(()=>selectAcknowledgedRender(h.job,[context],'unknown',binding),/not acknowledged/);
+  assert.throws(()=>selectAcknowledgedRender(h.job,[context],'context',{...binding,endBeats:99}),/not acknowledged/);
+  selectAcknowledgedRender(h.job,[context],'context',binding);h.deps.preferredRenderId='context';
+  await resolveRenderDelivery(h.job,h.deps);
+  assert.equal(h.job.renderClipId,'context');assert.deepEqual(h.job.renderJobs.map(r=>r.id),['old','context']);
+  assert.equal(h.job.exportMode,'rendered_context_window');assert.ok(h.requests.every(q=>q.path.includes('/context')));
 });

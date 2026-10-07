@@ -47,6 +47,17 @@ export function rememberRenderSubmission(job, clip, binding, now = Date.now()) {
   return record;
 }
 
+export function selectAcknowledgedRender(job, jobs, id, binding) {
+  const record = jobs.flatMap(j => j.renderJobs ?? []).find(r => r.id === id &&
+    ['projectId','versionId','startBeats','endBeats'].every(k => r.binding?.[k] === binding[k]));
+  if (!record) throw Error('Requested resume render is not acknowledged with this project/version/range');
+  restoreRenderJobs(job);
+  if (!job.renderJobs.some(r => r.id === id)) job.renderJobs.push(structuredClone(record));
+  job.renderClipId = id;
+  job.exportMode = record.exportMode ?? job.exportMode;
+  return record;
+}
+
 // Only consume URLs actually returned for this clip. An HTTP 206 alone does not
 // make encrypted player bytes a decodable delivery. No URL construction/decryption.
 export async function probeObservedPlayer(clip, { fetch: request = globalThis.fetch } = {}) {
@@ -76,8 +87,14 @@ export async function probeObservedPlayer(clip, { fetch: request = globalThis.fe
 export async function resolveRenderDelivery(job, { bridge, binding, snapshots = [], persist = async () => {},
   observe = async () => {}, log = async () => {}, now = Date.now, wait = sleep,
   timeoutMs = RENDER_LIFECYCLE.timeoutMs, deliveryTimeoutMs = RENDER_LIFECYCLE.deliveryTimeoutMs,
-  playerProbe = probeObservedPlayer } = {}) {
-  const records = restoreRenderJobs(job, snapshots, now());
+  playerProbe = probeObservedPlayer, preferredRenderId } = {}) {
+  let records = restoreRenderJobs(job, snapshots, now());
+  if (preferredRenderId) {
+    const index = records.findIndex(r => r.id === preferredRenderId);
+    if (index < 0) throw Error('Preferred render ID is not acknowledged');
+    // Resolution preference is explicit; stored chronological history is intact.
+    records = [records[index], ...records.filter((_, i) => i !== index)];
+  }
   if (!records.length) throw Error('No acknowledged render job to resolve');
   await persist();
   const outcomes = [];
@@ -127,6 +144,7 @@ export async function resolveRenderDelivery(job, { bridge, binding, snapshots = 
         if (current.result?.id !== record.id) throw Error('Render polling response id mismatch');
         if (current.result.status === 'error') {
           record.terminalFailure = { status: 'error', observedAt: new Date(now()).toISOString() };
+          delete record.materialization;
           complete = null; await transition('FAILED', { serverTerminalFailure: true });
         } else if (current.result.status === 'complete' && matches(current.result, actualBinding)) {
           complete = current.result; evidence = 'LIVE_CLIP_READBACK';
@@ -141,6 +159,7 @@ export async function resolveRenderDelivery(job, { bridge, binding, snapshots = 
         await observe('metadata', clip);
         if (clip.status === 'error') {
           record.terminalFailure = { status: clip.status, observedAt: new Date(now()).toISOString() };
+          delete record.materialization;
           await transition('FAILED', { serverTerminalFailure: true }); break;
         }
         if (clip.status === 'complete') {
@@ -154,12 +173,25 @@ export async function resolveRenderDelivery(job, { bridge, binding, snapshots = 
     }
     if (complete) {
       await observe('complete', complete);
+      record.materialization = { status: 'complete', binding: actualBinding,
+        duration: complete.metadata.duration ?? null, metadataType: complete.metadata.type ?? null,
+        observedAt: new Date(now()).toISOString() };
       await transition('WAITING_FOR_DELIVERY', { metadataEvidence: evidence });
       attempt = 0;
       for (;;) {
         const response = await get(`/api/download/clip/${record.id}?format=m4a`);
         if (response) await observe('delivery', response);
         const delivery = response?.result;
+        if (delivery?.reason === 'not_authorized') {
+          // Render completion and permission to download are different facts.
+          // Do not call this propagation delay, repeat exports, or try to decode
+          // access-controlled player bytes. Official UI playback can still work.
+          record.deliveryRestriction = { reason: 'not_authorized', observedAt: new Date(now()).toISOString() };
+          job.phase = 'delivery_restricted';
+          await transition('DELIVERY_RESTRICTED', { reason: 'not_authorized', materialized: true, transient: false });
+          await log({event:'render_delivery_restricted',id:record.id,state:'DELIVERY_RESTRICTED',ageMs:age(),materialized:true,durableIdRetained:true});
+          throw Object.assign(Error('Render materialized; official delivery permission denied (not_authorized). QA unavailable; acknowledged ID retained.'), {kind:'render_delivery_restricted', renderId:record.id});
+        }
         let url, source = 'OFFICIAL_DELIVERY', observedField = 'download_url';
         if (delivery?.status === 'ready' && usableURL(delivery.download_url)) url = delivery.download_url;
         const deliveryAge = Math.max(0, now() - (timestamp(record.metadataReadyAt) ?? now()));

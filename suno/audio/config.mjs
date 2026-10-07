@@ -1,8 +1,9 @@
 import { resolve, extname } from 'node:path';
+import { DEFAULT_EXPORT_STRATEGY, exportModeFor } from './export-strategy.mjs';
 const numbers = { 'render-timeout-seconds':[900,1,7200], 'delivery-timeout-seconds':[180,1,3600], 'studio-pitch':[-8,-24,24], 'local-pitch':[8,-24,24], 'studio-speed':[.5,.25,4], 'studio-formant':[0,0,1], 'studio-volume':[1,.001,10], 'chunk-seconds': [6, .001, 3600], 'pitch-up': [8, -24, 24], 'studio-transpose': [-8, -24, 24], 'upload-concurrency': [4, 1, 16],
   'minimum-slice-seconds': [6,0,600], 'handle-clip-count':[4,2,10], 'preroll-ms': [50, 0, 2000], 'postroll-ms': [200, 0, 2000], 'crossfade-ms': [10, 1, 30], 'bps': [1.95, .1, 20], 'bridge-timeout-seconds': [90, 1, 600], 'abc-seconds': [0, 0, 600] };
 const bools = new Set(['postprocess-test','validate-transform','synthetic-reference','download','recalibrate','skip-calibration','allow-quality-warning','diagnose','abc-test','abc-test-only','dry-run','keep-workdir','verbose','json-log','handle-test','gain-test','help']);
-const strings = new Set(['studio-profile','studio-stretch','studio-quantize','output','resume','strategy','strategy-evidence','good-project','good-version','bad-project','bad-version','reuse-uploads','preprocessed']);
+const strings = new Set(['export-strategy','resume-render-id','studio-profile','studio-stretch','studio-quantize','output','resume','strategy','strategy-evidence','good-project','good-version','bad-project','bad-version','reuse-uploads','preprocessed']);
 export function parseConfig(args) {
   const values = Object.fromEntries(Object.entries(numbers).map(([k, [v]]) => [k, v])); values.strategy = 'auto';
   let input; const provided = [];
@@ -19,6 +20,9 @@ export function parseConfig(args) {
     else values[key] = v;
   }
   if (!values.help && !input && !values.resume && !values['postprocess-test']) throw Error('Audio input or --resume is required');
+  values['export-strategy'] ??= DEFAULT_EXPORT_STRATEGY;
+  exportModeFor(values['export-strategy']);
+  if (values['resume-render-id'] && (!values.resume || !/^[A-Za-z0-9_-]+$/.test(values['resume-render-id']))) throw Error('--resume-render-id requires --resume and an acknowledged ID');
   if (!['auto','exact','preroll','crossfade'].includes(values.strategy)) throw Error('Invalid strategy');
   if(values['strategy-evidence']&&values.strategy!=='auto')throw Error('--strategy-evidence requires --strategy auto');
   if (!provided.includes('chunk-seconds')) values['chunk-seconds'] = 'auto';

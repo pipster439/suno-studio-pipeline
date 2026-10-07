@@ -45,11 +45,16 @@ function renderBody(input, multitrack) {
     pathIdentifier(input.from_studio_project_id, 'from_studio_project_id');
     Object.assign(body, { from_studio_project_id: input.from_studio_project_id, format: 'wav', export_surface: 'studio_v2' });
   } else {
-    if (!['fullsong_export', 'selected_time_range_export'].includes(input.export_mode)) invalid('only observed V2 export modes are previewed');
+    if (!['fullsong_export', 'selected_time_range_export', 'rendered_context_window'].includes(input.export_mode)) invalid('only observed export modes are previewed');
+    // Official module 130800 context branch supplies this field; never infer an ID.
+    if (input.export_mode === 'rendered_context_window') {
+      pathIdentifier(input.from_studio_project_id, 'from_studio_project_id');
+      body.from_studio_project_id = input.from_studio_project_id;
+    }
     body.export_mode = input.export_mode;
   }
   return body;
 }
-/** Limited to the observed V2 caller; context-window render is intentionally not synthesized. */
+/** Explicit observed full-song/selection or module-130800 context request. */
 export const buildRenderProjectRequest = input => plan('export_project', renderBody(input, false));
 export const buildRenderMultitrackRequest = input => plan('export_multitrack', renderBody(input, true));

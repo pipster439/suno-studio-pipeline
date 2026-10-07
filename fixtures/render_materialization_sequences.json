@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "provenance": "Sanitized synthetic sequences reflecting 2026-10-07 live observations; no private IDs or delivery URLs",
+  "contextMaterialization": {
+    "exportMode": "rendered_context_window",
+    "metadataSequence": ["queued", 404, 404, "complete"],
+    "delayedDelivery": [{"status":"processing"},{"status":"ready","download_url":"https://downloads.s3.amazonaws.com/render.m4a"}],
+    "restrictedDelivery": [{"ok":false,"reason":"not_authorized"}],
+    "expectedRestrictedState": "DELIVERY_RESTRICTED"
+  },
+  "bothLongModesHaveCompletionEvidence": [
+    {"exportMode":"rendered_context_window","fullRange":true,"duration":182.72727083333334,"materialized":true},
+    {"exportMode":"fullsong_export","fullRange":true,"duration":182.72727083333334,"materialized":true}
+  ]
+}

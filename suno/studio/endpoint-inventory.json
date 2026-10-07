@@ -221,7 +221,7 @@
         "reports/STUDIO_FREE_WRITE_VALIDATION_SANITIZED.md",
         "fixtures/write-validation/PROVENANCE.json"
       ],
-      "verifiedRequestSchema": "tested V2 fullsong_export request; docs/STUDIO_RENDER_PIPELINE.md",
+      "verifiedRequestSchema": "V2 fullsong_export acceptance; V2 rendered_context_window with explicit from_studio_project_id, full restored timeline: 2026-10-07 182.727s complete/readback/official-player decoding; docs/STUDIO_RENDER_PIPELINE.md",
       "verifiedResponseSchema": "queued song_schema with id and metadata Studio project/version/range relation",
       "lastVerifiedAgainst": "2026-10-05 tested Free account / authenticated bridge",
       "liveValidationBlockedReason": null,
@@ -230,7 +230,8 @@
         "kind": "request_acceptance",
         "scope": "tested single audio track / manual timing",
         "origin": "LIVE_CAPTURE",
-        "renderCompletionVerified": false
+        "renderCompletionVerified": true,
+        "completionScope": "rendered_context_window full range 182.727s; download authorization and automated QA remain unverified"
       }
     },
     {
