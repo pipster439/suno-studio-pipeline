@@ -1,11 +1,11 @@
-// Official module 130800 context branch; full-range live materialization and
-// authorized official-player decoding observed on 2026-10-07. Download/QA
-// authorization remains a separate gate, never implied by this strategy.
+// Official StudioV2ExportMenu full-song branch. Context renders are intermediate
+// assets and cannot satisfy the Library + server Studio badge completion gate.
 export const EXPORT_STRATEGIES = Object.freeze({
+  verified_studio_export: 'fullsong_export',
   verified_legacy_render: 'rendered_context_window',
   experimental_fullsong_export: 'fullsong_export'
 });
-export const DEFAULT_EXPORT_STRATEGY = 'verified_legacy_render';
+export const DEFAULT_EXPORT_STRATEGY = 'verified_studio_export';
 export function exportModeFor(strategy = DEFAULT_EXPORT_STRATEGY) {
   const mode = EXPORT_STRATEGIES[strategy];
   if (!mode) throw Error(`Invalid export strategy: ${strategy}`);

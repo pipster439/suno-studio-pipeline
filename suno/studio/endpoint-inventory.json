@@ -231,7 +231,7 @@
         "scope": "tested single audio track / manual timing",
         "origin": "LIVE_CAPTURE",
         "renderCompletionVerified": true,
-        "completionScope": "rendered_context_window full range 182.727s; download authorization and automated QA remain unverified"
+        "completionScope": "context full range 182.727s is intermediate only, not a Library export; fullsong_export 24s verified complete in own Library with server STUDIO badge on 2026-10-07; current long fullsong remains unresolved"
       }
     },
     {

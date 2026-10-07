@@ -69,8 +69,8 @@ dispatches POST `/api/studio/render-state` after save/version readback verificat
 No frontend Export button is involved. The full-song contract uses the latest
 save-returned version ID and a render transform/serialization of that readback,
 with `start_beats=0`, `end_beats=max(saved arrangement.endBeats)`,
-`export_mode=rendered_context_window`, explicit `from_studio_project_id` equal to
-the current project, and `render_engine=v2`. End is never derived from
+`export_mode=fullsong_export` and `render_engine=v2`. The diagnostic context
+alternate also supplies the observed `from_studio_project_id`. End is never derived from
 uploaded PCM duration or just one clip. At the default inverse, 91.363628 seconds
 uploaded restores a 182.727256-second timeline, ending at 356.31814965986393 beats.
 
@@ -83,9 +83,10 @@ recorded acknowledgement/binding, not an independently captured full body.
 No POST is repeated just to fill an older audit gap.
 
 `jobs.json` and `<mode>/export-status.json` expose studioProjectSaved,
-renderSubmitted, renderId, renderReady and deliveryResolved. `run-status.json` is
-the current attempt's status: INCOMPLETE on failure, EXPORT_READY once delivery
-is resolved, RUN SUCCESS only after the existing QA/download flow also completes.
+renderSubmitted, renderId, renderReady, libraryVisible, studioBadgeVerified and
+deliveryResolved. `run-status.json` is INCOMPLETE until formal Library membership
+and Studio provenance pass; EXPORT_READY then precedes the QA/download flow.
+RUN SUCCESS requires those formal gates and completion of the QA/download flow.
 Saved and queued do not count as success. A resolved asset must match this run's
 actual project/latest saved version/range; an older identical-state cache bound
 to another project/version cannot be declared a successful export for this run.
@@ -144,34 +145,33 @@ ciphertext (encoding 1.0.0), not a usable delivery. Official song UI also return
 
 ## Final materialization experiment (2026-10-07)
 
-Official module 130800 uses `rendered_context_window` plus
-`from_studio_project_id` in its context branch. This is the only necessary extra
-field recovered statically. The controlled experiment reused the same saved
-project/version, transformed state SHA256, V2 engine and full 0–356.31814965986393
-beat range. No preprocess/upload/create/save was repeated. Exactly one new render
-was submitted and became readable complete in approximately 30 seconds, correctly
-bound, with duration 182.72727083333334s. Authorized official playback decoded
-182.728s and progressed without error. A fresh default production run subsequently
-completed in approximately 26 seconds. `verified_legacy_render` is now the
-central production strategy; `experimental_fullsong_export` is retained.
+## Formal Library export correction (2026-10-07)
 
-This does **not** prove EXPORT_MODE_MISMATCH as the sole cause: the historical
-fullsong archive also contains complete metadata for the same long range, although
-later reads returned 404. Original uploader result type is user-observed;
-its exact submission body is unavailable. Metadata type is not substituted for a
-captured request mode. No duration ladder was necessary: long-range completion
-and authorized playback were directly observed.
+`rendered_context_window` completion and playback prove an intermediate asset.
+They do not prove formal Studio export. The production default follows the
+observed StudioV2ExportMenu full-song branch: `fullsong_export`, engine `v2`.
+Its `onRenderedClip` callback sets local UI state and displays the saved-song link;
+no additional finalize/register mutation was found in that observed call chain.
+No guessed registration endpoint is implemented.
 
-Both M4A and MP3 download reads returned explicit `not_authorized` for the new
-context asset. `/api/forbidden` and encoded player media are not clear remote QA
-sources. A page-owned playable blob does not become a reusable HTTP delivery URL.
-The pipeline now records complete materialization separately and stops with
-DELIVERY_RESTRICTED immediately on download permission denial. It retains IDs,
-does not retry renders, and does not claim RUN SUCCESS or automated QA PASS.
-No decryption, entitlement modification, guessed URLs, or UI Export is used.
-Default no-download is preserved; no final audio was persisted.
+Official Library Songs requests use POST `/api/feed/v3` as a read query,
+with current-owner filters and pagination by the last returned clip ID. Membership
+must match the exact song ID. The server badge consumed by ModelNameTagClip is
+`metadata.model_badges.songrow.display_name`, not the project ID or title.
+Known-good exports have `metadata.type=studio_export`, `STUDIO` badge,
+and saved project/version/range provenance. All are required before COMPLETE.
 
-On resume, prior mode/ID are retained. An explicit `--resume-render-id` may select
-another already acknowledged job with exactly the same project/version/full range;
-all historical IDs remain recorded and no POST is made. Unknown/foreign IDs fail
-before resolution. Normal chronology is unchanged when this override is absent.
+Lifecycle: PROJECT_SAVED -> RENDER_SUBMITTED -> RENDER_READY -> LIBRARY_VISIBLE ->
+STUDIO_BADGE_VERIFIED -> COMPLETE. No additional finalization is present in the
+observed official flow. Missing membership gives INCOMPLETE /
+FINAL_LIBRARY_ASSET_NOT_CREATED; truncated pagination is indeterminate, not
+proof of absence. Resume rechecks Library membership and never submits a second
+render to compensate for propagation or missing membership.
+
+Default QA uses only an actually observed clear player source after formal
+Library verification. It does not request download authorization merely to
+establish export completion. `--download` retains its separate delivery gate.
+The current 182.727s fullsong controlled render did not become readable within
+15 minutes; its durable ID is retained. This is unresolved, not permanent-loss
+proof, entitlement proof, or a verified duration limit. Historical 24s and
+174.96s Library Studio exports remain readable.

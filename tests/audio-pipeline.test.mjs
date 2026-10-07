@@ -1,3 +1,5 @@
+import {libraryExportFixture} from './helpers/library-export-fixture.mjs';
+const runPipeline=(config,deps={})=>productionPipeline(config,libraryExportFixture(deps));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -8,7 +10,7 @@ import { analyzeBoundaries, classifyABC, silentGaps } from '../suno/audio/bounda
 import { buildTimeline, timelineReport, semanticDiff, chooseHandleStrategy } from '../suno/audio/timeline.mjs';
 import { boundedMap, resumableSlice, retry429, retryDelay, uploadSlice, retryS3Transfer } from '../suno/audio/upload.mjs';
 import { parseConfig } from '../suno/audio/config.mjs';
-import { runPipeline } from '../scripts/studio-pipeline.mjs';
+import { runPipeline as productionPipeline } from '../scripts/studio-pipeline.mjs';
 import privacy from '../shared/privacy.cjs';
 import { inspectSaveSerializedState } from '../suno/studio/state-boundaries.mjs';
 import {qualityFromDelivery} from '../suno/audio/remote-qa.mjs';

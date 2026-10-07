@@ -7,8 +7,8 @@ import { prepareFullSongExport, describeExportRequest, exportCompletionStatus } 
 import { buildRenderProjectRequest } from '../suno/studio/request-builders.mjs';
 const fixture=JSON.parse(await readFile(new URL('../fixtures/studio_project_get.json',import.meta.url)));
 const sequences=JSON.parse(await readFile(new URL('../fixtures/render_materialization_sequences.json',import.meta.url)));
-test('context default and explicit alternate have validated CLI configuration',()=>{
-  assert.equal(exportModeFor(parseConfig(['input.wav'])['export-strategy']),'rendered_context_window');
+test('formal Studio default and explicit context alternate have validated CLI configuration',()=>{
+  assert.equal(exportModeFor(parseConfig(['input.wav'])['export-strategy']),'fullsong_export');
   assert.equal(exportModeFor(parseConfig(['input.wav','--export-strategy','experimental_fullsong_export'])['export-strategy']),'fullsong_export');
   assert.throws(()=>parseConfig(['input.wav','--export-strategy','unknown']),/Invalid export/);
   assert.throws(()=>parseConfig(['input.wav','--resume-render-id','known']),/requires --resume/);
@@ -16,7 +16,7 @@ test('context default and explicit alternate have validated CLI configuration',(
 test('full context request differs only in mode and statically observed source-project field; no guessed identifiers',()=>{
   const saved={id:'version',project_id:'project',state:fixture.state};
   const opts={projectId:'project',versionId:'version',title:'Comparison'};
-  const a=prepareFullSongExport(saved,{...opts,exportMode:'fullsong_export'}),b=prepareFullSongExport(saved,opts);
+  const a=prepareFullSongExport(saved,{...opts,exportMode:'fullsong_export'}),b=prepareFullSongExport(saved,{...opts,exportMode:'rendered_context_window'});
   assert.equal(b.preview.body.from_studio_project_id,'project');
   const {export_mode,from_studio_project_id,...rest}=b.preview.body;
   assert.deepEqual({...rest,export_mode:'fullsong_export'},a.preview.body);

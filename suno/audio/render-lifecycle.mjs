@@ -87,7 +87,7 @@ export async function probeObservedPlayer(clip, { fetch: request = globalThis.fe
 export async function resolveRenderDelivery(job, { bridge, binding, snapshots = [], persist = async () => {},
   observe = async () => {}, log = async () => {}, now = Date.now, wait = sleep,
   timeoutMs = RENDER_LIFECYCLE.timeoutMs, deliveryTimeoutMs = RENDER_LIFECYCLE.deliveryTimeoutMs,
-  playerProbe = probeObservedPlayer, preferredRenderId } = {}) {
+  playerProbe = probeObservedPlayer, preferredRenderId, metadataOnly = false } = {}) {
   let records = restoreRenderJobs(job, snapshots, now());
   if (preferredRenderId) {
     const index = records.findIndex(r => r.id === preferredRenderId);
@@ -176,6 +176,12 @@ export async function resolveRenderDelivery(job, { bridge, binding, snapshots = 
       record.materialization = { status: 'complete', binding: actualBinding,
         duration: complete.metadata.duration ?? null, metadataType: complete.metadata.type ?? null,
         observedAt: new Date(now()).toISOString() };
+      if (metadataOnly) {
+        job.phase = 'render_ready';
+        await transition('RENDER_READY', {metadataEvidence:evidence});
+        await log({event:'render_ready',id:record.id,state:'RENDER_READY',ageMs:age(),metadataOnly:true});
+        return {complete,record};
+      }
       await transition('WAITING_FOR_DELIVERY', { metadataEvidence: evidence });
       attempt = 0;
       for (;;) {

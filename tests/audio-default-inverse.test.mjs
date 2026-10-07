@@ -1,10 +1,12 @@
+import {libraryExportFixture} from './helpers/library-export-fixture.mjs';
+const runPipeline=(config,deps={})=>productionPipeline(config,libraryExportFixture(deps));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseConfig } from '../suno/audio/config.mjs';
-import { runPipeline } from '../scripts/studio-pipeline.mjs';
+import { runPipeline as productionPipeline } from '../scripts/studio-pipeline.mjs';
 import { syntheticReference } from '../suno/audio/transform-verification.mjs';
 import { wav } from '../suno/audio/pcm.mjs';
 import { inspectSaveSerializedState } from '../suno/studio/state-boundaries.mjs';

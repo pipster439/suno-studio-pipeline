@@ -26,7 +26,8 @@ import { deriveLocalInverse, preprocessInverse } from '../suno/audio/inverse-pro
 import { verifyTransformFile } from '../suno/audio/transform-verification.mjs';
 import { reconcileCachedRender } from '../suno/audio/render-reconciliation.mjs';
 import { runPostprocessMatrix } from '../suno/audio/postprocess-matrix.mjs';
-import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery, selectAcknowledgedRender } from '../suno/audio/render-lifecycle.mjs';
+import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery, selectAcknowledgedRender, probeObservedPlayer } from '../suno/audio/render-lifecycle.mjs';
+import {resolveLibraryExport} from '../suno/audio/library-export.mjs';
 import { exportModeFor } from '../suno/audio/export-strategy.mjs';
 import { prepareFullSongExport, describeExportRequest, exportCompletionStatus, requireExportReady } from '../suno/audio/studio-export.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -339,17 +340,38 @@ export async function runPipeline(requested, deps = {}) {
       }
       await checkpointExport();
       let resolved;
+      const formalExport = mode.startsWith('PRODUCTION') && !options.calibration;
       try { resolved=await resolveRenderDelivery(job,{
         ...deps.renderLifecycle,bridge,binding:{...actualBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId},snapshots:renderSnapshots,persist:persistJobs,
         timeoutMs:config['render-timeout-seconds']?config['render-timeout-seconds']*1000:undefined,
         deliveryTimeoutMs:config['delivery-timeout-seconds']?config['delivery-timeout-seconds']*1000:undefined,
         preferredRenderId:mode.startsWith('PRODUCTION')?config['resume-render-id']:undefined,
+        metadataOnly:formalExport,
         log:e=>log({mode,...e,message:`id=${e.id} state=${e.state??''} age=${Math.round((e.ageMs??0)/1000)}s${e.metadata!==undefined?` metadata=${e.metadata} transient=${!!e.transient}`:''}${e.delivery?` delivery=${e.delivery}`:''}`}),
         observe:async(kind,value)=>{if(kind==='complete')await durableJson(join(dir,'render-complete.json'),privacy.sanitize(value));if(kind==='delivery')await durableJson(join(dir,'download-response.json'),privacy.sanitize(value));}
       }); } catch(error) { await checkpointExport(); throw error; }
-      const {complete,deliveryURL,deliverySource}=resolved;
+      const {complete}=resolved;
+      let {deliveryURL,deliverySource}=resolved;
+      if(formalExport){
+        job.libraryExport=await resolveLibraryExport(bridge,complete,expectedBinding,{
+          ...deps.libraryLifecycle,log:e=>log({mode,...e}),
+          persist:async result=>{job.libraryExport=result;await persistJobs();await durableJson(join(dir,'library-membership.json'),result);}
+        });
+      }
       await checkpointExport(complete);
-      requireExportReady(job.exportStatus);
+      if(formalExport){
+        requireExportReady(job.exportStatus);
+        // Default QA reads only an actual observed clear player source. Library
+        // completion is independent of download authorization.
+        if(config.download){
+          const delivered=await resolveRenderDelivery(job,{...deps.renderLifecycle,bridge,binding:expectedBinding,persist:persistJobs});
+          deliveryURL=delivered.deliveryURL;deliverySource=delivered.deliverySource;
+        }else{
+          const player=await (deps.renderLifecycle?.playerProbe??probeObservedPlayer)(complete);
+          if(player?.url){deliveryURL=player.url;deliverySource='OBSERVED_PLAYER_STREAM';}
+        }
+        if(!deliveryURL)throw Object.assign(Error('Library export verified; no observed clear audio source available for automated QA'),{kind:'quality_probe_unavailable'});
+      }
       const selectedRenderBinding={...(job.renderBinding??{}),renderClipId:job.renderClipId,renderProjectId:complete.metadata.studio_project_id,renderVersionId:complete.metadata.studio_project_version_id};
       phaseTimings.renderWaitMs=performance.now()-renderWaitStarted;job.timings.renderWaitMs=(job.timings.renderWaitMs??0)+phaseTimings.renderWaitMs;
       const metadata=complete.metadata;
@@ -582,7 +604,7 @@ export async function runPipeline(requested, deps = {}) {
       await rm(sliceDir, { recursive: true, force: true }); await unlink(processed);
       for(const mode of Object.keys(jobs).filter(m=>/^[A-Z0-9_a-f-]+$/.test(m))){const qaDir=resolve(work,mode,'qa');if(!qaDir.startsWith(work+'\\')&&!qaDir.startsWith(work+'/'))throw Error('QA cleanup path escaped run');await rm(qaDir,{recursive:true,force:true});}
     }
-    await durableJson(join(work,'run-status.json'),{status:'RUN SUCCESS',...requireExportReady(result.exportStatus),quality:result.quality});
+    await durableJson(join(work,'run-status.json'),{status:'RUN SUCCESS',...requireExportReady(result.exportStatus),exportLifecycleState:'COMPLETE',quality:result.quality});
     await log({ event: 'run_complete', message: config.download?result.output:'RUN SUCCESS: final Studio export ready on Suno; no product download', strategy, quality: result.quality,exportStatus:result.exportStatus }); return result;
   } catch (e) { await durableJson(join(work,'run-status.json'),{status:'INCOMPLETE',...(productionExportStatus??{}),runSuccess:false,error:{message:e.message,kind:e.kind,status:e.status}});await log({ event: 'run_failed', message: e.message, kind: e.kind, status: e.status, workspaceRetained: true }); throw e; }
   finally { await app?.close(); await logQueue; await unlink(lockPath); }

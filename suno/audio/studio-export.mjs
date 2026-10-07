@@ -50,14 +50,22 @@ export function exportCompletionStatus(job, binding, complete = null) {
     m.studio_project_start_beats === binding.startBeats && m.studio_project_end_beats === binding.endBeats;
   const deliveryResolved = metadataMatches && acknowledged?.state === 'READY' && job.renderLifecycle?.state === 'READY' &&
     job.renderLifecycle.selectedId === job.renderClipId && !!acknowledged.delivery?.source;
+  const library = job.libraryExport;
+  const libraryVisible = metadataMatches && library?.renderId === job.renderClipId && library.libraryVisible === true;
+  const studioBadgeVerified = libraryVisible && library.studioBadgeVerified === true && library.studioProvenanceVerified === true &&
+    library.projectId === binding.projectId && library.versionId === binding.versionId;
   return { studioProjectSaved: !!job.projectId && !!job.versionId,
     renderSubmitted: !!acknowledged, renderId: job.renderClipId ?? null,
     renderReady: !!metadataMatches, deliveryResolved: !!deliveryResolved,
+    libraryVisible: !!libraryVisible, studioBadgeVerified: !!studioBadgeVerified,
+    exportLifecycleState: studioBadgeVerified ? 'STUDIO_BADGE_VERIFIED' : libraryVisible ? 'LIBRARY_VISIBLE' : metadataMatches ? 'RENDER_READY' : acknowledged ? 'RENDER_SUBMITTED' : 'PROJECT_SAVED',
+    finalSongId: libraryVisible ? library.finalSongId : null,
+    reason: studioBadgeVerified ? null : libraryVisible ? 'STUDIO_PROVENANCE_NOT_VERIFIED' : 'FINAL_LIBRARY_ASSET_NOT_CREATED',
     projectId: binding.projectId, versionId: binding.versionId, startBeats: binding.startBeats, endBeats: binding.endBeats,
-    runSuccess: !!job.projectId && !!job.versionId && !!acknowledged && !!deliveryResolved };
+    runSuccess: !!job.projectId && !!job.versionId && !!acknowledged && !!studioBadgeVerified };
 }
 
 export function requireExportReady(status) {
-  if (!status.runSuccess) throw Object.assign(Error('RUN INCOMPLETE: saved project is not a ready, bound full-song export with resolved delivery'), { kind: 'export_incomplete', exportStatus: status });
+  if (!status.runSuccess) throw Object.assign(Error(`RUN INCOMPLETE: ${status.reason}; Library membership and Studio provenance are required`), { kind: 'export_incomplete', exportStatus: status });
   return status;
 }

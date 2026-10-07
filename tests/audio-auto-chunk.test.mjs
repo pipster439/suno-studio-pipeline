@@ -1,3 +1,5 @@
+import {libraryExportFixture} from './helpers/library-export-fixture.mjs';
+const runPipeline=(config,deps={})=>productionPipeline(config,libraryExportFixture(deps));
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,readFile,rm,mkdir,access} from 'node:fs/promises';
@@ -11,7 +13,7 @@ import {calibrationPlan,sourceFingerprint} from '../suno/audio/calibration.mjs';
 import {analyzeBoundaries,writeAnalysis,qualityGate} from '../suno/audio/boundaries.mjs';
 import {summarizeQuality,QUALITY_THRESHOLDS} from '../suno/audio/quality.mjs';
 import {inspectSaveSerializedState} from '../suno/studio/state-boundaries.mjs';
-import {runPipeline} from '../scripts/studio-pipeline.mjs';
+import {runPipeline as productionPipeline} from '../scripts/studio-pipeline.mjs';
 import {uploadSlice} from '../suno/audio/upload.mjs';
 import {SunoBridge} from '../suno/bridge/client.mjs';
 const fixture=JSON.parse(await readFile(new URL('../fixtures/studio_project_get.json',import.meta.url)));

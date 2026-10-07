@@ -1,7 +1,9 @@
+import {libraryExportFixture} from './helpers/library-export-fixture.mjs';
+const runPipeline=(config,deps={})=>productionPipeline(config,libraryExportFixture(deps));
 import test from'node:test';import assert from'node:assert/strict';import{mkdtemp,mkdir,writeFile,readFile,rm,access}from'node:fs/promises';import{tmpdir}from'node:os';import{join}from'node:path';
 import{readPCM,wav,slicePlan,sha256}from'../suno/audio/pcm.mjs';import{analyzeBoundaries,qualityGate}from'../suno/audio/boundaries.mjs';
 import{QUALITY_THRESHOLDS,calibrationPass,classifyGaps}from'../suno/audio/quality.mjs';import{sourceFingerprint,validCalibrationCache,strategyOverride,progressiveCalibration,selectCalibrationRegion,calibrationPlan,CALIBRATION_SCHEMA}from'../suno/audio/calibration.mjs';
-import{qualityFromDelivery,cropProbe,saveDeliveryAsset}from'../suno/audio/remote-qa.mjs';import{parseConfig}from'../suno/audio/config.mjs';import{runPipeline}from'../scripts/studio-pipeline.mjs';import{inspectSaveSerializedState}from'../suno/studio/state-boundaries.mjs';
+import{qualityFromDelivery,cropProbe,saveDeliveryAsset}from'../suno/audio/remote-qa.mjs';import{parseConfig}from'../suno/audio/config.mjs';import{runPipeline as productionPipeline}from'../scripts/studio-pipeline.mjs';import{inspectSaveSerializedState}from'../suno/studio/state-boundaries.mjs';
 const exists=async file=>{try{await access(file);return true;}catch{return false;}};
 function signal(seconds=42,rate=8000){const frames=Math.round(seconds*rate),data=Buffer.alloc(frames*4);for(let i=0;i<frames;i++)data.writeFloatLE(.2*Math.sin(i/rate*2*Math.PI*233)*(.7+.2*Math.sin(i/rate*3.79)),i*4);return{tag:3,bits:32,channels:1,sampleRate:rate,blockAlign:4,frames,data};}
 const good=()=>({quality:'PASS',anomalyCount:0,internalSilentGapCount:0,clippingCandidateCount:0,timelineGapSamples:0,durationErrorMs:13.5,baselineCount:128,averageScore:.7,maxScore:1.5,boundaryCount:6});
