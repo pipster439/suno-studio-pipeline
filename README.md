@@ -239,6 +239,14 @@ project/version/render identifiers, a sanitized delivery URL, quality metrics,
 phase timings and candidates actually tested this run (cache history separately).
 Default success removes preprocessed WAV, slices and temporary full QA assets.
 
+Production exports use the authenticated backend after verified save/readback,
+with full-song range from the saved timeline and explicit `fullsong_export/v2`.
+No Studio UI Export click is required. `run-status.json` declares RUN SUCCESS only
+after a bound render is ready, delivery is resolved, and QA completes. Saving a
+project or receiving a queued render ID remains INCOMPLETE. Per-mode export-request
+and export-status artifacts plus the actual transport journal distinguish request
+preparation, dispatch/HTTP acknowledgement, and final completion.
+
 Render submission IDs are durable. Transient metadata 404s and empty/processing
 delivery responses are retried with 1/2/3/5/8/10-second backoff; they never create
 another render. `--render-timeout-seconds 900` measures time from acknowledgment;

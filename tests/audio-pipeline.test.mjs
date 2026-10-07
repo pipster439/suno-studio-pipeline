@@ -194,6 +194,7 @@ test('offline production resume keeps project after definite save rejection and 
     assert.equal(JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION.projectId,'existing-project');
     await assert.rejects(runPipeline(resume,{bridge,client,qa:offlineQA}),/download unavailable/);
     assert.equal(JSON.parse(await readFile(join(dir,'jobs.json'))).PRODUCTION.renderClipId,'existing-render');
+    const incomplete=JSON.parse(await readFile(join(dir,'run-status.json')));assert.equal(incomplete.status,'INCOMPLETE');assert.equal(incomplete.studioProjectSaved,true);assert.equal(incomplete.renderSubmitted,true);assert.equal(incomplete.runSuccess,false);assert.equal(incomplete.deliveryResolved,false);
     downloadAvailable=true;globalThis.fetch=async()=>new Response(wav(p));
     const result=await runPipeline(resume,{bridge,client,qa:offlineQA});assert.equal(result.quality,'PASS');assert.equal(creates,1);assert.equal(saves,2);assert.equal(renders,1);
     assert.equal(readPCM(await readFile(result.output)).frames,p.frames);

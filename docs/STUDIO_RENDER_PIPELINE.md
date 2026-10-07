@@ -64,6 +64,40 @@ The original delivery stays on Suno unless `--download` is explicit.
 
 ## Durable render lifecycle
 
+Production export uses authenticated `StudioClient.render_project`, which actually
+dispatches POST `/api/studio/render-state` after save/version readback verification.
+No frontend Export button is involved. The full-song contract uses the latest
+save-returned version ID and a render transform/serialization of that readback,
+with `start_beats=0`, `end_beats=max(saved arrangement.endBeats)`,
+`export_mode=fullsong_export`, and `render_engine=v2`. End is never derived from
+uploaded PCM duration or just one clip. At the default inverse, 91.363628 seconds
+uploaded restores a 182.727256-second timeline, ending at 356.31814965986393 beats.
+
+`<mode>/export-request.json` describes the prepared request. Only
+`last-render-transport-request.json` (DISPATCH_STARTED) and the request summary in
+`last-render-transport-response.json` audit actual SDK dispatch and its HTTP
+status/result.id. Logs distinguish studio_export_binding, studio_export_request,
+and studio_export_ack. Older journals without request summaries prove their
+recorded acknowledgement/binding, not an independently captured full body.
+No POST is repeated just to fill an older audit gap.
+
+`jobs.json` and `<mode>/export-status.json` expose studioProjectSaved,
+renderSubmitted, renderId, renderReady and deliveryResolved. `run-status.json` is
+the current attempt's status: INCOMPLETE on failure, EXPORT_READY once delivery
+is resolved, RUN SUCCESS only after the existing QA/download flow also completes.
+Saved and queued do not count as success. A resolved asset must match this run's
+actual project/latest saved version/range; an older identical-state cache bound
+to another project/version cannot be declared a successful export for this run.
+Summary output and render-summary retain exportStatus. Default delivery remains
+on Suno; `--download` is still required to persist a final product.
+
+On 2026-10-07, a live read-only resume verified the failed run's project latest
+version and full timeline, made zero writes, and retained its two IDs. It still
+ended INCOMPLETE/TIMEOUT with unavailable metadata/delivery. Separately, the known
+24-second `77340a65-9eb7-4ae6-8ffd-a9c63c575641` export was freshly verified complete,
+correctly bound, present in the account Library, and resolved by official delivery
+without UI Export. That short control does not prove the failed 182-second run ready.
+
 The production orchestrator records an acknowledged render ID before further
 polling. States are SUBMITTED → QUEUED → WAITING_FOR_METADATA →
 WAITING_FOR_DELIVERY → READY, or TIMEOUT / FAILED. HTTP 404 is eventual

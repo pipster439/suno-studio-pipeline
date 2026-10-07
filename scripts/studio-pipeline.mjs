@@ -19,15 +19,15 @@ import {qualityFromDelivery,saveDeliveryAsset} from '../suno/audio/remote-qa.mjs
 import { analyzeBoundaries, writeAnalysis, qualityGate, silentGaps, classifyABC, windowMetrics } from '../suno/audio/boundaries.mjs';
 import { buildTimeline, timelineReport, semanticDiff, chooseHandleStrategy } from '../suno/audio/timeline.mjs';
 import { boundedMap, uploadSlice, resumableSlice, retry429 } from '../suno/audio/upload.mjs';
-import { rawWireState, deserializeEditorState, serializeProjectState, prepareRenderTransformedState, inspectEditorState } from '../suno/studio/state-boundaries.mjs';
+import { rawWireState, deserializeEditorState, serializeProjectState } from '../suno/studio/state-boundaries.mjs';
 import { serializeAudioProjectState, deserializeAudioProjectState } from '../suno/studio/clip-pipeline.mjs';
-import { transformRenderState, deriveDownbeats } from '../suno/studio/render-pipeline.mjs';
 import { resolveStudioProfile, compareProfileReadback } from '../suno/audio/postprocessing-profile.mjs';
 import { deriveLocalInverse, preprocessInverse } from '../suno/audio/inverse-profile.mjs';
 import { verifyTransformFile } from '../suno/audio/transform-verification.mjs';
 import { reconcileCachedRender } from '../suno/audio/render-reconciliation.mjs';
 import { runPostprocessMatrix } from '../suno/audio/postprocess-matrix.mjs';
 import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery } from '../suno/audio/render-lifecycle.mjs';
+import { prepareFullSongExport, describeExportRequest, exportCompletionStatus, requireExportReady } from '../suno/audio/studio-export.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pause = ms => new Promise(r => setTimeout(r, ms));
 const readJson = async (file, fallback) => { try { return JSON.parse(await readFile(file, 'utf8')); } catch (e) { if (e.code === 'ENOENT' && fallback !== undefined) return fallback; throw e; } };
@@ -110,7 +110,7 @@ export async function runPipeline(requested, deps = {}) {
   await mkdir(work, { recursive: true });
   const lockPath = join(work, '.pipeline.lock'); const lock = await open(lockPath, 'wx').catch(() => { throw Error('Run is already locked; do not run two resumes concurrently. Remove a stale lock only after checking its owning process.'); });
   await lock.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })); await lock.close();
-  let app, logQueue = Promise.resolve();
+  let app, logQueue = Promise.resolve(), productionExportStatus = null;
   const log = async data => { const entry = privacy.sanitize({ time: new Date().toISOString(), ...data });
     logQueue = logQueue.then(() => writeFile(join(work, 'run.log'), JSON.stringify(entry) + '\n', { flag: 'a' })); await logQueue;
     if (requested['json-log'] || entry.event==='QUALITY WARNING') console.log(JSON.stringify(entry));
@@ -214,8 +214,10 @@ export async function runPipeline(requested, deps = {}) {
     let bridge = deps.bridge, client = deps.client;
     if(!bridge){const connected=await connectPipelineBridge(config,log);bridge=connected.bridge;app=connected.app;}
     const observedBridge = { call: async (...args) => {
+      const exportRequest = args[0]?.method === 'POST' && args[0]?.path === '/api/studio/render-state' ? describeExportRequest(args[0]) : null;
+      if(exportRequest){await durableJson(join(work,'last-render-transport-request.json'),{...exportRequest,evidence:'DISPATCH_STARTED',observedAt:new Date().toISOString()});await log({event:'studio_export_request',...exportRequest});}
       const response = await bridge.call(...args);
-      if(args[0]?.method === 'POST' && args[0]?.path === '/api/studio/render-state') await durableJson(join(work,'last-render-transport-response.json'),privacy.sanitize({requestBinding:{projectId:args[0].body?.studio_project_id,versionId:args[0].body?.studio_project_version_id,startBeats:args[0].body?.start_beats,endBeats:args[0].body?.end_beats},response}));
+      if(exportRequest){await durableJson(join(work,'last-render-transport-response.json'),privacy.sanitize({requestBinding:{projectId:exportRequest.projectId,versionId:exportRequest.versionId,startBeats:exportRequest.start_beats,endBeats:exportRequest.end_beats},requestSummary:exportRequest,response}));await log({event:'studio_export_ack',endpoint:exportRequest.endpoint,responseStatus:response.status,renderId:response.result?.id,renderStatus:response.result?.status,projectId:exportRequest.projectId,versionId:exportRequest.versionId});}
       return response;
     }};
     client ??= new StudioClient(observedBridge, { allow_verified_studio_writes: true });
@@ -285,8 +287,13 @@ export async function runPipeline(requested, deps = {}) {
       if (readbackDiff.changes.length || JSON.stringify(sourceIds(wire))!==JSON.stringify(sourceIds(readback.state))) throw Error('Save readback changed playback semantics/source ids; inspect readback diff');
       phaseTimings.createSaveMs=performance.now()-createSaveStarted;job.timings.createSaveMs=(job.timings.createSaveMs??0)+phaseTimings.createSaveMs;
       const renderWaitStarted=performance.now();
-      const endBeats = timeline.expectedTimelineSeconds * config.bps; // Never ceil: that adds an audible tail.
-      const renderTiming = transformRenderState(inspectEditorState(editor)).timing;
+      // Use the verified saved version and its full arrangement end, rather than
+      // source/PCM duration or a fresh local reconstruction of the render state.
+      const fullExport = prepareFullSongExport(readback,{projectId:job.projectId,versionId:job.versionId,title});
+      const endBeats = fullExport.endBeats;
+      const requestSummary = describeExportRequest(fullExport.preview);
+      await durableJson(join(dir,'export-request.json'),{...requestSummary,evidence:'PREPARED_FROM_VERIFIED_READBACK'});
+      await log({event:'studio_export_binding',mode,...requestSummary});
       async function reconcile(){
         const captured=await readJson(join(work,'last-render-transport-response.json'),null);
         const proven=await reconcileCachedRender(client,bridge,wire,{projectId:job.projectId,versionId:job.versionId,startBeats:0,endBeats},captured);
@@ -305,6 +312,12 @@ export async function runPipeline(requested, deps = {}) {
         if(snapshotBinding)renderSnapshots.push({clip,binding:snapshotBinding,observedAt:(await stat(path)).mtime.toISOString()});
       }
       restoreRenderJobs(job,renderSnapshots);await persistJobs();
+      const checkpointExport = async complete => {
+        job.exportStatus=exportCompletionStatus(job,expectedBinding,complete);
+        await persistJobs();await durableJson(join(dir,'export-status.json'),job.exportStatus);
+        if(mode.startsWith('PRODUCTION')&&!options.calibration){productionExportStatus=job.exportStatus;await durableJson(join(work,'run-status.json'),{status:job.exportStatus.runSuccess?'EXPORT_READY':'INCOMPLETE',...job.exportStatus});}
+      };
+      await checkpointExport();
       if(job.phase==='render_submitting'&&!job.renderClipId){
         const captured=await readJson(join(work,'last-render-transport-response.json'),null),ack=recoverRenderAcknowledgement(captured,expectedBinding);
         if(ack){rememberRenderSubmission(job,ack,expectedBinding);await persistJobs();await durableJson(join(dir,'render-response.json'),privacy.sanitize(ack));await log({event:'render_submitted',mode,id:ack.id,recoveredAcknowledgement:true});}
@@ -312,13 +325,12 @@ export async function runPipeline(requested, deps = {}) {
         else throw Error(`${mode}: remote outcome unknown at render_submitting; reconcile jobs.json binding before resume`);
       }
       if (!job.renderClipId) {
-        let submitted;try{submitted = await submit(job, 'render_submitting', 'saved', () => client.render_project({ title, project_id: job.projectId, studio_project_id: job.projectId, studio_project_version_id: job.versionId,
-          web_client_pathname: '/studio', lyrics: '', state: prepareRenderTransformedState(editor, transformRenderState, serializeAudioProjectState),
-          start_beats: 0, end_beats: endBeats, downbeats: deriveDownbeats(renderTiming, 0, endBeats), export_mode: 'fullsong_export' }));}catch(e){if(e.status===200&&/queued render response\/range\/project\/version relation mismatch/.test(e.message)){await reconcile();submitted={id:job.renderClipId,reconciled:true};}else throw e;}
+        let submitted;try{submitted = await submit(job, 'render_submitting', 'saved', () => client.render_project(fullExport.input));}catch(e){if(e.status===200&&/queued render response\/range\/project\/version relation mismatch/.test(e.message)){await reconcile();submitted={id:job.renderClipId,reconciled:true};}else throw e;}
         rememberRenderSubmission(job,submitted,{...expectedBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId});await persistJobs();
         await log({event:'render_submitted',mode,id:submitted.id,message:`id=${submitted.id}`});
         if(!submitted.reconciled)await durableJson(join(dir, 'render-response.json'), privacy.sanitize(submitted));
       }
+      await checkpointExport();
       const resolved=await resolveRenderDelivery(job,{
         ...deps.renderLifecycle,bridge,binding:{...actualBinding,projectId:job.renderBinding?.renderProjectId??job.projectId,versionId:job.renderBinding?.renderVersionId??job.versionId},snapshots:renderSnapshots,persist:persistJobs,
         timeoutMs:config['render-timeout-seconds']?config['render-timeout-seconds']*1000:undefined,
@@ -327,6 +339,8 @@ export async function runPipeline(requested, deps = {}) {
         observe:async(kind,value)=>{if(kind==='complete')await durableJson(join(dir,'render-complete.json'),privacy.sanitize(value));if(kind==='delivery')await durableJson(join(dir,'download-response.json'),privacy.sanitize(value));}
       });
       const {complete,deliveryURL,deliverySource}=resolved;
+      await checkpointExport(complete);
+      requireExportReady(job.exportStatus);
       const selectedRenderBinding={...(job.renderBinding??{}),renderClipId:job.renderClipId,renderProjectId:complete.metadata.studio_project_id,renderVersionId:complete.metadata.studio_project_version_id};
       phaseTimings.renderWaitMs=performance.now()-renderWaitStarted;job.timings.renderWaitMs=(job.timings.renderWaitMs??0)+phaseTimings.renderWaitMs;
       const metadata=complete.metadata;
@@ -360,7 +374,7 @@ export async function runPipeline(requested, deps = {}) {
       }
       const {analysis,gate}=qa;phaseTimings.qualityProbeMs=qualityReused?0:performance.now()-qualityStarted;phaseTimings.qualityReused=qualityReused;job.timings.qualityProbeMs=qa.qualitySummary.qualityProbeMs;
       for(const warning of gate.warnings)await log({event:'QUALITY WARNING',mode,...warning});
-      const summary={mode,renderBinding:selectedRenderBinding,studioProfileHash:studioProfile.hash,transformVerification,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),deliverySource,outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
+      const summary={mode,exportStatus:job.exportStatus,renderBinding:selectedRenderBinding,studioProfileHash:studioProfile.hash,transformVerification,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),deliverySource,outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
       if(config.download&&!options.calibration&&mode.startsWith('PRODUCTION')){
         const downloadStarted=performance.now();
         const output=resolve(config.output??join(work,basename(config.input,extname(config.input))+'-studio-render.m4a'));
@@ -542,6 +556,7 @@ export async function runPipeline(requested, deps = {}) {
       }
     }
     const production = await render(productionMode, uploaded, config['studio-transpose'], undefined, strategy);
+    requireExportReady(production.summary.exportStatus);
     await mkdir(join(work, 'diagnostics'), { recursive: true });
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.json'), join(work, 'diagnostics', 'boundaries.json'));
     await copyFile(join(work, productionMode, 'diagnostics', 'boundaries.csv'), join(work, 'diagnostics', 'boundaries.csv'));
@@ -550,7 +565,7 @@ export async function runPipeline(requested, deps = {}) {
     const result={work,studioProfile,localInverse,...production.summary,preprocessedDuration:pcm.frames/pcm.sampleRate,chunkStrategy:autoChunk?'AUTO_CHUNK':'FIXED_SECONDS',clipCount:uploaded.length,internalBoundaryCount:uploaded.length-1,chunkSelection:autoChunk?chunkSelection:undefined,output:production.summary.output??null,outputFile:config.download?production.summary.output:null,strategy,preRollMs:strategy==='preroll'?config['preroll-ms']:0,postRollMs:strategy==='preroll'?config['postroll-ms']:0,abc:abc?.classification??'NOT_RUN',calibration:{status:calibration?.status??'LEGACY_DIAGNOSTIC',cacheHit:!!calibration?.cacheHit,candidatesTested:candidatesTestedThisRun,historicalCandidates:calibration?.testedCandidates?.length??0,sourceFingerprint:fingerprint.sourceFingerprint,region:calibration?.region},quality:production.gate.status,performance:timings,downloaded:!!config.download};
     await durableJson(join(work,'summary.json'),privacy.sanitize(result));
     await durableJson(join(work,'studio-summary.json'),{projectId:result.projectId,versionId:result.versionId,strategy:result.strategy,preRollMs:result.preRollMs,postRollMs:result.postRollMs,preprocessedDuration:result.preprocessedDuration,chunkStrategy:result.chunkStrategy,clipCount:result.clipCount,internalBoundaryCount:result.internalBoundaryCount});
-    await durableJson(join(work,'render-summary.json'),{renderedClipId:result.renderClipId,renderedAudioURL:result.renderedAudioURL,deliverySource:result.deliverySource,downloaded:result.downloaded,output:result.output});
+    await durableJson(join(work,'render-summary.json'),{renderedClipId:result.renderClipId,renderedAudioURL:result.renderedAudioURL,deliverySource:result.deliverySource,exportStatus:result.exportStatus,downloaded:result.downloaded,output:result.output});
     await durableJson(join(work,'quality-summary.json'),privacy.sanitize(production.qualitySummary));
     if (!config['keep-workdir'] && !config.diagnose) {
       // Only task-owned large intermediates; checkpoint hashes/IDs remain for resume.
@@ -558,8 +573,9 @@ export async function runPipeline(requested, deps = {}) {
       await rm(sliceDir, { recursive: true, force: true }); await unlink(processed);
       for(const mode of Object.keys(jobs).filter(m=>/^[A-Z0-9_a-f-]+$/.test(m))){const qaDir=resolve(work,mode,'qa');if(!qaDir.startsWith(work+'\\')&&!qaDir.startsWith(work+'/'))throw Error('QA cleanup path escaped run');await rm(qaDir,{recursive:true,force:true});}
     }
-    await log({ event: 'run_complete', message: config.download?result.output:'Final asset remains on Suno; no product download', strategy, quality: result.quality }); return result;
-  } catch (e) { await log({ event: 'run_failed', message: e.message, kind: e.kind, status: e.status, workspaceRetained: true }); throw e; }
+    await durableJson(join(work,'run-status.json'),{status:'RUN SUCCESS',...requireExportReady(result.exportStatus),quality:result.quality});
+    await log({ event: 'run_complete', message: config.download?result.output:'RUN SUCCESS: final Studio export ready on Suno; no product download', strategy, quality: result.quality,exportStatus:result.exportStatus }); return result;
+  } catch (e) { await durableJson(join(work,'run-status.json'),{status:'INCOMPLETE',...(productionExportStatus??{}),runSuccess:false,error:{message:e.message,kind:e.kind,status:e.status}});await log({ event: 'run_failed', message: e.message, kind: e.kind, status: e.status, workspaceRetained: true }); throw e; }
   finally { await app?.close(); await logQueue; await unlink(lockPath); }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
