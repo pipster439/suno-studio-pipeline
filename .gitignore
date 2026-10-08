@@ -7,4 +7,12 @@ userscripts/reference-recorder.user.js
 userscripts/studio-validation.user.js
 *.log
 .env
+.env.*
+!.env.example
 runs/
+
+# Local task deliverables; preserve on disk without publishing them as source.
+/SUNO_*.zip
+/SUNO_*.zip.sha256
+/SUNO_*.patch
+/SUNO_*_REPORT.md
