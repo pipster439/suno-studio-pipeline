@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // One public orchestration entry; authentication, state and render remain SDK-owned.
 import { readFile, writeFile, mkdir, rm, stat, copyFile, open, unlink } from 'node:fs/promises';
-import { resolve, join, dirname, extname, basename } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { createController } from '../suno/server.mjs';
@@ -27,7 +27,7 @@ import { verifyTransformFile } from '../suno/audio/transform-verification.mjs';
 import { reconcileCachedRender } from '../suno/audio/render-reconciliation.mjs';
 import { runPostprocessMatrix } from '../suno/audio/postprocess-matrix.mjs';
 import { restoreRenderJobs, rememberRenderSubmission, recoverRenderAcknowledgement, resolveRenderDelivery, selectAcknowledgedRender, resolveOptionalDelivery } from '../suno/audio/render-lifecycle.mjs';
-import {songPageURL,probeSongPage,openSongPage,finalOutput} from '../suno/audio/final-result.mjs';
+import {songPageURL,probeSongPage,openSongPage,finalOutput,sourceTitle,pipelineTitle} from '../suno/audio/final-result.mjs';
 import {resumeRestrictedResult,verifiedResumeCompletion} from '../suno/audio/resume-result.mjs';
 import {resolveLibraryExport} from '../suno/audio/library-export.mjs';
 import { exportModeFor } from '../suno/audio/export-strategy.mjs';
@@ -285,7 +285,7 @@ export async function runPipeline(requested, deps = {}) {
     async function render(mode, slices, transpose, probeTimes, strategy = 'exact', options={}) {
       const dir = join(work, mode); await mkdir(dir, { recursive: true }); jobs[mode] ??= {};
       const job = jobs[mode];job.calibration=!!options.calibration;job.timings??={};const phaseTimings={},createSaveStarted=performance.now();
-      const title = `${options.calibration?'Calibration':'Studio'} ${mode} ${work.split(/[\\/]/).pop()}`;
+      const title = pipelineTitle(config.input,mode,work.split(/[\\/]/).pop(),options);
       if (['create_submitting','save_submitting'].includes(job.phase)) throw Error(`${mode}: remote outcome unknown at ${job.phase}; reconcile jobs.json binding before resume`);
       const plannedWire=buildTimeline(template,slices,{transpose,title,bps:config.bps,strategy,profile:studioProfile});
       if(job.wire && (semanticDiff(job.wire,plannedWire).changes.length || JSON.stringify(job.wire.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id)))!==JSON.stringify(plannedWire.tracks.flatMap(t=>t.clips.map(c=>c.asset?.id))))) throw Error(`${mode}: checkpoint playback/source mapping differs from requested arrangement`);
@@ -440,7 +440,7 @@ export async function runPipeline(requested, deps = {}) {
       const summary={mode,finalSongURL:job.exportStatus.finalSongURL,libraryStatus:job.exportStatus.libraryStatus,deliveryStatus:job.exportStatus.deliveryStatus,qualityResult:qa.gate.status==='PASS'?'PASS':qa.gate.status==='UNAVAILABLE'?'UNAVAILABLE':'WARN',qualityReason:qa.qualitySummary.qualityReason??null,exportStatus:job.exportStatus,renderBinding:selectedRenderBinding,studioProfileHash:studioProfile.hash,transformVerification,calibration:!!options.calibration,projectId:job.projectId,versionId:job.versionId,renderClipId:job.renderClipId,renderedClipId:job.renderClipId,renderedAudioURL:privacy.sanitize(deliveryURL),deliverySource,outputFile:qa.decodedFile??null,boundaryCount:timeline.boundariesSeconds.length,analysisProbeCount:analysis.boundaryCount,detectedAnomalyCount:analysis.detectedAnomalyCount,averageBoundaryScore:analysis.averageBoundaryScore,maxBoundaryScore:analysis.maxBoundaryScore,duration:analysis.duration,expectedDuration:timeline.expectedTimelineSeconds,classification:gate.status,strategy,transpose,endBeats,remoteProbeMode:qa.qualitySummary.remoteProbeMode,qualitySummary:privacy.sanitize(qa.qualitySummary),timings:phaseTimings};
       if(config.download&&deliveryURL&&!options.calibration&&mode.startsWith('PRODUCTION')){
         const downloadStarted=performance.now();
-        const output=resolve(config.output??join(work,basename(config.input,extname(config.input))+'-studio-render.m4a'));
+        const output=resolve(config.output??join(work,sourceTitle(config.input)+'.m4a'));
         const delivered=await saveDeliveryAsset(deliveryURL,output,qa.deliveryFile,{download:deps.downloadAsset,deliveryInfo:qa.qualitySummary.deliveryInfo});summary.output=delivered.output;summary.delivery=delivered;
         await durableJson(join(work,'delivery-summary.json'),delivered);
         phaseTimings.downloadMs=performance.now()-downloadStarted;

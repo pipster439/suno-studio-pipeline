@@ -1,4 +1,14 @@
 import {spawn} from 'node:child_process';
+import {posix} from 'node:path';
+
+export function sourceTitle(input) {
+  const filename=posix.basename(input.replaceAll('\\','/'));
+  return posix.basename(filename,posix.extname(filename));
+}
+export function pipelineTitle(input,mode,runId,{calibration=false}={}) {
+  if(!calibration && ['PRODUCTION','PRODUCTION_PREROLL'].includes(mode))return sourceTitle(input);
+  return `${calibration?'Calibration':'Studio'} ${mode} ${runId}`;
+}
 
 // Observed official Studio saved-song modal: href `/song/${render.id}`.
 // Source: module 748387 consumer, captures/official-write/20261005/3g9-3c-u44c0o.js.

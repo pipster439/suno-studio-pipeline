@@ -149,7 +149,9 @@ node scripts/studio-pipeline.mjs song.mp3 --dry-run
 ```
 
 `--download` saves the official native M4A delivery as
-`runs/<run-id>/song-studio-render.m4a`. `--output PATH` requires `--download`.
+`runs/<run-id>/song.m4a`. The production project and final Suno song use the
+input filename without its extension as their title. Diagnostic/calibration
+projects keep distinct run labels. `--output PATH` requires `--download`.
 An explicit .wav/.mp3/.flac output is a conversion; delivery-summary.json records
 both formats, transcoded=true and the file hash. Decoding compressed delivery to WAV does not
 establish a lossless source. If direct media is restricted, the completed render

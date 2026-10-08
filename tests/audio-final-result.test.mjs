@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {songPageURL,probeSongPage,openSongPage,finalOutput} from '../suno/audio/final-result.mjs';
+import {songPageURL,probeSongPage,openSongPage,finalOutput,sourceTitle,pipelineTitle} from '../suno/audio/final-result.mjs';
 import {exportCompletionStatus,requireExportReady} from '../suno/audio/studio-export.mjs';
 import {resolveOptionalDelivery} from '../suno/audio/render-lifecycle.mjs';
 import {unavailableQuality} from '../suno/audio/quality.mjs';
@@ -9,6 +9,17 @@ import {verifiedResumeCompletion} from '../suno/audio/resume-result.mjs';
 const binding={projectId:'p',versionId:'v',startBeats:0,endBeats:356};
 const complete={id:'render',status:'complete',metadata:{studio_project_id:'p',studio_project_version_id:'v',studio_project_start_beats:0,studio_project_end_beats:356}};
 const job=()=>({projectId:'p',versionId:'v',renderClipId:'render',renderJobs:[{id:'render'}],songPage:{renderId:'render',url:songPageURL('render'),accessible:true},libraryExport:{renderId:'render',membershipDeterminate:true,libraryVisible:false},deliveryRenderId:'render',deliveryStatus:'RESTRICTED'});
+
+test('production uses original Unicode source name; diagnostics retain separate run labels',()=>{
+  for(const input of ['C:\\Users\\ROG\\Downloads\\LOSER-米津玄師-BOOTLEG.mp3','/music/LOSER-米津玄師-BOOTLEG.mp3']) {
+    assert.equal(sourceTitle(input),'LOSER-米津玄師-BOOTLEG');
+    for(const mode of ['PRODUCTION','PRODUCTION_PREROLL'])assert.equal(pipelineTitle(input,mode,'run-123'),'LOSER-米津玄師-BOOTLEG');
+    assert.equal(pipelineTitle(input,'PRODUCTION_EXACT_PROBE','run-123',{calibration:true}),'Calibration PRODUCTION_EXACT_PROBE run-123');
+    assert.equal(pipelineTitle(input,'SLICED_NEG8_TRANSPOSE','run-123'),'Studio SLICED_NEG8_TRANSPOSE run-123');
+  }
+  assert.equal(sourceTitle('song.live.v2.wav'),'song.live.v2');
+  assert.equal(sourceTitle('song'),'song');
+});
 
 test('controller-independent resume requires both acknowledged binding and verified complete readback',()=>{
   const value=job(),record=value.renderJobs[0];record.binding=binding;record.materialization={status:'complete',binding};

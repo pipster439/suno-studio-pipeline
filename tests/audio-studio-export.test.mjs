@@ -68,10 +68,11 @@ test('production dispatches real SDK POST after readback, uses latest version/fu
     const bridge={call:async q=>{
       calls.push({method:q.method,path:q.path});
       if(q.path.startsWith('/api/studio/create-project'))return{status:200,result:{id:'project',title:'Export',created_at:'2026-10-07T00:00:00Z',updated_at:'2026-10-07T00:00:00Z',archived:false,major_version:2}};
-      if(q.path==='/api/studio/save-project'){state=q.body.state;return{status:200,result:{id:'project',version_id:'latest-save-version'}};}
+      if(q.path==='/api/studio/save-project'){assert.equal(q.body.title,'input');state=q.body.state;return{status:200,result:{id:'project',version_id:'latest-save-version'}};}
       if(q.path==='/api/studio/project/version/latest-save-version')return{status:200,result:saved(state)};
       if(q.path==='/api/studio/render-state'){
         assert.ok(calls.some(c=>c.path==='/api/studio/project/version/latest-save-version'));
+        assert.equal(q.body.title,'input');
         renderBody=q.body;assert.equal(renderBody.end_beats,24*1.95);assert.equal(renderBody.start_beats,0);
         metadata={type:'studio_export',model_badges:{songrow:{display_name:'STUDIO'}},studio_project_id:'project',studio_project_version_id:'latest-save-version',studio_project_start_beats:0,studio_project_end_beats:renderBody.end_beats,duration:24};
         return{status:200,result:{id:'render',status:'queued',entity_type:'song_schema',audio_url:'',metadata}};
